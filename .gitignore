@@ -1,0 +1,168 @@
+# ==================== RUST ====================
+# Compiled files
+target/
+**/*.rs.bk
+*.pdb
+
+# Cargo lock (keep for binary, ignore for library)
+# Cargo.lock  # Uncomment si tu veux l'ignorer
+
+# Cargo build artifacts
+.cargo/
+Cargo.lock
+
+# ==================== NOIR ====================
+# Noir circuits artifacts
+circuits/target/
+circuits/proofs/
+*.acir
+*.proof
+*.vk
+*.pk
+proving_key
+verification_key
+
+# ==================== FOUNDRY ====================
+# Foundry artifacts
+out/
+cache/
+cache_hardhat/
+broadcast/
+deployments/
+
+# Forge
+forge-cache/
+*.log
+
+# ==================== FHE ====================
+# TFHE keys (NEVER commit keys)
+*.fhe_key
+*.fhe_pk
+*.fhe_sk
+fhe_keys/
+
+# Encrypted data files
+*.enc
+*.encrypted
+
+# ==================== ENVIRONMENT ====================
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Secrets
+secrets/
+*.key
+*.pem
+*.secret
+
+# ==================== IDE ====================
+# VSCode
+.vscode/
+*.code-workspace
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# CLion
+cmake-build-*/
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+
+# ==================== OS ====================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+.directory
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ==================== LAB ====================
+# Experimental code outputs
+lab/output/
+lab/results/
+lab/benchmarks/*.csv
+lab/**/*.bin
+
+# Temporary files
+lab/tmp/
+lab/*.tmp
+
+# ==================== LOGS & METRICS ====================
+# Application logs
+*.log
+logs/
+
+# Benchmarks
+benchmarks/results/
+*.benchmark
+
+# Profiling
+*.prof
+*.perf
+
+# ==================== DOCUMENTATION ====================
+# Generated docs
+target/doc/
+
+# Book artifacts
+book/
+
+# ==================== DATABASE ====================
+# SQLite
+*.db
+*.sqlite
+*.sqlite3
+
+# ==================== NODE (si frontend futur) ====================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ==================== TESTING ====================
+# Test artifacts
+.coverage
+coverage/
+*.coverprofile
+
+# Integration test data
+tests/fixtures/generated/
+
+# ==================== BUILD ====================
+# Release builds
+dist/
+build/
+
+# ==================== CUSTOM METIS ====================
+# Generated proofs
+proofs/*.proof
+
+# Encrypted portfolios
+portfolios/*.enc
+
+# Delegation signatures
+delegations/*.sig
+
+# Contract addresses (post-deployment)
+deployments/*.json
+
+# Benchmark results
+benchmarks/*.txt
+benchmarks/*.json
