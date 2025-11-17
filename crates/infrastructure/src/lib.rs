@@ -4,3 +4,4 @@ pub mod fhe;
 pub mod mempool;
 pub mod storage;
 pub mod zkp;
+pub mod observability;
