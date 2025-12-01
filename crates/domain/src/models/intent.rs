@@ -8,12 +8,22 @@ pub enum Asset {
     Sol,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Protocol {
-    Aave,
+pub enum DexType {
     Uniswap,
-    Compound,
     Sushiswap,
     Balancer,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LendingType {
+    Aave,
+    Compound,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Protocol {
+    Dex(DexType),
+    Lending(LendingType),
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Intent {
@@ -21,21 +31,21 @@ pub enum Intent {
         from_asset: Asset,
         to_asset: Asset,
         amount: u64,
-        protocol: Protocol,
+        protocol: DexType,
     },
     Stake {
         asset: Asset,
         amount: u64,
-        protocol: Protocol,
+        protocol: LendingType,
     },
     Borrow {
         asset: Asset,
         amount: u64,
-        protocol: Protocol,
+        protocol: LendingType,
     },
     Lend {
         asset: Asset,
         amount: u64,
-        protocol: Protocol,
+        protocol: LendingType,
     },
 }
