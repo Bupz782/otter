@@ -1,6 +1,6 @@
 pub mod intent;
-pub use intent::{Asset, DexType, LendingType, Protocol, Intent};
+pub use intent::{Asset, DexType, Intent, LendingType, Protocol};
 pub mod condition;
-pub use condition::{Metric, Comparator, Condition};
+pub use condition::{Comparator, Condition, Metric};
 pub mod execution_plan;
-pub use execution_plan::{StepAction, Step, ExecutionPlan, Address};
+pub use execution_plan::{Address, ExecutionPlan, Step, StepAction};

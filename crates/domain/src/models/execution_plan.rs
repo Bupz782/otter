@@ -5,7 +5,7 @@ pub enum StepAction {
     Transfer,
 }
 
-pub type Address = String;  // Pour l'instant, on affinera plus tard
+pub type Address = String; // Pour l'instant, on affinera plus tard
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Step {
