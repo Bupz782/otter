@@ -1,4 +1,6 @@
-use domain::models::{Asset, Comparator, Condition, DexType, Intent, LendingType, Metric};
+use domain::models::{
+    Asset, Comparator, Condition, ConditionalIntent, DexType, Intent, LendingType, Metric,
+};
 use regex::Regex;
 
 pub struct RegexParser;
@@ -177,6 +179,21 @@ impl RegexParser {
         }
         None
     }
+    pub fn parse_conditional_intent(text: &str) -> Option<ConditionalIntent> {
+        let mut parts = text.splitn(2, " if ");
+        let intent_part = parts.next()?;
+        let condition_part = parts.next();
+        let intent = Self::parse_lend(intent_part)
+            .or_else(|| Self::parse_borrow(intent_part))
+            .or_else(|| Self::parse_stake(intent_part))
+            .or_else(|| Self::parse_swap(intent_part))?;
+        let condition = if let Some(cond_text) = condition_part {
+            Self::parse_condition(&format!("if {}", cond_text))
+        } else {
+            None
+        };
+        Some(ConditionalIntent { intent, condition })
+    }
 }
 
 #[cfg(test)]
@@ -241,5 +258,21 @@ mod tests {
     fn test_parse_condition_gas() {
         let result = RegexParser::parse_condition("if gas <= 50");
         assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_parse_conditional_lend() {
+        let result = RegexParser::parse_conditional_intent("Lend 1000 USDC on Aave if yield > 5");
+        assert!(result.is_some());
+        let ci = result.unwrap();
+        assert!(ci.condition.is_some());
+    }
+
+    #[test]
+    fn test_parse_unconditional_lend() {
+        let result = RegexParser::parse_conditional_intent("Lend 1000 USDC on Aave");
+        assert!(result.is_some());
+        let ci = result.unwrap();
+        assert!(ci.condition.is_none());
     }
 }
