@@ -1,5 +1,5 @@
 pub mod intent;
-pub use intent::{Asset, DexType, Intent, LendingType, Protocol};
+pub use intent::{Asset, ConditionalIntent, DexType, Intent, LendingType};
 pub mod condition;
 pub use condition::{Comparator, Condition, Metric};
 pub mod execution_plan;

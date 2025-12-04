@@ -1,3 +1,5 @@
+use crate::models::condition::Condition;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Asset {
     Eth,
@@ -25,6 +27,13 @@ pub enum Protocol {
     Dex(DexType),
     Lending(LendingType),
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConditionalIntent {
+    pub intent: Intent,
+    pub condition: Option<Condition>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Intent {
     Swap {
