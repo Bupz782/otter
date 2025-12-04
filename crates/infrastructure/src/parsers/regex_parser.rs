@@ -1,4 +1,4 @@
-use domain::models::{Asset, DexType, Intent, LendingType};
+use domain::models::{Asset, Comparator, Condition, DexType, Intent, LendingType, Metric};
 use regex::Regex;
 
 pub struct RegexParser;
@@ -144,6 +144,39 @@ impl RegexParser {
         }
         None
     }
+    pub fn parse_condition(text: &str) -> Option<Condition> {
+        let re =
+            Regex::new(r"(?i)if\s+(?P<metric>\w+)\s+(?P<comparator>[><=]+)\s+(?P<value>[\d,]+)")
+                .unwrap();
+
+        if let Some(caps) = re.captures(text) {
+            let value_str = caps.name("value")?.as_str().replace(",", "");
+            let value: u64 = value_str.parse().ok()?;
+            let metric_str = caps.name("metric")?.as_str().to_lowercase();
+            let comparator_str = caps.name("comparator")?.as_str();
+            let metric = match metric_str.as_str() {
+                "price" => Metric::Price,
+                "volume" => Metric::Volume,
+                "gascost" | "gas_cost" | "gas" => Metric::GasCost,
+                "yield" => Metric::Yield,
+                _ => return None,
+            };
+            let comparator = match comparator_str {
+                ">" => Comparator::GreaterThan,
+                "<" => Comparator::LessThan,
+                "=" => Comparator::EqualTo,
+                "<=" => Comparator::LessThanOrEqualTo,
+                ">=" => Comparator::GreaterThanOrEqualTo,
+                _ => return None,
+            };
+            return Some(Condition::Comparison {
+                metric,
+                comparator,
+                value,
+            });
+        }
+        None
+    }
 }
 
 #[cfg(test)]
@@ -195,6 +228,18 @@ mod tests {
     #[test]
     fn test_parse_stake_case_insensitive() {
         let result = RegexParser::parse_stake("stake 1,000 usdc on aave");
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_parse_condition_yield() {
+        let result = RegexParser::parse_condition("if yield > 5");
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_parse_condition_gas() {
+        let result = RegexParser::parse_condition("if gas <= 50");
         assert!(result.is_some());
     }
 }
