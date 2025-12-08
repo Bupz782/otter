@@ -19,6 +19,6 @@ pub enum Condition {
     Comparison {
         metric: Metric,
         comparator: Comparator,
-        value: u64,
+        value: u128,
     },
 }

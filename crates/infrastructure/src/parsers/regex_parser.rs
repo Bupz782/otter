@@ -8,12 +8,11 @@ pub struct RegexParser;
 impl RegexParser {
     pub fn parse_lend(text: &str) -> Option<Intent> {
         let re =
-            Regex::new(r"(?i)lend\s+(?P<amount>[\d,]+)\s+(?P<asset>\w+)\s+on\s+(?P<protocol>\w+)")
+            Regex::new(r"(?i)lend\s+(?P<amount>[\d,\.]+)\s+(?P<asset>\w+)\s+on\s+(?P<protocol>\w+)")
                 .unwrap();
 
         if let Some(caps) = re.captures(text) {
             let amount_str = caps.name("amount")?.as_str().replace(",", "");
-            let amount: u64 = amount_str.parse().ok()?;
             let asset_str = caps.name("asset")?.as_str().to_lowercase();
             let protocol_str = caps.name("protocol")?.as_str().to_lowercase();
             let asset = match asset_str.as_str() {
@@ -25,6 +24,7 @@ impl RegexParser {
                 "sol" => Asset::Sol,
                 _ => return None,
             };
+            let amount: u128 = asset.parse_amount(&amount_str)?;
             let protocol = match protocol_str.as_str() {
                 "aave" => LendingType::Aave,
                 "compound" => LendingType::Compound,
@@ -39,12 +39,11 @@ impl RegexParser {
         None
     }
     pub fn parse_swap(text: &str) -> Option<Intent> {
-        let re = Regex::new(r"(?i)swap\s+(?P<amount>[\d,]+)\s+(?P<from_asset>\w+)\s+for\s+(?P<to_asset>\w+)\s+on\s+(?P<protocol>\w+)")
+        let re = Regex::new(r"(?i)swap\s+(?P<amount>[\d,\.]+)\s+(?P<from_asset>\w+)\s+for\s+(?P<to_asset>\w+)\s+on\s+(?P<protocol>\w+)")
             .unwrap();
 
         if let Some(caps) = re.captures(text) {
             let amount_str = caps.name("amount")?.as_str().replace(",", "");
-            let amount: u64 = amount_str.parse().ok()?;
             let from_asset_str = caps.name("from_asset")?.as_str().to_lowercase();
             let to_asset_str = caps.name("to_asset")?.as_str().to_lowercase();
             let protocol_str = caps.name("protocol")?.as_str().to_lowercase();
@@ -57,6 +56,7 @@ impl RegexParser {
                 "sol" => Asset::Sol,
                 _ => return None,
             };
+            let amount: u128 = from_asset.parse_amount(&amount_str)?;
             let to_asset = match to_asset_str.as_str() {
                 "eth" => Asset::Eth,
                 "dai" => Asset::Dai,
@@ -83,13 +83,12 @@ impl RegexParser {
     }
     pub fn parse_borrow(text: &str) -> Option<Intent> {
         let re = Regex::new(
-            r"(?i)borrow\s+(?P<amount>[\d,]+)\s+(?P<asset>\w+)\s+on\s+(?P<protocol>\w+)",
+            r"(?i)borrow\s+(?P<amount>[\d,\.]+)\s+(?P<asset>\w+)\s+on\s+(?P<protocol>\w+)"
         )
         .unwrap();
 
         if let Some(caps) = re.captures(text) {
             let amount_str = caps.name("amount")?.as_str().replace(",", "");
-            let amount: u64 = amount_str.parse().ok()?;
             let asset_str = caps.name("asset")?.as_str().to_lowercase();
             let protocol_str = caps.name("protocol")?.as_str().to_lowercase();
             let asset = match asset_str.as_str() {
@@ -101,6 +100,7 @@ impl RegexParser {
                 "sol" => Asset::Sol,
                 _ => return None,
             };
+            let amount: u128 = asset.parse_amount(&amount_str)?;
             let protocol = match protocol_str.as_str() {
                 "aave" => LendingType::Aave,
                 "compound" => LendingType::Compound,
@@ -116,12 +116,11 @@ impl RegexParser {
     }
     pub fn parse_stake(text: &str) -> Option<Intent> {
         let re =
-            Regex::new(r"(?i)stake\s+(?P<amount>[\d,]+)\s+(?P<asset>\w+)\s+on\s+(?P<protocol>\w+)")
+            Regex::new(r"(?i)stake\s+(?P<amount>[\d,\.]+)\s+(?P<asset>\w+)\s+on\s+(?P<protocol>\w+)")
                 .unwrap();
 
         if let Some(caps) = re.captures(text) {
             let amount_str = caps.name("amount")?.as_str().replace(",", "");
-            let amount: u64 = amount_str.parse().ok()?;
             let asset_str = caps.name("asset")?.as_str().to_lowercase();
             let protocol_str = caps.name("protocol")?.as_str().to_lowercase();
             let asset = match asset_str.as_str() {
@@ -133,6 +132,7 @@ impl RegexParser {
                 "sol" => Asset::Sol,
                 _ => return None,
             };
+            let amount: u128 = asset.parse_amount(&amount_str)?;
             let protocol = match protocol_str.as_str() {
                 "aave" => LendingType::Aave,
                 "compound" => LendingType::Compound,
@@ -153,7 +153,7 @@ impl RegexParser {
 
         if let Some(caps) = re.captures(text) {
             let value_str = caps.name("value")?.as_str().replace(",", "");
-            let value: u64 = value_str.parse().ok()?;
+            let value: u128 = value_str.parse().ok()?;
             let metric_str = caps.name("metric")?.as_str().to_lowercase();
             let comparator_str = caps.name("comparator")?.as_str();
             let metric = match metric_str.as_str() {
