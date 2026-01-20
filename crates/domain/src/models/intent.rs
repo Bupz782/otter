@@ -95,7 +95,7 @@ impl Asset {
             _ => None,
         }
     }
-    pub fn format_amount(&self, amount: u128) -> String {
+    pub fn format_amount(&self, _amount: u128) -> String {
         todo!()
     }
 }
