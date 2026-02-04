@@ -118,6 +118,39 @@ impl LocalLlmClient {
         Ok(IntentOutput::Conditional(output_intent))
     }
 
+    /// Generate text with system prompt, returns raw string (no JSON parsing)
+    pub fn generate_text(&self, prompt: &str, max_tokens: usize) -> Result<String, LlmError> {
+        let loaded = self.loaded_model.as_ref().ok_or(LlmError::ModelNotLoaded)?;
+
+        // Build the prompt with system prompt
+        let full_prompt = self.prompt_builder.build(prompt);
+
+        // Create context
+        let n_ctx = NonZeroU32::new(self.config.n_ctx)
+            .ok_or(LlmError::InvalidConfig("n_ctx must be > 0".to_string()))?;
+        let ctx_params = LlamaContextParams::default().with_n_ctx(Some(n_ctx));
+
+        let mut ctx = loaded
+            .model
+            .new_context(&loaded.backend, ctx_params)
+            .map_err(|e| LlmError::ContextCreation(e.to_string()))?;
+
+        // Tokenize
+        let tokenizer = Tokenizer(&loaded.model);
+        let tokens = tokenizer.tokenize(&full_prompt, true)?;
+
+        // Setup batch
+        let mut batch = LlamaBatch::new(self.config.batch_size, 1);
+        let mut n_cur = tokens.len();
+
+        // Add tokens and initial decode
+        add_tokens_to_batch(&mut batch, &tokens)?;
+        decode_batch(&mut ctx, &mut batch)?;
+
+        // Generate response
+        generate_tokens(&loaded.model, &mut ctx, &mut batch, &mut n_cur, max_tokens)
+    }
+
     /// Generate text with a raw prompt (no system prompt prepended)
     pub fn generate_raw(&self, raw_prompt: &str, max_tokens: usize) -> Result<String, LlmError> {
         let loaded = self.loaded_model.as_ref().ok_or(LlmError::ModelNotLoaded)?;

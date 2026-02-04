@@ -6,7 +6,7 @@ use llama_cpp_2::{
     model::{AddBos, LlamaModel, Special},
     token::LlamaToken,
 };
-use tracing::{debug, info};
+use tracing::debug;
 
 /// Parses LLM response tokens into strings
 pub struct ResponseParser;

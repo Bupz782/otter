@@ -3,6 +3,14 @@ name = "infrastructure"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "chat"
+path = "src/bin/chat.rs"
+
+[[bin]]
+name = "test-llm"
+path = "src/bin/test.rs"
+
 [dependencies]
 tracing = "0.1.41"
 tracing-subscriber = "0.3.20"

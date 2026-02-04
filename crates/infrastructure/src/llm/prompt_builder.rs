@@ -10,21 +10,29 @@ impl PromptBuilder {
         }
     }
 
+    /// Build prompt in ChatML format (for Qwen3, etc.)
+    /// Adds /no_think to disable thinking mode
     pub fn build(&self, user_input: &str) -> String {
         format!(
-            "{}\n\nUser input: {}\n\nAssistant:",
+            "<|im_start|>system\n{}<|im_end|>\n<|im_start|>user\n{} /no_think<|im_end|>\n<|im_start|>assistant\n",
             self.system_prompt, user_input
         )
     }
 
+    /// Build chat prompt in ChatML format
     pub fn build_chat(&self, history: &[ChatMessage]) -> String {
-        let mut prompt = self.system_prompt.clone();
+        let mut prompt = format!("<|im_start|>system\n{}<|im_end|>\n", self.system_prompt);
 
         for msg in history {
-            prompt.push_str(&format!("\n\n{}: {}", msg.role.as_str(), msg.content));
+            let role = match msg.role {
+                MessageRole::System => "system",
+                MessageRole::User => "user",
+                MessageRole::Assistant => "assistant",
+            };
+            prompt.push_str(&format!("<|im_start|>{}\n{}<|im_end|>\n", role, msg.content));
         }
 
-        prompt.push_str("\n\nAssistant:");
+        prompt.push_str("<|im_start|>assistant\n");
         prompt
     }
 
@@ -92,17 +100,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_prompt_builder() {
+    fn test_prompt_builder_chatml() {
         let builder = PromptBuilder::new("You are a DeFi parser.");
         let prompt = builder.build("swap 1 ETH for USDC");
 
+        assert!(prompt.contains("<|im_start|>system"));
         assert!(prompt.contains("You are a DeFi parser."));
-        assert!(prompt.contains("User input: swap 1 ETH for USDC"));
-        assert!(prompt.contains("Assistant:"));
+        assert!(prompt.contains("<|im_start|>user"));
+        assert!(prompt.contains("swap 1 ETH for USDC"));
+        assert!(prompt.contains("<|im_start|>assistant"));
     }
 
     #[test]
-    fn test_chat_messages() {
+    fn test_chat_messages_chatml() {
         let builder = PromptBuilder::new("You are a DeFi parser.");
         let history = vec![
             ChatMessage::user("Hello"),
@@ -111,9 +121,9 @@ mod tests {
         ];
 
         let prompt = builder.build_chat(&history);
-        assert!(prompt.contains("User: Hello"));
-        assert!(prompt.contains("Assistant: Hi there!"));
-        assert!(prompt.contains("User: swap 1 ETH"));
+        assert!(prompt.contains("<|im_start|>user\nHello<|im_end|>"));
+        assert!(prompt.contains("<|im_start|>assistant\nHi there!<|im_end|>"));
+        assert!(prompt.contains("<|im_start|>user\nswap 1 ETH<|im_end|>"));
     }
 
     #[test]
