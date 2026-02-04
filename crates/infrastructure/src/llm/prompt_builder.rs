@@ -29,7 +29,10 @@ impl PromptBuilder {
                 MessageRole::User => "user",
                 MessageRole::Assistant => "assistant",
             };
-            prompt.push_str(&format!("<|im_start|>{}\n{}<|im_end|>\n", role, msg.content));
+            prompt.push_str(&format!(
+                "<|im_start|>{}\n{}<|im_end|>\n",
+                role, msg.content
+            ));
         }
 
         prompt.push_str("<|im_start|>assistant\n");

@@ -23,10 +23,12 @@ where
     }
 
     pub fn insert(&mut self, key: K, value: V) {
-        if self.cache.len() >= self.max_size && !self.cache.contains_key(&key)
-            && let Some(first_key) = self.cache.keys().next().cloned() {
-                self.cache.remove(&first_key);
-            }
+        if self.cache.len() >= self.max_size
+            && !self.cache.contains_key(&key)
+            && let Some(first_key) = self.cache.keys().next().cloned()
+        {
+            self.cache.remove(&first_key);
+        }
         self.cache.insert(key, value);
     }
 

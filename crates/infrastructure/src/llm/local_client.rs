@@ -74,9 +74,10 @@ impl LocalLlmClient {
     pub fn generate(&mut self, prompt: &str, max_tokens: usize) -> Result<IntentOutput, LlmError> {
         // Check cache first if enabled
         if self.use_cache
-            && let Some(cached) = self.cache.get(&prompt.to_string()) {
-                return Ok(IntentOutput::Raw(cached.clone()));
-            }
+            && let Some(cached) = self.cache.get(&prompt.to_string())
+        {
+            return Ok(IntentOutput::Raw(cached.clone()));
+        }
 
         let loaded = self.loaded_model.as_ref().ok_or(LlmError::ModelNotLoaded)?;
 

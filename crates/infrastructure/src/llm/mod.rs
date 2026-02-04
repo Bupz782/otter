@@ -32,7 +32,7 @@ mod prompt_builder;
 mod response_parser;
 
 // Main exports
-pub use cache::{CachedClient, CacheStats, PromptCache, ResponseCache};
+pub use cache::{CacheStats, CachedClient, PromptCache, ResponseCache};
 pub use config::LlmConfig;
 pub use error::LlmError;
 pub use local_client::LocalLlmClient;
