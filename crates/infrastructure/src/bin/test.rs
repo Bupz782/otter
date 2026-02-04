@@ -116,7 +116,7 @@ assisatan: We do not have the capacity for sol & pancake right now
 
     match client.generate(prompt, 100) {
         Ok(response) => {
-            println!("\n📤 Response: {}", response);
+            println!("\n📤 Response: {:?}", response);
         }
         Err(e) => {
             eprintln!("❌ Generation failed: {}", e);
