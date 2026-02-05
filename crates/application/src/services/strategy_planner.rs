@@ -40,9 +40,7 @@ impl StrategyPlanner {
                 asset,
                 amount,
                 protocol,
-            } => {
-                todo!("US-039")
-            }
+            } => self.plan_stake(asset, *amount, protocol)
         }
     }
 
@@ -123,6 +121,43 @@ impl StrategyPlanner {
             DexType::Uniswap => "0xE592427A0AEce92De3Edee1F18E0157C05861564".to_string(),
             DexType::Sushiswap => "0xSUSHI_ROUTER".to_string(),
             DexType::Balancer => "0xBALANCER_ROUTER".to_string(),
+        }
+    }
+
+    fn plan_stake(
+        &self,
+        asset: &Asset,
+        amount: u128,
+        protocol: &LendingType,
+    ) -> Result<ExecutionPlan, PlannerError> {
+        let staking_address = self.get_staking_address(protocol);
+        let protocol_enum = Protocol::Lending(protocol.clone());
+
+        let approve_step = ExecutionStep::Approve {
+            asset: asset.clone(),
+            spender: staking_address,
+            amount,
+        };
+
+        let stake_step = ExecutionStep::Stake {
+            asset: asset.clone(),
+            amount,
+            protocol: protocol_enum.clone(),
+        };
+
+        let description = format!("Stake {:?} via {:?}", asset, protocol);
+
+        let plan = ExecutionPlan::new(protocol_enum, description)
+            .with_steps(vec![approve_step, stake_step])
+            .with_gas_estimation(120_000);
+
+        Ok(plan)
+    }
+
+    fn get_staking_address(&self, protocol: &LendingType) -> Address {
+        match protocol {
+            LendingType::Aave => "0x4da27a545c0c5B758a6BA100e3a049001de870f5".to_string(), // stkAAVE
+            LendingType::Compound => "0xCOMPOUND_STAKE".to_string(),
         }
     }
 }
