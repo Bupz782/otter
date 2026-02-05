@@ -1,6 +1,6 @@
 use domain::models::{
     execution_plan::{Address, ExecutionPlan, ExecutionStep},
-    intent::{Asset, Intent, LendingType, Protocol},
+    intent::{Asset, DexType, Intent, LendingType, Protocol},
 };
 
 pub struct StrategyPlanner;
@@ -28,9 +28,7 @@ impl StrategyPlanner {
                 to_asset,
                 amount,
                 protocol,
-            } => {
-                todo!("US-037")
-            }
+            } => self.plan_swap(from_asset, to_asset, *amount, protocol),
             Intent::Borrow {
                 asset,
                 amount,
@@ -82,6 +80,49 @@ impl StrategyPlanner {
         match protocol {
             LendingType::Aave => "0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951".to_string(), // Aave V3 Sepolia
             LendingType::Compound => "0xCOMPOUND_POOL".to_string(), // Placeholder
+        }
+    }
+
+    fn plan_swap(
+        &self,
+        from_asset: &Asset,
+        to_asset: &Asset,
+        amount: u128,
+        protocol: &DexType,
+    ) -> Result<ExecutionPlan, PlannerError> {
+        let pool_address = self.get_dex_router_address(protocol);
+        let protocol_enum = Protocol::Dex(protocol.clone());
+
+        let approve_step = ExecutionStep::Approve {
+            asset: from_asset.clone(),
+            spender: pool_address,
+            amount,
+        };
+        let min_amount_out = amount * 99 / 100; // Simple 1% slippage
+        let swap_step = ExecutionStep::SwapExactTokens {
+            from_asset: from_asset.clone(),
+            to_asset: to_asset.clone(),
+            amount_in: amount,
+            min_amount_out: min_amount_out,
+            protocol: protocol_enum.clone(),
+        };
+
+        let description = format!(
+            "Swap {:?} To {:?} Via {:?} ",
+            from_asset, to_asset, protocol
+        );
+
+        let plan = ExecutionPlan::new(protocol_enum, description)
+            .with_steps(vec![approve_step, swap_step])
+            .with_gas_estimation(150_000);
+        return Ok(plan);
+    }
+
+    fn get_dex_router_address(&self, protocol: &DexType) -> Address {
+        match protocol {
+            DexType::Uniswap => "0xE592427A0AEce92De3Edee1F18E0157C05861564".to_string(),
+            DexType::Sushiswap => "0xSUSHI_ROUTER".to_string(),
+            DexType::Balancer => "0xBALANCER_ROUTER".to_string(),
         }
     }
 }
