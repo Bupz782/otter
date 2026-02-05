@@ -120,8 +120,9 @@ impl RegexParser {
         ))
     }
     pub fn parse_borrow(text: &str) -> Result<Intent, ParseError> {
+        // Format: "borrow 100 USDC with 1.5 ETH on aave"
         let re = Regex::new(
-            r"(?i)borrow\s+(?P<amount>[\d,\.]+)\s+(?P<asset>\w+)\s+on\s+(?P<protocol>\w+)",
+            r"(?i)borrow\s+(?P<amount>[\d,\.]+)\s+(?P<asset>\w+)\s+with\s+(?P<collateral_amount>[\d,\.]+)\s+(?P<collateral>\w+)\s+on\s+(?P<protocol>\w+)",
         )
         .unwrap();
 
@@ -136,36 +137,60 @@ impl RegexParser {
                 .ok_or(ParseError::InvalidFormat("Missing asset".to_string()))?
                 .as_str()
                 .to_lowercase();
+            let collateral_amount_str = caps
+                .name("collateral_amount")
+                .ok_or(ParseError::InvalidFormat("Missing collateral amount".to_string()))?
+                .as_str()
+                .replace(",", "");
+            let collateral_str = caps
+                .name("collateral")
+                .ok_or(ParseError::InvalidFormat("Missing collateral".to_string()))?
+                .as_str()
+                .to_lowercase();
             let protocol_str = caps
                 .name("protocol")
                 .ok_or(ParseError::InvalidFormat("Missing protocol".to_string()))?
                 .as_str()
                 .to_lowercase();
-            let asset = match asset_str.as_str() {
-                "eth" => Asset::Eth,
-                "dai" => Asset::Dai,
-                "usdc" => Asset::Usdc,
-                "wbtc" => Asset::Wbtc,
-                "link" => Asset::Link,
-                "sol" => Asset::Sol,
-                _ => return Err(ParseError::UnknownAsset(asset_str)),
+
+            let parse_asset = |s: &str| -> Result<Asset, ParseError> {
+                match s {
+                    "eth" => Ok(Asset::Eth),
+                    "dai" => Ok(Asset::Dai),
+                    "usdc" => Ok(Asset::Usdc),
+                    "wbtc" => Ok(Asset::Wbtc),
+                    "link" => Ok(Asset::Link),
+                    "sol" => Ok(Asset::Sol),
+                    _ => Err(ParseError::UnknownAsset(s.to_string())),
+                }
             };
+
+            let asset = parse_asset(&asset_str)?;
+            let collateral = parse_asset(&collateral_str)?;
+
             let amount: u128 = asset
                 .parse_amount(&amount_str)
                 .ok_or(ParseError::InvalidAmount(amount_str.clone()))?;
+            let collateral_amount: u128 = collateral
+                .parse_amount(&collateral_amount_str)
+                .ok_or(ParseError::InvalidAmount(collateral_amount_str.clone()))?;
+
             let protocol = match protocol_str.as_str() {
                 "aave" => LendingType::Aave,
                 "compound" => LendingType::Compound,
                 _ => return Err(ParseError::UnknownProtocol(protocol_str)),
             };
+
             return Ok(Intent::Borrow {
                 asset,
                 amount,
+                collateral,
+                collateral_amount,
                 protocol,
             });
         }
         Err(ParseError::InvalidFormat(
-            "Could not parse borrow intent".to_string(),
+            "Could not parse borrow intent. Format: borrow <amount> <asset> with <collateral_amount> <collateral> on <protocol>".to_string(),
         ))
     }
     pub fn parse_stake(text: &str) -> Result<Intent, ParseError> {

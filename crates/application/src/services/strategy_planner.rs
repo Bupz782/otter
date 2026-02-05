@@ -32,15 +32,15 @@ impl StrategyPlanner {
             Intent::Borrow {
                 asset,
                 amount,
+                collateral,
+                collateral_amount,
                 protocol,
-            } => {
-                todo!("US-038")
-            }
+            } => self.plan_borrow(asset, *amount, collateral, *collateral_amount, protocol),
             Intent::Stake {
                 asset,
                 amount,
                 protocol,
-            } => self.plan_stake(asset, *amount, protocol)
+            } => self.plan_stake(asset, *amount, protocol),
         }
     }
 
@@ -159,5 +159,46 @@ impl StrategyPlanner {
             LendingType::Aave => "0x4da27a545c0c5B758a6BA100e3a049001de870f5".to_string(), // stkAAVE
             LendingType::Compound => "0xCOMPOUND_STAKE".to_string(),
         }
+    }
+
+    fn plan_borrow(
+        &self,
+        asset: &Asset,
+        amount: u128,
+        collateral: &Asset,
+        collateral_amount: u128,
+        protocol: &LendingType,
+    ) -> Result<ExecutionPlan, PlannerError> {
+        let pool_address = self.get_lending_pool_address(protocol);
+        let protocol_enum = Protocol::Lending(protocol.clone());
+
+        let approve_collateral = ExecutionStep::Approve {
+            asset: collateral.clone(),
+            spender: pool_address.clone(),
+            amount: collateral_amount,
+        };
+
+        let supply_collateral = ExecutionStep::Supply {
+            asset: collateral.clone(),
+            amount: collateral_amount,
+            protocol: protocol_enum.clone(),
+        };
+
+        let borrow_step = ExecutionStep::Borrow {
+            asset: asset.clone(),
+            amount,
+            protocol: protocol_enum.clone(),
+        };
+
+        let description = format!(
+            "Borrow {:?} via {:?} (collateral: {:?})",
+            asset, protocol, collateral
+        );
+
+        let plan = ExecutionPlan::new(protocol_enum, description)
+            .with_steps(vec![approve_collateral, supply_collateral, borrow_step])
+            .with_gas_estimation(250_000);
+
+        Ok(plan)
     }
 }
