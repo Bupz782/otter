@@ -59,6 +59,9 @@ pub enum Intent {
         amount: u128,
         protocol: LendingType,
     },
+    Composite {
+        intents: Vec<Intent>,
+    },
 }
 
 impl Asset {

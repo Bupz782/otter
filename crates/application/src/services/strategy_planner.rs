@@ -41,6 +41,7 @@ impl StrategyPlanner {
                 amount,
                 protocol,
             } => self.plan_stake(asset, *amount, protocol),
+            Intent::Composite { intents } => self.plan_composite(intents),
         }
     }
 
@@ -200,5 +201,49 @@ impl StrategyPlanner {
             .with_gas_estimation(250_000);
 
         Ok(plan)
+    }
+
+    fn plan_composite(&self, intents: &[Intent]) -> Result<ExecutionPlan, PlannerError> {
+        if intents.is_empty() {
+            return Err(PlannerError::InvalidAmount);
+        }
+
+        let mut all_steps: Vec<ExecutionStep> = Vec::new();
+        let mut total_gas: u64 = 0;
+        let mut descriptions: Vec<String> = Vec::new();
+
+        // Get protocol from first intent for the composite plan
+        let first_protocol = self.extract_protocol(&intents[0]);
+
+        for intent in intents {
+            let plan = self.plan(intent)?;
+            all_steps.extend(plan.steps().to_vec());
+            total_gas += plan.gas_estimation().unwrap_or(0);
+            descriptions.push(plan.description().to_string());
+        }
+
+        let description = format!("Composite: {}", descriptions.join(" → "));
+
+        let plan = ExecutionPlan::new(first_protocol, description)
+            .with_steps(all_steps)
+            .with_gas_estimation(total_gas);
+
+        Ok(plan)
+    }
+
+    fn extract_protocol(&self, intent: &Intent) -> Protocol {
+        match intent {
+            Intent::Lend { protocol, .. } => Protocol::Lending(protocol.clone()),
+            Intent::Borrow { protocol, .. } => Protocol::Lending(protocol.clone()),
+            Intent::Stake { protocol, .. } => Protocol::Lending(protocol.clone()),
+            Intent::Swap { protocol, .. } => Protocol::Dex(protocol.clone()),
+            Intent::Composite { intents } => {
+                if let Some(first) = intents.first() {
+                    self.extract_protocol(first)
+                } else {
+                    Protocol::Lending(LendingType::Aave) // fallback
+                }
+            }
+        }
     }
 }
