@@ -150,7 +150,7 @@ tests/fixtures/generated/
 dist/
 build/
 
-# ==================== CUSTOM METIS ====================
+# ==================== CUSTOM otter ====================
 # Generated proofs
 proofs/*.proof
 

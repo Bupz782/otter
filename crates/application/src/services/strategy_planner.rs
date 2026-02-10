@@ -12,6 +12,14 @@ pub enum PlannerError {
     InvalidAmount,
     InvalidCondition(String),
     EmptyComposite,
+    InsufficientCollateral,
+    InvalidSequence(String),
+}
+
+impl Default for StrategyPlanner {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl StrategyPlanner {
@@ -73,7 +81,7 @@ impl StrategyPlanner {
 
         let plan = ExecutionPlan::new(protocol_enum, description)
             .with_steps(vec![approve_step, supply_step])
-            .with_gas_estimation(150_000);
+            .with_calculated_gas();
 
         Ok(plan)
     }
@@ -105,7 +113,7 @@ impl StrategyPlanner {
             from_asset: from_asset.clone(),
             to_asset: to_asset.clone(),
             amount_in: amount,
-            min_amount_out: min_amount_out,
+            min_amount_out,
             protocol: protocol_enum.clone(),
         };
 
@@ -116,8 +124,8 @@ impl StrategyPlanner {
 
         let plan = ExecutionPlan::new(protocol_enum, description)
             .with_steps(vec![approve_step, swap_step])
-            .with_gas_estimation(150_000);
-        return Ok(plan);
+            .with_calculated_gas();
+        Ok(plan)
     }
 
     fn get_dex_router_address(&self, protocol: &DexType) -> Address {
@@ -153,7 +161,7 @@ impl StrategyPlanner {
 
         let plan = ExecutionPlan::new(protocol_enum, description)
             .with_steps(vec![approve_step, stake_step])
-            .with_gas_estimation(120_000);
+            .with_calculated_gas();
 
         Ok(plan)
     }
@@ -201,7 +209,7 @@ impl StrategyPlanner {
 
         let plan = ExecutionPlan::new(protocol_enum, description)
             .with_steps(vec![approve_collateral, supply_collateral, borrow_step])
-            .with_gas_estimation(250_000);
+            .with_calculated_gas();
 
         Ok(plan)
     }
@@ -212,7 +220,6 @@ impl StrategyPlanner {
         }
 
         let mut all_steps: Vec<ExecutionStep> = Vec::new();
-        let mut total_gas: u64 = 0;
         let mut descriptions: Vec<String> = Vec::new();
 
         let first_protocol = self.extract_protocol(&intents[0]);
@@ -220,7 +227,6 @@ impl StrategyPlanner {
         for intent in intents {
             let plan = self.plan(intent)?;
             all_steps.extend(plan.steps().to_vec());
-            total_gas += plan.gas_estimation().unwrap_or(0);
             descriptions.push(plan.description().to_string());
         }
 
@@ -228,7 +234,7 @@ impl StrategyPlanner {
 
         let plan = ExecutionPlan::new(first_protocol, description)
             .with_steps(all_steps)
-            .with_gas_estimation(total_gas);
+            .with_calculated_gas();
 
         Ok(plan)
     }
@@ -267,6 +273,55 @@ impl StrategyPlanner {
                     return Err(PlannerError::InvalidCondition(
                         "Condition value cannot be zero".to_string(),
                     ));
+                }
+                Ok(())
+            }
+        }
+    }
+
+    pub fn validate_plan_feasibility(&self, intent: &Intent) -> Result<(), PlannerError> {
+        match intent {
+            Intent::Borrow {
+                amount,
+                collateral_amount,
+                ..
+            } => {
+                if *amount == 0 {
+                    return Err(PlannerError::InvalidAmount);
+                }
+                if *collateral_amount == 0 {
+                    return Err(PlannerError::InsufficientCollateral);
+                }
+                Ok(())
+            }
+            Intent::Swap {
+                amount,
+                from_asset,
+                to_asset,
+                ..
+            } => {
+                if *amount == 0 {
+                    return Err(PlannerError::InvalidAmount);
+                }
+                if from_asset == to_asset {
+                    return Err(PlannerError::InvalidSequence(
+                        "Cannot swap same asset".to_string(),
+                    ));
+                }
+                Ok(())
+            }
+            Intent::Lend { amount, .. } | Intent::Stake { amount, .. } => {
+                if *amount == 0 {
+                    return Err(PlannerError::InvalidAmount);
+                }
+                Ok(())
+            }
+            Intent::Composite { intents } => {
+                if intents.is_empty() {
+                    return Err(PlannerError::EmptyComposite);
+                }
+                for intent in intents {
+                    self.validate_plan_feasibility(intent)?;
                 }
                 Ok(())
             }

@@ -172,19 +172,19 @@ pub struct BorrowParser;
 
 impl IntentParser for BorrowParser {
     fn description(&self) -> &'static str {
-        "Parses borrow intents: 'borrow <amount> <asset> on <protocol>'"
+        "Parses borrow intents: 'borrow <amount> <asset> with <collateral_amount> <collateral> on <protocol>'"
     }
 
     fn parse(&self, text: &str) -> Result<Intent, ParseError> {
         let re = BORROW_REGEX.get_or_init(|| {
             Regex::new(
-                r"(?i)borrow\s+(?P<amount>[\d,\.]+)\s+(?P<asset>\w+)\s+on\s+(?P<protocol>\w+)",
+                r"(?i)borrow\s+(?P<amount>[\d,\.]+)\s+(?P<asset>\w+)\s+with\s+(?P<collateral_amount>[\d,\.]+)\s+(?P<collateral>\w+)\s+on\s+(?P<protocol>\w+)",
             )
             .expect("Invalid BORROW_REGEX pattern")
         });
 
         let caps = re.captures(text).ok_or(ParseError::InvalidFormat(
-            "Could not parse borrow intent".to_string(),
+            "Could not parse borrow intent. Format: borrow <amount> <asset> with <collateral_amount> <collateral> on <protocol>".to_string(),
         ))?;
 
         let asset_str = caps
@@ -195,6 +195,23 @@ impl IntentParser for BorrowParser {
 
         let amount = parsers::parse_amount(&caps, &asset)?;
 
+        let collateral_str = caps
+            .name("collateral")
+            .ok_or(ParseError::InvalidFormat("Missing collateral".to_string()))?
+            .as_str();
+        let collateral = parsers::parse_asset(collateral_str)?;
+
+        let collateral_amount_str = caps
+            .name("collateral_amount")
+            .ok_or(ParseError::InvalidFormat(
+                "Missing collateral amount".to_string(),
+            ))?
+            .as_str()
+            .replace(",", "");
+        let collateral_amount = collateral
+            .parse_amount(&collateral_amount_str)
+            .ok_or(ParseError::InvalidAmount(collateral_amount_str))?;
+
         let protocol_str = caps
             .name("protocol")
             .ok_or(ParseError::InvalidFormat("Missing protocol".to_string()))?
@@ -204,6 +221,8 @@ impl IntentParser for BorrowParser {
         Ok(Intent::Borrow {
             asset,
             amount,
+            collateral,
+            collateral_amount,
             protocol,
         })
     }
@@ -409,13 +428,13 @@ mod tests {
 
     #[test]
     fn test_parse_borrow_basic() {
-        let result = RegexParser::parse_borrow("Borrow 1000 USDC on Aave");
+        let result = RegexParser::parse_borrow("Borrow 1000 USDC with 1.5 ETH on Aave");
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_parse_borrow_case_insensitive() {
-        let result = RegexParser::parse_borrow("borrow 1,000 usdc on aave");
+        let result = RegexParser::parse_borrow("borrow 1,000 usdc with 1.5 eth on aave");
         assert!(result.is_ok());
     }
 
@@ -536,7 +555,7 @@ mod tests {
         let result = parser.parse_intent("swap 1 ETH for DAI on Uniswap");
         assert!(matches!(result, Ok(Intent::Swap { .. })));
 
-        let result = parser.parse_intent("borrow 500 DAI on Compound");
+        let result = parser.parse_intent("borrow 500 DAI with 1 ETH on Compound");
         assert!(matches!(result, Ok(Intent::Borrow { .. })));
 
         let result = parser.parse_intent("stake 1000 USDC on Aave");

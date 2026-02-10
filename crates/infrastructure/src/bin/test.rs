@@ -11,7 +11,7 @@ fn main() {
     if !model_path.exists() {
         eprintln!("❌ Error: Model file not found at {:?}", model_path);
         eprintln!("💡 Hint: Run the download script: ./scripts/download-model.sh");
-        eprintln!("   Or set METIS_MODEL_PATH environment variable to your model file");
+        eprintln!("   Or set otter_MODEL_PATH environment variable to your model file");
         std::process::exit(1);
     }
 
@@ -129,7 +129,7 @@ assisatan: We do not have the capacity for sol & pancake right now
 }
 
 fn get_model_path() -> PathBuf {
-    if let Ok(path) = env::var("METIS_MODEL_PATH") {
+    if let Ok(path) = env::var("otter_MODEL_PATH") {
         return PathBuf::from(path);
     }
 

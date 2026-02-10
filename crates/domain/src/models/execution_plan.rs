@@ -103,4 +103,25 @@ impl ExecutionPlan {
     pub fn step_count(&self) -> usize {
         self.steps.len()
     }
+
+    pub fn calculate_total_gas(&self) -> u64 {
+        self.steps
+            .iter()
+            .map(|step| match step {
+                ExecutionStep::Approve { .. } => 50_000,
+                ExecutionStep::Supply { .. } => 80_000,
+                ExecutionStep::SwapExactTokens { .. } => 120_000,
+                ExecutionStep::Borrow { .. } => 150_000,
+                ExecutionStep::Stake { .. } => 70_000,
+                ExecutionStep::Repay { .. } => 80_000,
+                ExecutionStep::Withdraw { .. } => 70_000,
+                ExecutionStep::Unstake { .. } => 70_000,
+            })
+            .sum()
+    }
+
+    pub fn with_calculated_gas(mut self) -> Self {
+        self.gas_estimation = Some(self.calculate_total_gas());
+        self
+    }
 }
