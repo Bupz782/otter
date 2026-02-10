@@ -1,11 +1,13 @@
-#[derive(Debug, Clone, PartialEq, Eq)]
+use serde::Deserialize;
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub enum Metric {
     Yield,
     Price,
     GasCost,
     Volume,
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub enum Comparator {
     GreaterThan,
     LessThan,
@@ -14,7 +16,7 @@ pub enum Comparator {
     GreaterThanOrEqualTo,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub enum Condition {
     Comparison {
         metric: Metric,

@@ -1,6 +1,15 @@
 use crate::models::condition::Condition;
+use serde::Deserialize;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ValidationError {
+    InvalidAmount(String),
+    InvalidAsset(String),
+    InvalidProtocol(String),
+    MissingField(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub enum Asset {
     Eth,
     Dai,
@@ -9,32 +18,32 @@ pub enum Asset {
     Link,
     Sol,
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub enum DexType {
     Uniswap,
     Sushiswap,
     Balancer,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub enum LendingType {
     Aave,
     Compound,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub enum Protocol {
     Dex(DexType),
     Lending(LendingType),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct ConditionalIntent {
     pub intent: Intent,
     pub condition: Option<Condition>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub enum Intent {
     Swap {
         from_asset: Asset,
@@ -100,7 +109,67 @@ impl Asset {
             _ => None,
         }
     }
-    pub fn format_amount(&self, _amount: u128) -> String {
-        todo!()
+    pub fn format_amount(&self, amount: u128) -> String {
+        let decimals = self.decimals() as u32;
+        let divisor = 10u128.pow(decimals);
+        let integer_part = amount / divisor;
+        let decimal_part = amount % divisor;
+
+        if decimal_part == 0 {
+            format!("{}", integer_part)
+        } else {
+            let decimal_str = format!("{:0>width$}", decimal_part, width = decimals as usize);
+            let trimmed = decimal_str.trim_end_matches('0');
+            format!("{}.{}", integer_part, trimmed)
+        }
+    }
+}
+
+impl Intent {
+    pub fn validate(&self) -> Result<(), ValidationError> {
+        match self {
+            Intent::Swap {
+                from_asset,
+                to_asset,
+                amount,
+                ..
+            } => {
+                if *amount == 0 {
+                    return Err(ValidationError::InvalidAmount(
+                        "Amount must be greater than 0".to_string(),
+                    ));
+                }
+                if from_asset == to_asset {
+                    return Err(ValidationError::InvalidAsset(
+                        "Cannot swap same asset".to_string(),
+                    ));
+                }
+                Ok(())
+            }
+            Intent::Lend { amount, .. } => {
+                if *amount == 0 {
+                    return Err(ValidationError::InvalidAmount(
+                        "Amount must be greater than 0".to_string(),
+                    ));
+                }
+                Ok(())
+            }
+            Intent::Borrow { amount, .. } => {
+                if *amount == 0 {
+                    return Err(ValidationError::InvalidAmount(
+                        "Amount must be greater than 0".to_string(),
+                    ));
+                }
+                Ok(())
+            }
+            Intent::Stake { amount, .. } => {
+                if *amount == 0 {
+                    return Err(ValidationError::InvalidAmount(
+                        "Amount must be greater than 0".to_string(),
+                    ));
+                }
+                Ok(())
+            }
+        }
     }
 }
