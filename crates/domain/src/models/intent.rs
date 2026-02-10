@@ -59,12 +59,17 @@ pub enum Intent {
     Borrow {
         asset: Asset,
         amount: u128,
+        collateral: Asset,
+        collateral_amount: u128,
         protocol: LendingType,
     },
     Lend {
         asset: Asset,
         amount: u128,
         protocol: LendingType,
+    },
+    Composite {
+        intents: Vec<Intent>,
     },
 }
 
