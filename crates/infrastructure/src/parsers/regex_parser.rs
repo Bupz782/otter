@@ -203,7 +203,9 @@ impl IntentParser for BorrowParser {
 
         let collateral_amount_str = caps
             .name("collateral_amount")
-            .ok_or(ParseError::InvalidFormat("Missing collateral amount".to_string()))?
+            .ok_or(ParseError::InvalidFormat(
+                "Missing collateral amount".to_string(),
+            ))?
             .as_str()
             .replace(",", "");
         let collateral_amount = collateral
