@@ -16,6 +16,12 @@ pub enum PlannerError {
     InvalidSequence(String),
 }
 
+impl Default for StrategyPlanner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StrategyPlanner {
     pub fn new() -> Self {
         Self
@@ -107,7 +113,7 @@ impl StrategyPlanner {
             from_asset: from_asset.clone(),
             to_asset: to_asset.clone(),
             amount_in: amount,
-            min_amount_out: min_amount_out,
+            min_amount_out,
             protocol: protocol_enum.clone(),
         };
 
@@ -119,7 +125,7 @@ impl StrategyPlanner {
         let plan = ExecutionPlan::new(protocol_enum, description)
             .with_steps(vec![approve_step, swap_step])
             .with_calculated_gas();
-        return Ok(plan);
+        Ok(plan)
     }
 
     fn get_dex_router_address(&self, protocol: &DexType) -> Address {
