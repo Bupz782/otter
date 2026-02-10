@@ -1,6 +1,7 @@
 use domain::models::{
+    condition::Condition,
     execution_plan::{Address, ExecutionPlan, ExecutionStep},
-    intent::{Asset, DexType, Intent, LendingType, Protocol},
+    intent::{Asset, ConditionalIntent, DexType, Intent, LendingType, Protocol},
 };
 
 pub struct StrategyPlanner;
@@ -9,6 +10,8 @@ pub struct StrategyPlanner;
 pub enum PlannerError {
     UnsupportedProtocol(String),
     InvalidAmount,
+    InvalidCondition(String),
+    EmptyComposite,
 }
 
 impl StrategyPlanner {
@@ -205,14 +208,13 @@ impl StrategyPlanner {
 
     fn plan_composite(&self, intents: &[Intent]) -> Result<ExecutionPlan, PlannerError> {
         if intents.is_empty() {
-            return Err(PlannerError::InvalidAmount);
+            return Err(PlannerError::EmptyComposite);
         }
 
         let mut all_steps: Vec<ExecutionStep> = Vec::new();
         let mut total_gas: u64 = 0;
         let mut descriptions: Vec<String> = Vec::new();
 
-        // Get protocol from first intent for the composite plan
         let first_protocol = self.extract_protocol(&intents[0]);
 
         for intent in intents {
@@ -243,6 +245,30 @@ impl StrategyPlanner {
                 } else {
                     Protocol::Lending(LendingType::Aave) // fallback
                 }
+            }
+        }
+    }
+
+    pub fn plan_conditional(
+        &self,
+        conditional: &ConditionalIntent,
+    ) -> Result<ExecutionPlan, PlannerError> {
+        if let Some(condition) = &conditional.condition {
+            self.validate_condition(condition)?;
+        }
+
+        self.plan(&conditional.intent)
+    }
+
+    fn validate_condition(&self, condition: &Condition) -> Result<(), PlannerError> {
+        match condition {
+            Condition::Comparison { value, .. } => {
+                if *value == 0 {
+                    return Err(PlannerError::InvalidCondition(
+                        "Condition value cannot be zero".to_string(),
+                    ));
+                }
+                Ok(())
             }
         }
     }
