@@ -170,6 +170,17 @@ impl Intent {
                 }
                 Ok(())
             }
+            Intent::Composite { intents } => {
+                if intents.is_empty() {
+                    return Err(ValidationError::InvalidAmount(
+                        "Composite intent must have at least one intent".to_string(),
+                    ));
+                }
+                for intent in intents {
+                    intent.validate()?;
+                }
+                Ok(())
+            }
         }
     }
 }
