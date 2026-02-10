@@ -3,7 +3,7 @@
 
 set -e
 
-echo "🔥 Metis Benchmarks"
+echo "🔥 otter Benchmarks"
 echo "===================="
 echo ""
 
@@ -16,7 +16,7 @@ echo " Compilation: ${COMPILE_TIME}s"
 echo ""
 
 echo " Binary sizes..."
-du -sh target/release/metis 2>/dev/null || echo "No binary yet"
+du -sh target/release/otter 2>/dev/null || echo "No binary yet"
 echo ""
 
 echo "🧪 Test execution time..."

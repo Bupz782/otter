@@ -428,13 +428,13 @@ mod tests {
 
     #[test]
     fn test_parse_borrow_basic() {
-        let result = RegexParser::parse_borrow("Borrow 1000 USDC on Aave");
+        let result = RegexParser::parse_borrow("Borrow 1000 USDC with 1.5 ETH on Aave");
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_parse_borrow_case_insensitive() {
-        let result = RegexParser::parse_borrow("borrow 1,000 usdc on aave");
+        let result = RegexParser::parse_borrow("borrow 1,000 usdc with 1.5 eth on aave");
         assert!(result.is_ok());
     }
 
@@ -555,7 +555,7 @@ mod tests {
         let result = parser.parse_intent("swap 1 ETH for DAI on Uniswap");
         assert!(matches!(result, Ok(Intent::Swap { .. })));
 
-        let result = parser.parse_intent("borrow 500 DAI on Compound");
+        let result = parser.parse_intent("borrow 500 DAI with 1 ETH on Compound");
         assert!(matches!(result, Ok(Intent::Borrow { .. })));
 
         let result = parser.parse_intent("stake 1000 USDC on Aave");
