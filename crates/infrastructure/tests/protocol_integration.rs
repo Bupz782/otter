@@ -17,7 +17,11 @@ fn aave_get_apy_on_sepolia() {
         return;
     };
 
-    let aave = AaveAdapter::sepolia(&url).expect("valid sepolia adapter");
+    let aave = AaveAdapter::sepolia(
+        &url,
+        "0x1111111111111111111111111111111111111111",
+    )
+    .expect("valid sepolia adapter");
     let apy = aave.get_apy(&Asset::Usdc).expect("fetch USDC APY");
     assert!(apy > 0.0, "APY should be positive");
     assert!(apy < 50.0, "APY should be reasonable");
@@ -30,7 +34,11 @@ fn uniswap_get_quote_on_sepolia() {
         return;
     };
 
-    let uniswap = UniswapAdapter::sepolia(&url).expect("valid sepolia adapter");
+    let uniswap = UniswapAdapter::sepolia(
+        &url,
+        "0x1111111111111111111111111111111111111111",
+    )
+    .expect("valid sepolia adapter");
     // 0.001 ETH
     let amount = 1_000_000_000_000_000u128;
     let quote = uniswap
