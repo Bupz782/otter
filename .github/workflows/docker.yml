@@ -65,7 +65,7 @@ jobs:
         id: versions
         run: |
           set -euo pipefail
-          noir_version=$(grep compiler_version delegation_circuit/Nargo.toml | sed 's/.*= "\(.*\)".*/\1/')
+          noir_version=$(cat .noir-version)
           bb_version=$(cat .bb-version)
           echo "noir_version=$noir_version" >> "$GITHUB_OUTPUT"
           echo "bb_version=$bb_version" >> "$GITHUB_OUTPUT"

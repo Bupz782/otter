@@ -75,7 +75,7 @@ jobs:
         working-directory: ./delegation_circuit
         run: |
           set -euo pipefail
-          version=$(grep compiler_version Nargo.toml | sed 's/.*= "\(.*\)".*/\1/')
+          version=$(cat .noir-version)
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Install Noir
         uses: noir-lang/noirup@v1
@@ -134,7 +134,7 @@ jobs:
       - name: Build backend image
         run: |
           set -euo pipefail
-          docker build -t otter-api --build-arg NOIR_VERSION=$(grep compiler_version delegation_circuit/Nargo.toml | sed 's/.*= "\(.*\)".*/\1/') --build-arg BB_VERSION=$(cat .bb-version) .
+          docker build -t otter-api --build-arg NOIR_VERSION=$(cat .noir-version) --build-arg BB_VERSION=$(cat .bb-version) .
       - name: Build frontend image
         run: |
           set -euo pipefail

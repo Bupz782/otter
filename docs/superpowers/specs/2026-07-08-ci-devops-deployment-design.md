@@ -78,7 +78,7 @@ jobs:
     if: needs.changes.outputs.circuit == 'true'
     steps:
       - checkout
-      - noirup (pinned to Nargo.toml version)
+      - noirup (pinned to `.noir-version`)
       - bbup (pinned to compatible version)
       - nargo fmt --check
       - nargo test
@@ -152,7 +152,8 @@ Verifies or installs:
 - `just` or `task`
 
 Reads tool versions from:
-- `delegation_circuit/Nargo.toml` → `compiler_version`
+- `.noir-version` → Noir version
+- `.bb-version` → Barretenberg version
 - `.bb-version` → `x.y.z`
 
 ### 4.3 Dev script: `scripts/dev.sh`

@@ -8,6 +8,7 @@ use infrastructure::zkp::NoirAdapter;
 use k256::ecdsa::{SigningKey, signature::DigestSigner};
 use rand::rngs::OsRng;
 use std::path::PathBuf;
+use serial_test::serial;
 
 fn sign_delegation(delegation: &DelegationMessage, signing_key: &SigningKey) -> [u8; 64] {
     let serialized = serialize_delegation(delegation);
@@ -62,6 +63,7 @@ fn make_delegation(pubkey_x: [u8; 32], pubkey_y: [u8; 32]) -> DelegationMessage 
 }
 
 #[test]
+#[serial]
 fn noir_adapter_generates_witness_for_valid_delegation() {
     let (signing_key, pubkey_x, pubkey_y) = generate_test_keypair();
     let delegation = make_delegation(pubkey_x, pubkey_y);
@@ -99,9 +101,8 @@ fn noir_adapter_generates_witness_for_valid_delegation() {
         })
         .filter(|p| std::path::Path::new(p).exists());
     let adapter = NoirAdapter::new(circuit_dir, "nargo", bb_bin.as_deref());
-    let proof = adapter
-        .prove_delegation(&public_inputs, &private_inputs)
-        .expect("witness generation should succeed for valid delegation");
+    let result = adapter.prove_delegation(&public_inputs, &private_inputs);
+    let proof = result.unwrap_or_else(|e| panic!("witness generation should succeed for valid delegation: {e:?}"));
 
     if bb_bin.is_some() {
         assert!(
@@ -122,6 +123,7 @@ fn noir_adapter_generates_witness_for_valid_delegation() {
 }
 
 #[test]
+#[serial]
 fn noir_adapter_rejects_invalid_delegation() {
     let (signing_key, pubkey_x, pubkey_y) = generate_test_keypair();
     let delegation = make_delegation(pubkey_x, pubkey_y);
@@ -161,6 +163,7 @@ fn noir_adapter_rejects_invalid_delegation() {
 }
 
 #[test]
+#[serial]
 fn noir_adapter_enforces_matching_target_contract() {
     let (signing_key, pubkey_x, pubkey_y) = generate_test_keypair();
     let mut delegation = make_delegation(pubkey_x, pubkey_y);
@@ -195,11 +198,13 @@ fn noir_adapter_enforces_matching_target_contract() {
     let result = adapter.prove_delegation(&public_inputs, &private_inputs);
     assert!(
         result.is_ok(),
-        "expected witness generation to succeed when target_contract matches"
+        "expected witness generation to succeed when target_contract matches: {:?}",
+        result.err()
     );
 }
 
 #[test]
+#[serial]
 fn noir_adapter_rejects_mismatched_target_contract() {
     let (signing_key, pubkey_x, pubkey_y) = generate_test_keypair();
     let mut delegation = make_delegation(pubkey_x, pubkey_y);
@@ -241,6 +246,7 @@ fn noir_adapter_rejects_mismatched_target_contract() {
 type ConstraintMutation = Box<dyn Fn(&mut PublicDelegationInputs, &mut PrivateDelegationInputs)>;
 
 #[test]
+#[serial]
 fn noir_adapter_rejects_invalid_constraints() {
     let (signing_key, pubkey_x, pubkey_y) = generate_test_keypair();
     let delegation = make_delegation(pubkey_x, pubkey_y);

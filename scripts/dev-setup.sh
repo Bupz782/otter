@@ -7,7 +7,7 @@ cd "$REPO_ROOT"
 # Make sure tools installed by dev-setup.sh are available in this shell.
 export PATH="$HOME/.foundry/bin:$HOME/.nargo/bin:$HOME/.bb:$PATH"
 
-NOIR_VERSION=$(grep compiler_version delegation_circuit/Nargo.toml | sed 's/.*= "\(.*\)".*/\1/')
+NOIR_VERSION=$(cat .noir-version)
 BB_VERSION=$(cat .bb-version)
 
 # Minimum Node major version required by the frontend toolchain.

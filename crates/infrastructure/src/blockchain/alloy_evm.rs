@@ -482,10 +482,11 @@ fn chunk_public_inputs(public_inputs: &[u8]) -> Result<Vec<FixedBytes<32>>, EvmE
         )));
     }
 
-    let mut result = Vec::with_capacity(public_inputs.len() / 32);
-    for chunk in public_inputs.chunks_exact(32) {
-        result.push(FixedBytes::from_slice(chunk));
-    }
+    let (chunks, _remainder) = public_inputs.as_chunks::<32>();
+    let result = chunks
+        .iter()
+        .map(|chunk| FixedBytes::from(*chunk))
+        .collect();
     Ok(result)
 }
 

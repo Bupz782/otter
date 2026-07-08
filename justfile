@@ -18,7 +18,7 @@ test:
 
 build-images:
     docker build -t otter-api \
-        --build-arg NOIR_VERSION=$(grep compiler_version delegation_circuit/Nargo.toml | sed 's/.*= "\(.*\)".*/\1/') \
+        --build-arg NOIR_VERSION=$(cat .noir-version) \
         --build-arg BB_VERSION=$(cat .bb-version) \
         .
     docker build -t otter-frontend ./frontend

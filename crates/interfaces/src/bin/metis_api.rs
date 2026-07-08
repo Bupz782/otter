@@ -1330,7 +1330,7 @@ async fn list_proofs(
         verified: true,
         tx_hash: None,
     });
-    proofs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    proofs.sort_by_key(|a| std::cmp::Reverse(a.timestamp));
     Ok(Json(ProofsResponse { proofs }))
 }
 
@@ -1348,7 +1348,7 @@ async fn get_leaderboard(AxumState(state): AxumState<Arc<AppState>>) -> Json<Lea
             uptime: a.uptime,
         })
         .collect();
-    entries.sort_by(|a, b| b.proofs_submitted.cmp(&a.proofs_submitted));
+    entries.sort_by_key(|a| std::cmp::Reverse(a.proofs_submitted));
     for (i, entry) in entries.iter_mut().enumerate() {
         entry.rank = (i + 1) as u32;
     }
