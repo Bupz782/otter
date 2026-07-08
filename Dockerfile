@@ -42,7 +42,7 @@ RUN apk add --no-cache curl bash tar gzip \
 # -----------------------------------------------------------------------------
 # Stage 4: Runtime
 # -----------------------------------------------------------------------------
-FROM debian:trixie-slim AS runtime
+FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update \
     && apt-get install -y ca-certificates libssl3 curl libgomp1 netcat-openbsd \
@@ -55,6 +55,7 @@ ENV OTTER_API_PORT=3001
 ENV OTTER_CIRCUIT_DIR=/app/delegation_circuit
 ENV OTTER_NARGO_BIN=/usr/local/bin/nargo
 ENV OTTER_BB_BIN=/usr/local/bin/bb
+ENV OTTER_MIGRATIONS_DIR=/app/crates/infrastructure/migrations
 ENV RUST_LOG=info
 
 VOLUME ["/data"]

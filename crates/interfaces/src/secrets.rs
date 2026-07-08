@@ -150,8 +150,12 @@ impl SecretProvider for HashiCorpVaultSecretProvider {
 /// The `name` argument of [`SecretProvider::get`] is treated as a **base64-encoded
 /// ciphertext blob** (the output of a previous AWS KMS `Encrypt` call against the
 /// configured `key_id`). This differs from the usual secret-provider contract where
-/// `name` is a human-readable identifier. Use [`Self::decrypt_base64_blob`] for an
-/// explicitly-named helper.
+/// `name` is a human-readable identifier, so callers must pass the ciphertext blob
+/// directly. The intended way to use this provider for the agent private key is to
+/// place the base64 ciphertext in `OTTER_PRIVATE_KEY` (or `private_key` in the config
+/// file); [`load_private_key`] will then pass that value to the provider and decode
+/// the returned hex key. Use [`Self::decrypt_base64_blob`] for an explicitly-named
+/// helper.
 ///
 /// # Key ID semantics
 ///
@@ -272,6 +276,11 @@ where
 /// 1. `keystore_file` + `keystore_password` (encrypted keystore)
 /// 2. `private_key_file` (read the file contents)
 /// 3. `private_key` (environment variable / config value)
+///
+/// When a KMS provider is configured, set `private_key` to the AWS KMS
+/// base64-encoded ciphertext blob (or configure the provider to look it up by
+/// name). The provider decrypts the blob and this function decodes the resulting
+/// hex-encoded private key.
 ///
 /// A clear warning is emitted when the key is read from the environment so
 /// operators know to rotate to a keystore- or KMS-based approach for production.

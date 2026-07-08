@@ -36,9 +36,9 @@ else
     mkdir -p "$(dirname "$OTTER_DATABASE_URL")"
 fi
 
-# Run migrations if a runner binary exists or do it via embedded migration logic
-# Placeholder: if metis_api supports a migrate subcommand, call it here
-# /usr/local/bin/metis_api migrate --migrations-dir /app/migrations || true
+# Migrations are applied automatically by the API when it starts up (see
+# PgStorage::new / SqliteStorage::new). No separate migration command is needed
+# here as long as OTTER_MIGRATIONS_DIR points at the bundled SQL files.
 
 # Validate ZKP tooling if execution is enabled
 if [[ "${OTTER_EXECUTION_ENABLED:-false}" == "true" ]]; then

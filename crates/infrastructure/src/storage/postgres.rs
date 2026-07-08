@@ -4,10 +4,14 @@ use domain::ports::storage_port::{
 };
 use sqlx::{Pool, Postgres, Row};
 
+use crate::storage::migrations;
+
 /// PostgreSQL-backed implementation of [`StoragePort`].
 ///
-/// The connection pool is managed by `sqlx`. Migrations are run automatically
-/// when the storage is created.
+/// The connection pool is managed by `sqlx`. Pending migrations from
+/// `crates/infrastructure/migrations` are run automatically when the storage is
+/// created; the runner records each applied version in `schema_migrations` with
+/// the current Unix timestamp.
 pub struct PgStorage {
     pool: Pool<Postgres>,
 }
@@ -22,13 +26,103 @@ impl PgStorage {
             .await
             .map_err(|e| StorageError::InitFailed(e.to_string()))?;
 
-        sqlx::migrate!("./migrations")
-            .run(&pool)
-            .await
-            .map_err(|e| StorageError::InitFailed(e.to_string()))?;
+        run_migrations(&pool).await?;
 
         Ok(Self { pool })
     }
+}
+
+async fn run_migrations(pool: &Pool<Postgres>) -> Result<(), StorageError> {
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| StorageError::InitFailed(e.to_string()))?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS schema_migrations (
+            version INTEGER PRIMARY KEY,
+            applied_at INTEGER NOT NULL
+        )",
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| StorageError::InitFailed(e.to_string()))?;
+
+    for path in migrations::migration_files()? {
+        let version = migrations::migration_version(&path)?;
+        let applied: bool = sqlx::query_scalar::<_, i64>(
+            "SELECT 1 FROM schema_migrations WHERE version = $1",
+        )
+        .bind(version)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| StorageError::InitFailed(e.to_string()))?
+        .is_some();
+
+        if !applied {
+            let sql = std::fs::read_to_string(&path).map_err(|e| {
+                StorageError::InitFailed(format!(
+                    "failed to read migration {}: {}",
+                    path.display(),
+                    e
+                ))
+            })?;
+            sqlx::raw_sql(&sql)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| {
+                    StorageError::InitFailed(format!(
+                        "failed to run migration {}: {}",
+                        path.display(),
+                        e
+                    ))
+                })?;
+
+            // Version 3 consolidates the `user_address` column addition. Postgres
+            // supports `IF NOT EXISTS`, so the column additions are applied here
+            // for any database that predates the consolidated schema.
+            if version == 3 {
+                for (table, column, column_type) in [
+                    ("intents", "user_address", "TEXT"),
+                    ("delegations", "user_address", "TEXT"),
+                ] {
+                    let alter = format!(
+                        "ALTER TABLE {} ADD COLUMN IF NOT EXISTS {} {}",
+                        table, column, column_type
+                    );
+                    sqlx::query(&alter)
+                        .execute(&mut *tx)
+                        .await
+                        .map_err(|e| {
+                            StorageError::InitFailed(format!(
+                                "failed to add column {} to {}: {}",
+                                column, table, e
+                            ))
+                        })?;
+                }
+            }
+
+            sqlx::query(
+                "INSERT INTO schema_migrations (version, applied_at) VALUES ($1, $2)",
+            )
+            .bind(version)
+            .bind(migrations::unix_now())
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| {
+                StorageError::InitFailed(format!(
+                    "failed to record migration {}: {}",
+                    version, e
+                ))
+            })?;
+        }
+    }
+
+    tx.commit()
+        .await
+        .map_err(|e| StorageError::InitFailed(e.to_string()))?;
+
+    Ok(())
 }
 
 fn row_to_record(row: &sqlx::postgres::PgRow) -> Result<IntentRecord, StorageError> {

@@ -4,7 +4,8 @@ use domain::ports::storage_port::{
     DelegationRecord, ExecutionRecord, IntentRecord, StorageError, StoragePort,
 };
 use rusqlite::{Connection, OptionalExtension};
-use std::path::{Path, PathBuf};
+
+use crate::storage::migrations;
 use std::sync::{Arc, Mutex};
 
 #[cfg(test)]
@@ -44,6 +45,9 @@ impl SqliteStorage {
 
 /// Run every `.sql` file in the migrations directory in lexicographic order,
 /// skipping migrations already recorded in `schema_migrations`.
+///
+/// The SQL files contain only DDL/DML. After each migration succeeds the runner
+/// records the version in `schema_migrations` with the current Unix timestamp.
 fn run_migrations(conn: &Connection) -> Result<(), StorageError> {
     // Ensure the tracking table exists before we query it.
     conn.execute(
@@ -55,23 +59,8 @@ fn run_migrations(conn: &Connection) -> Result<(), StorageError> {
     )
     .map_err(|e| StorageError::InitFailed(e.to_string()))?;
 
-    let migrations_dir = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/migrations"));
-    let mut entries: Vec<PathBuf> = std::fs::read_dir(&migrations_dir)
-        .map_err(|e| {
-            StorageError::InitFailed(format!(
-                "failed to read migrations dir {}: {}",
-                migrations_dir.display(),
-                e
-            ))
-        })?
-        .filter_map(|e| e.ok())
-        .map(|e| e.path())
-        .filter(|p| p.extension().map(|e| e == "sql").unwrap_or(false))
-        .collect();
-    entries.sort();
-
-    for path in entries {
-        let version = migration_version(&path)?;
+    for path in migrations::migration_files()? {
+        let version = migrations::migration_version(&path)?;
         let applied: bool = conn
             .query_row(
                 "SELECT 1 FROM schema_migrations WHERE version = ?1",
@@ -106,6 +95,17 @@ fn run_migrations(conn: &Connection) -> Result<(), StorageError> {
                 add_column_if_missing(conn, "intents", "user_address", "TEXT")?;
                 add_column_if_missing(conn, "delegations", "user_address", "TEXT")?;
             }
+
+            conn.execute(
+                "INSERT INTO schema_migrations (version, applied_at) VALUES (?1, ?2)",
+                [version, migrations::unix_now()],
+            )
+            .map_err(|e| {
+                StorageError::InitFailed(format!(
+                    "failed to record migration {}: {}",
+                    version, e
+                ))
+            })?;
         }
     }
     Ok(())
@@ -135,25 +135,6 @@ fn add_column_if_missing(
         .map_err(|e| StorageError::InitFailed(e.to_string()))?;
     }
     Ok(())
-}
-
-/// Extract the numeric version prefix from a migration filename such as
-/// `0001_init.sql`.
-fn migration_version(path: &Path) -> Result<i64, StorageError> {
-    let file_stem = path
-        .file_stem()
-        .ok_or_else(|| StorageError::InitFailed(format!("invalid migration path: {}", path.display())))?
-        .to_string_lossy();
-    file_stem
-        .split('_')
-        .next()
-        .and_then(|s| s.parse().ok())
-        .ok_or_else(|| {
-            StorageError::InitFailed(format!(
-                "invalid migration filename: {}",
-                path.display()
-            ))
-        })
 }
 
 #[async_trait]

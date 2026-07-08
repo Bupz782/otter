@@ -11,6 +11,7 @@ dev:
 
 test:
     cargo test --workspace
+    cargo test -p interfaces --features aws-kms,vault
     cd contracts && forge test
     cd delegation_circuit && nargo test
     cd frontend && npm run test

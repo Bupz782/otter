@@ -1,6 +1,5 @@
-#!/bin/bash
-
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 echo "🚀 Downloading Llama 3.1 8B Instruct (Q4_K_M quantized)"
 echo "📦 Size: ~4.5GB - This will take 5-15 minutes depending on your connection"

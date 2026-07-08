@@ -30,4 +30,3 @@ CREATE TABLE IF NOT EXISTS executions (
     created_at INTEGER NOT NULL
 );
 
-INSERT INTO schema_migrations (version, applied_at) VALUES (1, strftime('%s','now'));
