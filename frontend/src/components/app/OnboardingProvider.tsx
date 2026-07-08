@@ -18,7 +18,6 @@ interface OnboardingContextValue {
   skip: () => void;
   restart: () => void;
   dismiss: () => void;
-  show: () => void;
   startTour: () => void;
 }
 
@@ -69,6 +68,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     if (location.pathname === stepMeta.page) {
       setTargetId(`onboarding-${stepMeta.id}`);
     } else {
+      // Don't show the tooltip/spotlight while auto-navigating to another page.
       setTargetId(null);
       setTargetReady(false);
     }
@@ -128,7 +128,6 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         skip,
         restart,
         dismiss,
-        show: onboarding.show,
         startTour,
       }}
     >
@@ -136,11 +135,11 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       <AnimatePresence>
         {welcomeOpen && <WelcomeModal onStart={startTour} onSkip={skip} />}
       </AnimatePresence>
-      {isOpen && stepMeta && targetReady && (
+      {isOpen && stepMeta && targetReady && targetId && (
         <>
-          {targetId && document.getElementById(targetId) && <Spotlight targetId={targetId} />}
+          <Spotlight targetId={targetId} />
           <OnboardingTooltip
-            targetId={targetId ?? "onboarding-fallback"}
+            targetId={targetId}
             title={stepMeta.title}
             description={stepMeta.description}
             onNext={advance}
