@@ -49,3 +49,27 @@ groups:
         annotations:
           summary: "Otter price monitoring stalled"
           description: "No price updates were received in the last 10 minutes. Verify RPC connectivity and oracle configuration."
+
+      - alert: OtterAgentLowBalance
+        expr: otter_vault_balance < 0.01
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Otter agent ETH balance is low"
+
+      - alert: OtterProofVerificationFailing
+        expr: rate(otter_proof_verification_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "On-chain proof verification is failing"
+
+      - alert: OtterRpcUnhealthy
+        expr: rate(otter_rpc_errors_total[5m]) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RPC endpoint is unhealthy"
