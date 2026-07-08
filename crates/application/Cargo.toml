@@ -5,3 +5,10 @@ edition = "2024"
 
 [dependencies]
 domain = { path = "../domain" }
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1", features = ["sync", "time", "macros", "rt-multi-thread"] }
+tracing = "0.1"
+
+[dev-dependencies]
+infrastructure = { path = "../infrastructure" }
+tokio = { version = "1", features = ["sync", "time", "macros", "rt-multi-thread"] }

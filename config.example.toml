@@ -1,0 +1,21 @@
+# Otter agent configuration
+# Copy this file to config.toml and adjust values for your environment.
+
+agent_name = "otter-agent-dev"
+rpc_url = "http://localhost:8545"
+chain_id = 31337
+model_path = "models/Qwen3-8B-Q4_K_M.gguf"
+monitoring_interval_secs = 60
+log_level = "info"
+database_url = "otter.db"
+api_port = 3001
+
+# Optional on-chain execution settings (required for testnet agent mode)
+# network = "sepolia"
+# vault_address = "0x..."
+# private_key = "0x..."
+# circuit_dir = "./delegation_circuit"
+# bb_bin = "~/.bb/bb"
+# delegate_on_create = false
+# execution_enabled = false
+# metrics_enabled = false

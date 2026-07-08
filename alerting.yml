@@ -1,0 +1,51 @@
+# Otter V1 Prometheus alerting rules
+# Load this file into Prometheus via `rule_files`.
+
+groups:
+  - name: otter-agent
+    interval: 30s
+    rules:
+      - alert: OtterAgentDown
+        expr: up{job="otter-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Otter API is down"
+          description: "The Otter API job {{ $labels.job }} has been unreachable for more than 1 minute."
+
+      - alert: OtterNotReady
+        expr: otter_execution_enabled == 1 and otter_active_intents > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Otter API readiness unclear"
+          description: "Check /ready; active intents exist but execution may be disabled or misconfigured."
+
+      - alert: OtterHighErrorRate
+        expr: rate(otter_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Otter agent error rate is high"
+          description: "Error rate is {{ $value }} errors/sec over the last 5 minutes."
+
+      - alert: OtterExecutionStalled
+        expr: rate(otter_conditions_met_total[10m]) > 0 and rate(otter_executions_total[10m]) == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Otter executions are stalled"
+          description: "Conditions were met but no on-chain executions succeeded in the last 10 minutes. Check agent ETH balance, vault address and /metrics."
+
+      - alert: OtterNoPriceUpdates
+        expr: rate(otter_price_updates_total[10m]) == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Otter price monitoring stalled"
+          description: "No price updates were received in the last 10 minutes. Verify RPC connectivity and oracle configuration."

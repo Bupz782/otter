@@ -35,7 +35,7 @@ mod response_parser;
 pub use cache::{CacheStats, CachedClient, PromptCache, ResponseCache};
 pub use config::LlmConfig;
 pub use error::LlmError;
-pub use local_client::LocalLlmClient;
+pub use local_client::{IntentOutput, LocalLlmClient};
 
 // Component exports (for advanced usage)
 pub use model_loader::{LoadedModel, ModelLoader};

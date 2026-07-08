@@ -8,6 +8,9 @@ pub enum ValidateIntentError {
     InvalidAsset(String),
     InvalidProtocol(String),
     MissingField(String),
+    SameAsset,
+    InsufficientBalance,
+    EmptyComposite,
 }
 
 impl From<ValidationError> for ValidateIntentError {
@@ -17,6 +20,9 @@ impl From<ValidationError> for ValidateIntentError {
             ValidationError::InvalidAsset(msg) => ValidateIntentError::InvalidAsset(msg),
             ValidationError::InvalidProtocol(msg) => ValidateIntentError::InvalidProtocol(msg),
             ValidationError::MissingField(msg) => ValidateIntentError::MissingField(msg),
+            ValidationError::SameAsset => ValidateIntentError::SameAsset,
+            ValidationError::InsufficientBalance => ValidateIntentError::InsufficientBalance,
+            ValidationError::EmptyComposite => ValidateIntentError::EmptyComposite,
         }
     }
 }
