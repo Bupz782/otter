@@ -366,6 +366,7 @@ fn app(state: Arc<AppState>) -> Router {
         .route("/api/v1/auth/verify", post(auth_verify))
         .route("/api/v1/ws", get(ws_handler))
         .route("/health", get(health))
+        .route("/api/v1/health", get(health))
         .route("/health/live", get(health_live))
         .route("/ready", get(ready))
         .route("/metrics", get(metrics));
