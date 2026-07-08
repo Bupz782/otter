@@ -7,17 +7,20 @@ const cards = [
   {
     icon: <Vault className="h-6 w-6" />,
     title: "Your deposit stays in your vault",
-    description: "Funds remain in the StrategyVault. Agents can only act within signed limits you control.",
+    description:
+      "Funds remain in the StrategyVault. Agents can only act within signed limits you control.",
   },
   {
     icon: <Pencil className="h-6 w-6" />,
     title: "Write rules in plain English",
-    description: "Describe conditions like 'Lend 1000 USDC if yield > 3%'. Otter parses and enforces them.",
+    description:
+      "Describe conditions like 'Lend 1000 USDC if yield > 3%'. Otter parses and enforces them.",
   },
   {
     icon: <ShieldCheck className="h-6 w-6" />,
     title: "Every action is proven",
-    description: "Zero-knowledge proofs verify solvency and limit compliance on-chain, without exposing balances.",
+    description:
+      "Zero-knowledge proofs verify solvency and limit compliance on-chain, without exposing balances.",
   },
 ];
 
@@ -52,7 +55,9 @@ export function WelcomeModal({ onStart, onSkip }: { onStart: () => void; onSkip:
         </button>
 
         <div className="text-center">
-          <h2 id="welcome-title" className="font-heading text-3xl font-bold">Welcome to Otter</h2>
+          <h2 id="welcome-title" className="font-heading text-3xl font-bold">
+            Welcome to Otter
+          </h2>
           <p className="mt-2 text-muted-foreground">Three things to know before you start.</p>
         </div>
 

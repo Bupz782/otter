@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Bot, Star, ShieldCheck, TrendingUp, Coins, Activity, Plus, Lock } from "lucide-react";
+import { Bot, Star, Lock } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,7 +42,8 @@ export function AgentsPage() {
             <div>
               <p className="font-heading text-base font-bold">Otter-curated agents only</p>
               <p className="text-sm text-muted-foreground">
-                These agents are protocol-operated, bonded, and audited. You cannot upload or run your own agent.
+                These agents are protocol-operated, bonded, and audited. You cannot upload or run
+                your own agent.
               </p>
             </div>
           </div>
@@ -88,7 +89,9 @@ export function AgentsPage() {
                       <span className="font-heading text-lg font-bold">{agent.name.charAt(0)}</span>
                     </div>
                     <div>
-                      <p className="font-heading text-lg font-bold transition-colors group-hover:text-accent">{agent.name}</p>
+                      <p className="font-heading text-lg font-bold transition-colors group-hover:text-accent">
+                        {agent.name}
+                      </p>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Star className="h-3 w-3 text-accent" />
                         {agent.reputation}
@@ -96,7 +99,9 @@ export function AgentsPage() {
                     </div>
                   </div>
                   <span id={index === 0 ? "onboarding-agents-risk" : undefined}>
-                    <Badge variant={riskVariant[agent.riskProfile]} className="text-[10px]">{agent.riskProfile}</Badge>
+                    <Badge variant={riskVariant[agent.riskProfile]} className="text-[10px]">
+                      {agent.riskProfile}
+                    </Badge>
                   </span>
                 </div>
 
@@ -121,7 +126,10 @@ export function AgentsPage() {
                   </div>
                 </div>
 
-                <Button id={index === 0 ? "onboarding-agents-delegate" : undefined} className="mt-4 w-full rounded-full opacity-90 transition-opacity group-hover:opacity-100">
+                <Button
+                  id={index === 0 ? "onboarding-agents-delegate" : undefined}
+                  className="mt-4 w-full rounded-full opacity-90 transition-opacity group-hover:opacity-100"
+                >
                   View agent
                 </Button>
               </Link>

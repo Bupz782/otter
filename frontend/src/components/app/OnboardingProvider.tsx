@@ -18,12 +18,12 @@ interface OnboardingContextValue {
   skip: () => void;
   restart: () => void;
   dismiss: () => void;
-  show: () => void;
   startTour: () => void;
 }
 
 const OnboardingContext = createContext<OnboardingContextValue | null>(null);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useOnboardingContext() {
   const ctx = useContext(OnboardingContext);
   if (!ctx) throw new Error("useOnboardingContext must be used within OnboardingProvider");
@@ -32,7 +32,20 @@ export function useOnboardingContext() {
 
 export function OnboardingProvider({ children }: { children: ReactNode }) {
   const onboarding = useOnboarding();
-  const { step, isOpen, welcomeOpen, hasHydrated, stepMeta, totalSteps, advance, back, skip, restart, dismiss, startTour } = onboarding;
+  const {
+    step,
+    isOpen,
+    welcomeOpen,
+    hasHydrated,
+    stepMeta,
+    totalSteps,
+    advance,
+    back,
+    skip,
+    restart,
+    dismiss,
+    startTour,
+  } = onboarding;
   const location = useLocation();
   const navigate = useNavigate();
   const [targetId, setTargetId] = useState<string | null>(null);
@@ -69,6 +82,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     if (location.pathname === stepMeta.page) {
       setTargetId(`onboarding-${stepMeta.id}`);
     } else {
+      // Don't show the tooltip/spotlight while auto-navigating to another page.
       setTargetId(null);
       setTargetReady(false);
     }
@@ -81,8 +95,10 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    let raf: number;
-    let timeout: ReturnType<typeof setTimeout>;
+    const timeout = setTimeout(() => {
+      check();
+    }, 50);
+    const raf = { current: 0 };
     let attempts = 0;
 
     const check = () => {
@@ -98,21 +114,21 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         setTargetReady(true);
         return;
       }
-      raf = requestAnimationFrame(check);
+      raf.current = requestAnimationFrame(check);
     };
-
-    // Give React a tick to render before scanning the DOM.
-    timeout = setTimeout(() => {
-      check();
-    }, 50);
 
     return () => {
       clearTimeout(timeout);
-      cancelAnimationFrame(raf);
+      cancelAnimationFrame(raf.current);
     };
   }, [targetId]);
 
-  const currentStepIndex = step ? Math.max(ONBOARDING_STEPS.findIndex((s) => s.id === step), 0) + 1 : 0;
+  const currentStepIndex = step
+    ? Math.max(
+        ONBOARDING_STEPS.findIndex((s) => s.id === step),
+        0
+      ) + 1
+    : 0;
 
   return (
     <OnboardingContext.Provider
@@ -128,7 +144,6 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         skip,
         restart,
         dismiss,
-        show: onboarding.show,
         startTour,
       }}
     >
@@ -136,11 +151,11 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       <AnimatePresence>
         {welcomeOpen && <WelcomeModal onStart={startTour} onSkip={skip} />}
       </AnimatePresence>
-      {isOpen && stepMeta && targetReady && (
+      {isOpen && stepMeta && targetReady && targetId && (
         <>
-          {targetId && document.getElementById(targetId) && <Spotlight targetId={targetId} />}
+          <Spotlight targetId={targetId} />
           <OnboardingTooltip
-            targetId={targetId ?? "onboarding-fallback"}
+            targetId={targetId}
             title={stepMeta.title}
             description={stepMeta.description}
             onNext={advance}

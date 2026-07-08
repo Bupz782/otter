@@ -17,6 +17,8 @@ pub struct IntentRecord {
     pub created_at: i64,
     /// Unix timestamp (seconds) of the last update.
     pub updated_at: i64,
+    /// Authenticated user address that created the intent, if auth is enabled.
+    pub user_address: Option<String>,
 }
 
 /// A persisted delegation record.
@@ -29,6 +31,8 @@ pub struct DelegationRecord {
     pub signature: String,
     /// Unix timestamp (seconds) when the record was created.
     pub created_at: i64,
+    /// Authenticated user address that created the delegation, if auth is enabled.
+    pub user_address: Option<String>,
 }
 
 /// A persisted execution / transaction record.

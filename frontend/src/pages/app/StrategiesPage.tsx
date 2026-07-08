@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { BookOpen, Sparkles, Trophy, Bot } from "lucide-react";
+import { BookOpen, Sparkles, Trophy } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,9 @@ export function StrategiesPage() {
         className="space-y-2"
       >
         <h1 className="font-heading text-3xl font-bold tracking-tight">Strategies</h1>
-        <p className="text-muted-foreground">Official Otter strategies you can use as a starting point.</p>
+        <p className="text-muted-foreground">
+          Official Otter strategies you can use as a starting point.
+        </p>
       </motion.div>
 
       <div className="grid gap-8 lg:grid-cols-3">
@@ -63,7 +65,9 @@ export function StrategiesPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-heading text-lg font-bold">{strategy.title}</p>
                         <Badge variant="secondary">{strategy.agentName}</Badge>
-                        <Badge variant={riskVariant[strategy.riskProfile]} className="text-[10px]">{strategy.riskProfile}</Badge>
+                        <Badge variant={riskVariant[strategy.riskProfile]} className="text-[10px]">
+                          {strategy.riskProfile}
+                        </Badge>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">{strategy.description}</p>
                       <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
@@ -78,7 +82,13 @@ export function StrategiesPage() {
                         )}
                       </div>
                     </div>
-                    <Button asChild id={index === 0 ? "onboarding-strategies-use" : undefined} variant="outline" size="sm" className="shrink-0">
+                    <Button
+                      asChild
+                      id={index === 0 ? "onboarding-strategies-use" : undefined}
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
+                    >
                       <Link to={`/app/intents/new?strategy=${strategy.id}`}>
                         <Sparkles className="mr-2 h-4 w-4" />
                         Use strategy
@@ -119,7 +129,9 @@ export function StrategiesPage() {
                     </span>
                     <span className="text-sm font-medium">{entry.agentName}</span>
                   </div>
-                  <span className="text-xs text-muted-foreground">{entry.proofsSubmitted.toLocaleString()} proofs</span>
+                  <span className="text-xs text-muted-foreground">
+                    {entry.proofsSubmitted.toLocaleString()} proofs
+                  </span>
                 </Link>
               ))
             )}

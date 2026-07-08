@@ -5,6 +5,7 @@ use domain::ports::price_oracle_port::{OracleError, PriceOraclePort};
 
 use super::chainlink_oracle::{ChainlinkPriceOracle, Network as OracleNetwork};
 use crate::protocols::AaveAdapter;
+use crate::protocols::aave::DUMMY_ON_BEHALF_OF;
 
 /// Composite oracle that dispatches market-data queries to the right on-chain
 /// source.
@@ -24,9 +25,9 @@ impl CompositeOracle {
         let rpc_url = rpc_url.into();
         let price_oracle = ChainlinkPriceOracle::new(rpc_url.clone(), network);
         let yield_oracle = match network {
-            OracleNetwork::Mainnet => AaveAdapter::mainnet(&rpc_url)
+            OracleNetwork::Mainnet => AaveAdapter::mainnet(&rpc_url, DUMMY_ON_BEHALF_OF)
                 .map_err(|e| OracleError::FetchFailed(e.to_string()))?,
-            OracleNetwork::Sepolia => AaveAdapter::sepolia(&rpc_url)
+            OracleNetwork::Sepolia => AaveAdapter::sepolia(&rpc_url, DUMMY_ON_BEHALF_OF)
                 .map_err(|e| OracleError::FetchFailed(e.to_string()))?,
         };
         Ok(Self {

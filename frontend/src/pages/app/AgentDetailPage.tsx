@@ -67,7 +67,8 @@ export function AgentDetailPage() {
                   <Bot className="h-4 w-4" /> {agent.followers.toLocaleString()} delegators
                 </span>
                 <span className="flex items-center gap-1">
-                  <ShieldCheck className="h-4 w-4" /> {agent.proofsSubmitted.toLocaleString()} proofs
+                  <ShieldCheck className="h-4 w-4" /> {agent.proofsSubmitted.toLocaleString()}{" "}
+                  proofs
                 </span>
               </div>
             </div>
@@ -82,7 +83,9 @@ export function AgentDetailPage() {
             <CardTitle>Yield Generated</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="font-heading text-3xl font-bold">${agent.yieldGenerated.toLocaleString()}</p>
+            <p className="font-heading text-3xl font-bold">
+              ${agent.yieldGenerated.toLocaleString()}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -117,7 +120,9 @@ export function AgentDetailPage() {
       <Card>
         <CardHeader>
           <CardTitle>Delegate to {agent.name}</CardTitle>
-          <CardDescription>Authorize this Otter agent to execute intents within limits you set.</CardDescription>
+          <CardDescription>
+            Authorize this Otter agent to execute intents within limits you set.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Button asChild className="rounded-full">

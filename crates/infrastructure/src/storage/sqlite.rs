@@ -30,11 +30,13 @@ impl SqliteStorage {
                 intent_json TEXT NOT NULL,
                 state TEXT NOT NULL,
                 created_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL
+                updated_at INTEGER NOT NULL,
+                user_address TEXT
             )",
             [],
         )
         .map_err(|e| StorageError::InitFailed(e.to_string()))?;
+        add_column_if_missing(&conn, "intents", "user_address", "TEXT")?;
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_intents_updated_at ON intents(updated_at DESC)",
             [],
@@ -45,11 +47,13 @@ impl SqliteStorage {
                 hash TEXT PRIMARY KEY,
                 payload_json TEXT NOT NULL,
                 signature TEXT NOT NULL,
-                created_at INTEGER NOT NULL
+                created_at INTEGER NOT NULL,
+                user_address TEXT
             )",
             [],
         )
         .map_err(|e| StorageError::InitFailed(e.to_string()))?;
+        add_column_if_missing(&conn, "delegations", "user_address", "TEXT")?;
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_delegations_created_at ON delegations(created_at DESC)",
             [],
@@ -89,7 +93,8 @@ impl SqliteStorage {
                 intent_json TEXT NOT NULL,
                 state TEXT NOT NULL,
                 created_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL
+                updated_at INTEGER NOT NULL,
+                user_address TEXT
             )",
             [],
         )
@@ -99,7 +104,8 @@ impl SqliteStorage {
                 hash TEXT PRIMARY KEY,
                 payload_json TEXT NOT NULL,
                 signature TEXT NOT NULL,
-                created_at INTEGER NOT NULL
+                created_at INTEGER NOT NULL,
+                user_address TEXT
             )",
             [],
         )
@@ -122,6 +128,31 @@ impl SqliteStorage {
     }
 }
 
+fn add_column_if_missing(
+    conn: &Connection,
+    table: &str,
+    column: &str,
+    column_type: &str,
+) -> Result<(), StorageError> {
+    let mut stmt = conn
+        .prepare("SELECT name FROM pragma_table_info(?1) WHERE name = ?2")
+        .map_err(|e| StorageError::InitFailed(e.to_string()))?;
+    let exists = stmt
+        .exists(rusqlite::params![table, column])
+        .map_err(|e| StorageError::InitFailed(e.to_string()))?;
+    if !exists {
+        conn.execute(
+            &format!(
+                "ALTER TABLE {} ADD COLUMN {} {}",
+                table, column, column_type
+            ),
+            [],
+        )
+        .map_err(|e| StorageError::InitFailed(e.to_string()))?;
+    }
+    Ok(())
+}
+
 #[async_trait]
 impl StoragePort for SqliteStorage {
     async fn save_intent(&self, record: &IntentRecord) -> Result<(), StorageError> {
@@ -132,15 +163,16 @@ impl StoragePort for SqliteStorage {
                 .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
             let conn = conn.lock().map_err(|e| StorageError::SaveFailed(e.to_string()))?;
             conn.execute(
-                "INSERT OR REPLACE INTO intents (id, text, intent_json, state, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                [
+                "INSERT OR REPLACE INTO intents (id, text, intent_json, state, created_at, updated_at, user_address)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                rusqlite::params![
                     &record.id,
                     &record.text,
                     &intent_json,
                     &record.state,
                     &record.created_at.to_string(),
                     &record.updated_at.to_string(),
+                    record.user_address.as_deref(),
                 ],
             )
             .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
@@ -158,7 +190,7 @@ impl StoragePort for SqliteStorage {
                 .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
             let mut stmt = conn
                 .prepare(
-                    "SELECT id, text, intent_json, state, created_at, updated_at
+                    "SELECT id, text, intent_json, state, created_at, updated_at, user_address
                      FROM intents
                      ORDER BY updated_at DESC",
                 )
@@ -171,6 +203,7 @@ impl StoragePort for SqliteStorage {
                     let state: String = row.get(3)?;
                     let created_at: i64 = row.get(4)?;
                     let updated_at: i64 = row.get(5)?;
+                    let user_address: Option<String> = row.get(6)?;
                     let intent: ConditionalIntent =
                         serde_json::from_str(&intent_json).map_err(|e| {
                             rusqlite::Error::FromSqlConversionFailure(
@@ -186,6 +219,7 @@ impl StoragePort for SqliteStorage {
                         state,
                         created_at,
                         updated_at,
+                        user_address,
                     })
                 })
                 .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
@@ -205,7 +239,7 @@ impl StoragePort for SqliteStorage {
                 .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
             let row = conn
                 .query_row(
-                    "SELECT id, text, intent_json, state, created_at, updated_at
+                    "SELECT id, text, intent_json, state, created_at, updated_at, user_address
                      FROM intents WHERE id = ?1",
                     [&id],
                     |row| {
@@ -225,6 +259,7 @@ impl StoragePort for SqliteStorage {
                             state: row.get(3)?,
                             created_at: row.get(4)?,
                             updated_at: row.get(5)?,
+                            user_address: row.get(6)?,
                         })
                     },
                 )
@@ -277,13 +312,14 @@ impl StoragePort for SqliteStorage {
                 .lock()
                 .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
             conn.execute(
-                "INSERT OR REPLACE INTO delegations (hash, payload_json, signature, created_at)
-                 VALUES (?1, ?2, ?3, ?4)",
-                [
+                "INSERT OR REPLACE INTO delegations (hash, payload_json, signature, created_at, user_address)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params![
                     &record.hash,
                     &record.payload_json,
                     &record.signature,
                     &record.created_at.to_string(),
+                    record.user_address.as_deref(),
                 ],
             )
             .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
@@ -301,7 +337,7 @@ impl StoragePort for SqliteStorage {
                 .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
             let mut stmt = conn
                 .prepare(
-                    "SELECT hash, payload_json, signature, created_at
+                    "SELECT hash, payload_json, signature, created_at, user_address
                      FROM delegations
                      ORDER BY created_at DESC",
                 )
@@ -313,6 +349,7 @@ impl StoragePort for SqliteStorage {
                         payload_json: row.get(1)?,
                         signature: row.get(2)?,
                         created_at: row.get(3)?,
+                        user_address: row.get(4)?,
                     })
                 })
                 .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
@@ -332,7 +369,7 @@ impl StoragePort for SqliteStorage {
                 .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
             let row = conn
                 .query_row(
-                    "SELECT hash, payload_json, signature, created_at
+                    "SELECT hash, payload_json, signature, created_at, user_address
                      FROM delegations WHERE hash = ?1",
                     [&hash],
                     |row| {
@@ -341,6 +378,7 @@ impl StoragePort for SqliteStorage {
                             payload_json: row.get(1)?,
                             signature: row.get(2)?,
                             created_at: row.get(3)?,
+                            user_address: row.get(4)?,
                         })
                     },
                 )
@@ -480,6 +518,7 @@ mod tests {
             state: "active".to_string(),
             created_at: now_secs(),
             updated_at: now_secs(),
+            user_address: None,
         }
     }
 

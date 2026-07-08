@@ -21,7 +21,7 @@ export function Spotlight({ targetId }: { targetId: string }) {
 
   if (!rect) return null;
 
-  const padding = 8;
+  const padding = 6;
   const style: React.CSSProperties = {
     position: "fixed",
     top: rect.top - padding,
@@ -30,13 +30,14 @@ export function Spotlight({ targetId }: { targetId: string }) {
     height: rect.height + padding * 2,
     zIndex: 125,
     pointerEvents: "none",
+    borderRadius: 16,
   };
 
   return createPortal(
-    <div style={style} className="rounded-xl">
-      <div className="animate-spotlight-rotate absolute -inset-px rounded-xl bg-[conic-gradient(from_0deg,transparent_0_340deg,var(--otter-amber-300)_360deg)] opacity-60" />
-      <div className="absolute inset-[2px] rounded-xl bg-background/20 backdrop-blur-[1px]" />
-    </div>,
+    <div
+      style={style}
+      className="rounded-2xl ring-2 ring-accent ring-offset-0 shadow-[0_0_24px_rgba(200,164,108,0.25)]"
+    />,
     document.body
   );
 }

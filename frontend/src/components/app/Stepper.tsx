@@ -30,16 +30,26 @@ export function Stepper({
                   {isCompleted ? <Check className="h-4 w-4" /> : index + 1}
                 </div>
                 <div className="mt-2 hidden text-center sm:block">
-                  <p className={cn("text-xs font-medium", isCurrent ? "text-foreground" : "text-muted-foreground")}>
+                  <p
+                    className={cn(
+                      "text-xs font-medium",
+                      isCurrent ? "text-foreground" : "text-muted-foreground"
+                    )}
+                  >
                     {step.label}
                   </p>
-                  <p className="hidden max-w-[100px] text-[10px] text-muted-foreground lg:block">{step.description}</p>
+                  <p className="hidden max-w-[100px] text-[10px] text-muted-foreground lg:block">
+                    {step.description}
+                  </p>
                 </div>
               </div>
               {index < steps.length - 1 && (
                 <div className="mx-2 h-px flex-1 bg-border">
                   <div
-                    className={cn("h-full bg-accent transition-all duration-500", isCompleted ? "w-full" : "w-0")}
+                    className={cn(
+                      "h-full bg-accent transition-all duration-500",
+                      isCompleted ? "w-full" : "w-0"
+                    )}
                   />
                 </div>
               )}

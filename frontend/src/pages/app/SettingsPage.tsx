@@ -54,7 +54,9 @@ export function SettingsPage() {
           <div className="flex items-center justify-between rounded-lg border border-border/60 bg-secondary p-4">
             <div>
               <p className="font-medium">Guided tour</p>
-              <p className="text-xs text-muted-foreground">Restart the contextual tooltip tour from the Dashboard.</p>
+              <p className="text-xs text-muted-foreground">
+                Restart the contextual tooltip tour from the Dashboard.
+              </p>
             </div>
             <Button variant="outline" size="sm" onClick={restart} className="rounded-full">
               <RotateCcw className="mr-2 h-4 w-4" />
@@ -73,16 +75,22 @@ export function SettingsPage() {
           <div className="flex items-center justify-between rounded-lg border border-border/60 bg-secondary p-4">
             <div>
               <p className="font-medium">Simulate latency</p>
-              <p className="text-xs text-muted-foreground">Adds realistic network delays to mock API calls.</p>
+              <p className="text-xs text-muted-foreground">
+                Adds realistic network delays to mock API calls.
+              </p>
             </div>
-            <Button variant="outline" size="sm" disabled>On</Button>
+            <Button variant="outline" size="sm" disabled>
+              On
+            </Button>
           </div>
           <div className="flex items-center justify-between rounded-lg border border-border/60 bg-secondary p-4">
             <div>
               <p className="font-medium">Network</p>
               <p className="text-xs text-muted-foreground">Mocked Ethereum mainnet.</p>
             </div>
-            <Button variant="outline" size="sm" disabled>Ethereum</Button>
+            <Button variant="outline" size="sm" disabled>
+              Ethereum
+            </Button>
           </div>
         </CardContent>
       </Card>

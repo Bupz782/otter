@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Filter, Lightbulb, ArrowRight } from "lucide-react";
+import { Plus, Filter, Lightbulb } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,9 @@ const filters: { label: string; value: IntentStatus | "all" }[] = [
 
 export function IntentsPage() {
   const [statusFilter, setStatusFilter] = useState<IntentStatus | undefined>(undefined);
-  const { data: intents, isLoading } = useIntents(statusFilter ? { status: statusFilter } : undefined);
+  const { data: intents, isLoading } = useIntents(
+    statusFilter ? { status: statusFilter } : undefined
+  );
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -49,7 +51,9 @@ export function IntentsPage() {
         {filters.map((f) => (
           <Button
             key={f.value}
-            variant={statusFilter === (f.value === "all" ? undefined : f.value) ? "default" : "outline"}
+            variant={
+              statusFilter === (f.value === "all" ? undefined : f.value) ? "default" : "outline"
+            }
             size="sm"
             onClick={() => setStatusFilter(f.value === "all" ? undefined : f.value)}
           >
@@ -90,10 +94,14 @@ export function IntentsPage() {
                 className="group flex flex-col gap-3 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-accent/40 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="space-y-1">
-                  <p className="font-medium transition-colors group-hover:text-accent">{intent.rawText}</p>
+                  <p className="font-medium transition-colors group-hover:text-accent">
+                    {intent.rawText}
+                  </p>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <Badge variant="outline">{intent.parsed.type}</Badge>
-                    <span>{intent.parsed.amount} {intent.parsed.asset}</span>
+                    <span>
+                      {intent.parsed.amount} {intent.parsed.asset}
+                    </span>
                     <span>·</span>
                     <span>{intent.parsed.protocol}</span>
                     <span>·</span>

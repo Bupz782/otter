@@ -15,13 +15,8 @@ contract DelegationVerifierTest is Test {
     /// fixtures produced by `cargo run -p infrastructure --bin generate-fixture`.
     function test_verifiesValidDelegationProof() public view {
         bytes memory proof = vm.readFileBinary("test/fixtures/proof.bin");
-        bytes memory publicInputsBytes = vm.readFileBinary(
-            "test/fixtures/public_inputs.bin"
-        );
-        require(
-            publicInputsBytes.length % 32 == 0,
-            "public inputs must be a multiple of 32 bytes"
-        );
+        bytes memory publicInputsBytes = vm.readFileBinary("test/fixtures/public_inputs.bin");
+        require(publicInputsBytes.length % 32 == 0, "public inputs must be a multiple of 32 bytes");
 
         uint256 numPublicInputs = publicInputsBytes.length / 32;
         bytes32[] memory publicInputs = new bytes32[](numPublicInputs);
@@ -42,9 +37,7 @@ contract DelegationVerifierTest is Test {
         bytes memory proof = vm.readFileBinary("test/fixtures/proof.bin");
         proof[0] = bytes1(uint8(proof[0]) ^ 0xff);
 
-        bytes memory publicInputsBytes = vm.readFileBinary(
-            "test/fixtures/public_inputs.bin"
-        );
+        bytes memory publicInputsBytes = vm.readFileBinary("test/fixtures/public_inputs.bin");
         uint256 numPublicInputs = publicInputsBytes.length / 32;
         bytes32[] memory publicInputs = new bytes32[](numPublicInputs);
         for (uint256 i = 0; i < numPublicInputs; i++) {

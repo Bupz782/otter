@@ -1,12 +1,6 @@
 import { motion } from "framer-motion";
 import { BookOpen, Github, MessageCircle } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const links = [
   {

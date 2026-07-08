@@ -2,7 +2,14 @@ import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Sparkles, Check, Loader2, ArrowRight, ShieldCheck, Bot } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +22,6 @@ import { useCreateIntent } from "@/hooks/useCreateIntent";
 import { useDelegations } from "@/hooks/useDelegations";
 import { useAgents } from "@/hooks/useAgents";
 import { useStrategies } from "@/hooks/useStrategies";
-import type { IntentType } from "@/types/app";
 
 const examples = [
   "Lend 1000 USDC on Aave if yield > 3%",
@@ -84,8 +90,8 @@ export function CreateIntentPage() {
     setTimeout(() => navigate("/app/intents"), 1200);
   };
 
-  const selectedAgent = agents?.find((a) =>
-    delegations?.find((d) => d.id === selectedDelegation)?.agentId === a.id
+  const selectedAgent = agents?.find(
+    (a) => delegations?.find((d) => d.id === selectedDelegation)?.agentId === a.id
   );
 
   return (
@@ -97,7 +103,9 @@ export function CreateIntentPage() {
         className="space-y-2"
       >
         <h1 className="font-heading text-3xl font-bold tracking-tight">Create Intent</h1>
-        <p className="text-muted-foreground">Describe a conditional DeFi action in plain English.</p>
+        <p className="text-muted-foreground">
+          Describe a conditional DeFi action in plain English.
+        </p>
       </motion.div>
 
       <div id="onboarding-create-intent-stepper">
@@ -127,7 +135,9 @@ export function CreateIntentPage() {
                   className="min-h-[140px] resize-none"
                 />
                 <div className="space-y-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Try an example</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Try an example
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {examples.map((example) => (
                       <Button
@@ -190,7 +200,9 @@ export function CreateIntentPage() {
                 </div>
                 <div className="rounded-lg border border-border/60 bg-secondary p-3">
                   <p className="text-xs text-muted-foreground">Amount</p>
-                  <p className="font-heading text-lg font-bold">{parsed.amount} {parsed.asset}</p>
+                  <p className="font-heading text-lg font-bold">
+                    {parsed.amount} {parsed.asset}
+                  </p>
                 </div>
                 <div className="rounded-lg border border-border/60 bg-secondary p-3">
                   <p className="text-xs text-muted-foreground">Protocol</p>
@@ -208,7 +220,9 @@ export function CreateIntentPage() {
                 )}
               </CardContent>
               <CardFooter className="flex justify-between">
-                <Button variant="ghost" onClick={() => setStep(0)}>Back</Button>
+                <Button variant="ghost" onClick={() => setStep(0)}>
+                  Back
+                </Button>
                 <Button onClick={() => setStep(2)} className="rounded-full">
                   Choose agent
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -272,19 +286,25 @@ export function CreateIntentPage() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-subtle text-accent">
-                              <span className="font-heading text-sm font-bold">{delegation.agentName.charAt(0)}</span>
+                              <span className="font-heading text-sm font-bold">
+                                {delegation.agentName.charAt(0)}
+                              </span>
                             </div>
                             <div>
                               <p className="font-medium">{delegation.agentName}</p>
-                              <p className="text-xs text-muted-foreground">{agent?.operatedBy}-operated · {agent?.riskProfile}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {agent?.operatedBy}-operated · {agent?.riskProfile}
+                              </p>
                             </div>
                           </div>
-                          {selectedDelegation === delegation.id && <Badge variant="default">Selected</Badge>}
+                          {selectedDelegation === delegation.id && (
+                            <Badge variant="default">Selected</Badge>
+                          )}
                         </div>
                         <p className="mt-2 text-xs text-muted-foreground">
                           Max lend ${delegation.maxAmounts.lend.toLocaleString()} ·{" "}
-                          {delegation.allowedProtocols.join(", ")} ·{" "}
-                          Expires {new Date(delegation.expiry).toLocaleDateString()}
+                          {delegation.allowedProtocols.join(", ")} · Expires{" "}
+                          {new Date(delegation.expiry).toLocaleDateString()}
                         </p>
                       </button>
                     );
@@ -292,7 +312,9 @@ export function CreateIntentPage() {
                 )}
               </CardContent>
               <CardFooter className="flex justify-between">
-                <Button variant="ghost" onClick={() => setStep(1)}>Back</Button>
+                <Button variant="ghost" onClick={() => setStep(1)}>
+                  Back
+                </Button>
                 <Button
                   onClick={handleDelegate}
                   disabled={!selectedDelegation}
@@ -321,7 +343,8 @@ export function CreateIntentPage() {
                 <div className="rounded-xl border border-border/60 bg-secondary p-4">
                   <p className="text-xs text-muted-foreground">Intent</p>
                   <p className="font-heading text-lg font-bold">{text}</p>
-                </div>                <div className="grid gap-3 sm:grid-cols-2">
+                </div>{" "}
+                <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-lg border border-border/60 bg-secondary p-3">
                     <p className="text-xs text-muted-foreground">Action</p>
                     <p className="font-heading text-lg font-bold capitalize">{parsed?.type}</p>
@@ -334,12 +357,15 @@ export function CreateIntentPage() {
                 <div className="flex items-start gap-2 rounded-lg border border-accent/20 bg-accent-subtle p-3">
                   <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                   <p className="text-xs text-accent-foreground">
-                    Otter will generate a zero-knowledge proof proving this intent respects your delegation limits before execution.
+                    Otter will generate a zero-knowledge proof proving this intent respects your
+                    delegation limits before execution.
                   </p>
                 </div>
               </CardContent>
               <CardFooter className="flex justify-between">
-                <Button variant="ghost" onClick={() => setStep(2)}>Back</Button>
+                <Button variant="ghost" onClick={() => setStep(2)}>
+                  Back
+                </Button>
                 <Button
                   onClick={handleCreate}
                   disabled={creating || !!created}

@@ -1,11 +1,5 @@
 export type IntentStatus =
-  | "monitoring"
-  | "condition_met"
-  | "proving"
-  | "submitted"
-  | "confirmed"
-  | "failed"
-  | "revoked";
+  "monitoring" | "condition_met" | "proving" | "submitted" | "confirmed" | "failed" | "revoked";
 
 export type IntentType = "lend" | "swap" | "withdraw" | "claim";
 
@@ -141,7 +135,13 @@ export interface LeaderboardEntry {
 
 export interface ActivityItem {
   id: string;
-  type: "deposit" | "withdraw" | "intent_created" | "intent_executed" | "delegation_created" | "mev_rebate";
+  type:
+    | "deposit"
+    | "withdraw"
+    | "intent_created"
+    | "intent_executed"
+    | "delegation_created"
+    | "mev_rebate";
   title: string;
   amount?: number;
   asset?: string;

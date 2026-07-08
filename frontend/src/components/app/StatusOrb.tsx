@@ -1,11 +1,7 @@
-import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { IntentStatus } from "@/types/app";
 
-const statusConfig: Record<
-  IntentStatus,
-  { color: string; pulse: boolean; spin: boolean }
-> = {
+const statusConfig: Record<IntentStatus, { color: string; pulse: boolean; spin: boolean }> = {
   monitoring: { color: "bg-amber-400", pulse: true, spin: false },
   condition_met: { color: "bg-amber-300", pulse: true, spin: false },
   proving: { color: "bg-accent", pulse: true, spin: true },

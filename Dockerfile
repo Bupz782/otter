@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 
-# -----------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # Stage 1: Build the Rust backend
-# -----------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 FROM rustlang/rust:nightly AS builder
 
 WORKDIR /app
@@ -21,9 +21,20 @@ COPY crates/infrastructure/migrations ./crates/infrastructure/migrations
 # Build the API binary in release mode
 RUN cargo build --release -p interfaces --bin metis_api
 
-# -----------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+# TODO(frontend-tooling-ci): Add a stage that installs pinned Noir / bb binaries.
+# Pinned versions used locally:
+#   - nargo: 1.0.0-beta.22
+#   - bb (barretenberg): 5.0.0-nightly.20260522
+# These are currently supplied via host mounts in docker-compose.yml
+# (OTTER_NARGO_BIN / OTTER_BB_BIN). To make the image self-contained, add a
+# stage here that installs nargo (e.g. via noirup) and bb (e.g. from the Aztec
+# releases), then copy the binaries into the runtime stage below.
+# ------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
 # Stage 2: Runtime image
-# -----------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update \

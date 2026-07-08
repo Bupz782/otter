@@ -1,10 +1,10 @@
 use application::events::{Event, EventBus};
 use application::orchestrator::{ActiveIntent, Orchestrator};
 use axum::{
-    Json, Router,
+    Extension, Json, Router,
     body::Body,
-    extract::{ConnectInfo, Path, State as AxumState, WebSocketUpgrade},
     extract::ws::{Message, WebSocket},
+    extract::{ConnectInfo, Path, State as AxumState, WebSocketUpgrade},
     http::{Request, StatusCode, header},
     middleware::{Next, from_fn_with_state},
     response::{IntoResponse, Response},
@@ -14,15 +14,18 @@ use domain::models::condition::Metric;
 use domain::models::delegation::DelegationMessage;
 use domain::models::execution_plan::ExecutionPlan;
 use domain::models::intent::{Asset, ConditionalIntent};
-use domain::ports::{BlockchainPort, DelegationRecord, ExecutionRecord, IntentRecord, StoragePort};
+use domain::ports::price_oracle_port::PriceOraclePort;
 use domain::ports::wallet_port::WalletPort;
-use infrastructure::blockchain::{AlloyEvmAdapter, CompositeOracle, LocalWalletAdapter, OracleNetwork};
+use domain::ports::{BlockchainPort, DelegationRecord, ExecutionRecord, IntentRecord, StoragePort};
+use infrastructure::blockchain::{
+    AlloyEvmAdapter, CompositeOracle, LocalWalletAdapter, OracleNetwork,
+};
 use infrastructure::config::Config;
 use infrastructure::parsers::RegexParser;
 use infrastructure::services::OnChainExecutionService;
 use infrastructure::storage::{PgStorage, SqliteStorage};
 use infrastructure::zkp::NoirAdapter;
-use interfaces::auth::AuthService;
+use interfaces::auth::{AuthService, AuthUser};
 use interfaces::secrets::load_private_key;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -30,7 +33,7 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
 /// Concrete orchestrator type used by the API daemon.
@@ -38,7 +41,7 @@ type AgentOrchestrator = Orchestrator<RegexParser, CompositeOracle, NoirAdapter,
 
 /// Shared application state.
 struct AppState {
-    orchestrator: Arc<Mutex<AgentOrchestrator>>,
+    orchestrator: Arc<RwLock<AgentOrchestrator>>,
     storage: Arc<dyn StoragePort>,
     bus: EventBus,
     metrics: Arc<Metrics>,
@@ -63,8 +66,12 @@ struct AgentPubkey {
 }
 
 impl AppState {
-    async fn lock_orchestrator(&self) -> tokio::sync::MutexGuard<'_, AgentOrchestrator> {
-        self.orchestrator.lock().await
+    async fn read_orchestrator(&self) -> tokio::sync::RwLockReadGuard<'_, AgentOrchestrator> {
+        self.orchestrator.read().await
+    }
+
+    async fn write_orchestrator(&self) -> tokio::sync::RwLockWriteGuard<'_, AgentOrchestrator> {
+        self.orchestrator.write().await
     }
 }
 
@@ -517,10 +524,7 @@ async fn auth_verify(
     Ok(Json(VerifyResponse { token }))
 }
 
-async fn ws_handler(
-    ws: WebSocketUpgrade,
-    AxumState(state): AxumState<Arc<AppState>>,
-) -> Response {
+async fn ws_handler(ws: WebSocketUpgrade, AxumState(state): AxumState<Arc<AppState>>) -> Response {
     ws.on_upgrade(move |socket| handle_socket(socket, state))
 }
 
@@ -650,8 +654,12 @@ fn default_strategies() -> Vec<StrategySummary> {
 }
 
 fn load_agent_pubkey(config: &Config) -> Option<AgentPubkey> {
-    let private_key: String = config.private_key.clone()
-        .or_else(|| config.private_key_file.as_ref().and_then(|path| std::fs::read_to_string(path).ok()))?;
+    let private_key: String = config.private_key.clone().or_else(|| {
+        config
+            .private_key_file
+            .as_ref()
+            .and_then(|path| std::fs::read_to_string(path).ok())
+    })?;
     let wallet = LocalWalletAdapter::from_hex(private_key.trim()).ok()?;
     let (x, y) = wallet.pubkey().ok()?;
     Some(AgentPubkey {
@@ -692,7 +700,7 @@ async fn main() {
     };
 
     let (orchestrator, execution_enabled) = build_orchestrator(&config).await;
-    let orchestrator = Arc::new(Mutex::new(orchestrator));
+    let orchestrator = Arc::new(RwLock::new(orchestrator));
 
     // Hydrate in-memory active intents from storage so monitoring survives
     // process restarts.
@@ -754,8 +762,7 @@ async fn main() {
             track_event(&processor_state, &event);
             persist_event(&processor_state, &event).await;
 
-            let mut orchestrator: tokio::sync::MutexGuard<'_, AgentOrchestrator> =
-                processor_state.lock_orchestrator().await;
+            let mut orchestrator = processor_state.write_orchestrator().await;
             orchestrator
                 .process_event(event, &processor_state.bus)
                 .await;
@@ -864,11 +871,11 @@ fn dummy_evm_adapter(config: &Config) -> AlloyEvmAdapter {
 }
 
 async fn hydrate_active_intents(
-    orchestrator: &Arc<Mutex<AgentOrchestrator>>,
+    orchestrator: &Arc<RwLock<AgentOrchestrator>>,
     storage: &Arc<dyn StoragePort>,
 ) -> Result<(), AppError> {
     let records = storage.list_intents().await?;
-    let mut orchestrator = orchestrator.lock().await;
+    let mut orchestrator = orchestrator.write().await;
     for record in records {
         if record.state == "active" {
             orchestrator.add_active_intent(record.id, record.text, record.intent);
@@ -882,10 +889,12 @@ async fn monitoring_loop(state: Arc<AppState>, interval: Duration) {
     loop {
         tick.tick().await;
 
-        let intents = {
-            let orchestrator: tokio::sync::MutexGuard<'_, AgentOrchestrator> =
-                state.lock_orchestrator().await;
-            orchestrator.active_intents().to_vec()
+        let (intents, oracle) = {
+            let orchestrator = state.read_orchestrator().await;
+            (
+                orchestrator.active_intents().to_vec(),
+                orchestrator.oracle_adapter().clone(),
+            )
         };
 
         if intents.is_empty() {
@@ -896,14 +905,14 @@ async fn monitoring_loop(state: Arc<AppState>, interval: Duration) {
         let pairs = collect_metric_pairs(&intents);
 
         for (asset, metric) in pairs {
-            let value = {
-                let orchestrator: tokio::sync::MutexGuard<'_, AgentOrchestrator> =
-                    state.lock_orchestrator().await;
-                orchestrator.fetch_metric_async(&metric, &asset).await
-            };
+            let oracle = oracle.clone();
+            let asset_for_task = asset.clone();
+            let value =
+                tokio::task::spawn_blocking(move || oracle.fetch(&metric, Some(&asset_for_task)))
+                    .await;
 
             match value {
-                Ok(value) => {
+                Ok(Ok(value)) => {
                     if let Err(err) = state.bus.publish(Event::PriceUpdated {
                         asset: asset.clone(),
                         metric,
@@ -912,11 +921,18 @@ async fn monitoring_loop(state: Arc<AppState>, interval: Duration) {
                         tracing::debug!(%err, "event bus full while publishing price update");
                     }
                 }
-                Err(err) => {
+                Ok(Err(err)) => {
                     tracing::warn!(?asset, ?metric, %err, "metric fetch failed");
                     let _ = state.bus.publish(Event::Error {
                         source: "monitor".to_string(),
                         message: format!("{:?} {:?} fetch failed: {}", asset, metric, err),
+                    });
+                }
+                Err(err) => {
+                    tracing::error!(?asset, ?metric, %err, "metric fetch task failed");
+                    let _ = state.bus.publish(Event::Error {
+                        source: "monitor".to_string(),
+                        message: format!("{:?} {:?} fetch task failed: {}", asset, metric, err),
                     });
                 }
             }
@@ -1006,6 +1022,83 @@ async fn update_intent_state(
     Ok(())
 }
 
+const MAX_INTENT_TEXT_LEN: usize = 2000;
+
+fn validate_intent_text(text: &str) -> Result<(), AppError> {
+    if text.trim().is_empty() {
+        return Err(AppError::Validation("intent text is empty".to_string()));
+    }
+    if text.len() > MAX_INTENT_TEXT_LEN {
+        return Err(AppError::Validation(format!(
+            "intent text exceeds {} characters",
+            MAX_INTENT_TEXT_LEN
+        )));
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_delegation_fields(
+    pubkey_x: &str,
+    pubkey_y: &str,
+    allowed_intents: &str,
+    max_amounts: &[String],
+    allowed_protocols: &[String],
+    expiry: &str,
+    nonce: &str,
+    target_contract: &str,
+) -> Result<(), AppError> {
+    if max_amounts.len() != 10 {
+        return Err(AppError::Validation(format!(
+            "max_amounts must have exactly 10 elements, got {}",
+            max_amounts.len()
+        )));
+    }
+    if allowed_protocols.len() != 5 {
+        return Err(AppError::Validation(format!(
+            "allowed_protocols must have exactly 5 elements, got {}",
+            allowed_protocols.len()
+        )));
+    }
+    validate_hex_field(pubkey_x, "pubkey_x")?;
+    validate_hex_field(pubkey_y, "pubkey_y")?;
+    validate_hex_field(allowed_intents, "allowed_intents")?;
+    validate_hex_field(expiry, "expiry")?;
+    validate_hex_field(nonce, "nonce")?;
+    validate_hex_field(target_contract, "target_contract")?;
+    for (i, v) in max_amounts.iter().enumerate() {
+        validate_hex_field(v, &format!("max_amounts[{i}]"))?;
+    }
+    for (i, v) in allowed_protocols.iter().enumerate() {
+        validate_hex_field(v, &format!("allowed_protocols[{i}]"))?;
+    }
+    Ok(())
+}
+
+fn validate_hex_field(value: &str, name: &str) -> Result<(), AppError> {
+    let cleaned = value.trim().strip_prefix("0x").unwrap_or(value);
+    if cleaned.len() != 64 {
+        return Err(AppError::Validation(format!(
+            "{name} must be 32 bytes (64 hex chars), got {}",
+            cleaned.len()
+        )));
+    }
+    if !cleaned.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(AppError::Validation(format!(
+            "{name} contains invalid hex characters"
+        )));
+    }
+    Ok(())
+}
+
+fn matches_user(record_user: &Option<String>, user: &Option<String>) -> bool {
+    match (record_user, user) {
+        (_, None) => true,
+        (Some(a), Some(b)) => a.eq_ignore_ascii_case(b),
+        (None, Some(_)) => false,
+    }
+}
+
 fn decode_hex32(value: &str) -> Result<[u8; 32], String> {
     let cleaned = value.trim().strip_prefix("0x").unwrap_or(value);
     let decoded = hex::decode(cleaned).map_err(|e| format!("invalid hex: {e}"))?;
@@ -1049,24 +1142,37 @@ fn decode_signature(values: &[String]) -> Result<[u8; 64], String> {
 
 async fn set_delegation(
     AxumState(state): AxumState<Arc<AppState>>,
+    Extension(user): Extension<Option<AuthUser>>,
     Json(body): Json<SetDelegationRequest>,
 ) -> Result<Json<SetDelegationResponse>, AppError> {
+    validate_delegation_fields(
+        &body.pubkey_x,
+        &body.pubkey_y,
+        &body.allowed_intents,
+        &body.max_amounts,
+        &body.allowed_protocols,
+        &body.expiry,
+        &body.nonce,
+        &body.target_contract,
+    )?;
+
+    let user_address = user.map(|u| u.address);
     let delegation = DelegationMessage {
-        pubkey_x: decode_hex32(&body.pubkey_x).map_err(AppError::Config)?,
-        pubkey_y: decode_hex32(&body.pubkey_y).map_err(AppError::Config)?,
-        allowed_intents: decode_hex32(&body.allowed_intents).map_err(AppError::Config)?,
-        max_amounts: decode_hex_array::<10>(&body.max_amounts).map_err(AppError::Config)?,
+        pubkey_x: decode_hex32(&body.pubkey_x).map_err(AppError::Validation)?,
+        pubkey_y: decode_hex32(&body.pubkey_y).map_err(AppError::Validation)?,
+        allowed_intents: decode_hex32(&body.allowed_intents).map_err(AppError::Validation)?,
+        max_amounts: decode_hex_array::<10>(&body.max_amounts).map_err(AppError::Validation)?,
         allowed_protocols: decode_hex_array::<5>(&body.allowed_protocols)
-            .map_err(AppError::Config)?,
-        expiry: decode_hex32(&body.expiry).map_err(AppError::Config)?,
-        nonce: decode_hex32(&body.nonce).map_err(AppError::Config)?,
-        target_contract: decode_hex32(&body.target_contract).map_err(AppError::Config)?,
+            .map_err(AppError::Validation)?,
+        expiry: decode_hex32(&body.expiry).map_err(AppError::Validation)?,
+        nonce: decode_hex32(&body.nonce).map_err(AppError::Validation)?,
+        target_contract: decode_hex32(&body.target_contract).map_err(AppError::Validation)?,
     };
-    let signature = decode_signature(&body.signature).map_err(AppError::Config)?;
+    let signature = decode_signature(&body.signature).map_err(AppError::Validation)?;
     let delegation_hash = domain::models::delegation::hash_delegation(&delegation);
 
     {
-        let mut orchestrator = state.lock_orchestrator().await;
+        let mut orchestrator = state.write_orchestrator().await;
         orchestrator.set_delegation(delegation.clone(), signature);
     }
 
@@ -1079,6 +1185,7 @@ async fn set_delegation(
         payload_json,
         signature: format!("0x{}", hex::encode(signature)),
         created_at: now_secs(),
+        user_address,
     };
     state.storage.save_delegation(&delegation_record).await?;
 
@@ -1091,16 +1198,27 @@ async fn set_delegation(
 async fn delegation_hash(
     Json(body): Json<DelegationHashRequest>,
 ) -> Result<Json<DelegationHashResponse>, AppError> {
+    validate_delegation_fields(
+        &body.pubkey_x,
+        &body.pubkey_y,
+        &body.allowed_intents,
+        &body.max_amounts,
+        &body.allowed_protocols,
+        &body.expiry,
+        &body.nonce,
+        &body.target_contract,
+    )?;
+
     let delegation = DelegationMessage {
-        pubkey_x: decode_hex32(&body.pubkey_x).map_err(AppError::Config)?,
-        pubkey_y: decode_hex32(&body.pubkey_y).map_err(AppError::Config)?,
-        allowed_intents: decode_hex32(&body.allowed_intents).map_err(AppError::Config)?,
-        max_amounts: decode_hex_array::<10>(&body.max_amounts).map_err(AppError::Config)?,
+        pubkey_x: decode_hex32(&body.pubkey_x).map_err(AppError::Validation)?,
+        pubkey_y: decode_hex32(&body.pubkey_y).map_err(AppError::Validation)?,
+        allowed_intents: decode_hex32(&body.allowed_intents).map_err(AppError::Validation)?,
+        max_amounts: decode_hex_array::<10>(&body.max_amounts).map_err(AppError::Validation)?,
         allowed_protocols: decode_hex_array::<5>(&body.allowed_protocols)
-            .map_err(AppError::Config)?,
-        expiry: decode_hex32(&body.expiry).map_err(AppError::Config)?,
-        nonce: decode_hex32(&body.nonce).map_err(AppError::Config)?,
-        target_contract: decode_hex32(&body.target_contract).map_err(AppError::Config)?,
+            .map_err(AppError::Validation)?,
+        expiry: decode_hex32(&body.expiry).map_err(AppError::Validation)?,
+        nonce: decode_hex32(&body.nonce).map_err(AppError::Validation)?,
+        target_contract: decode_hex32(&body.target_contract).map_err(AppError::Validation)?,
     };
     let hash = domain::models::delegation::hash_delegation(&delegation);
     Ok(Json(DelegationHashResponse {
@@ -1129,18 +1247,17 @@ async fn get_agent(
 async fn get_agent_pubkey(
     AxumState(state): AxumState<Arc<AppState>>,
 ) -> Result<Json<AgentPubkeyResponse>, AppError> {
-    let pubkey = state.agent_pubkey.as_ref().ok_or_else(|| {
-        AppError::Internal("agent public key not configured".to_string())
-    })?;
+    let pubkey = state
+        .agent_pubkey
+        .as_ref()
+        .ok_or_else(|| AppError::Internal("agent public key not configured".to_string()))?;
     Ok(Json(AgentPubkeyResponse {
         pubkey_x: pubkey.x.clone(),
         pubkey_y: pubkey.y.clone(),
     }))
 }
 
-async fn list_strategies(
-    AxumState(state): AxumState<Arc<AppState>>,
-) -> Json<StrategiesResponse> {
+async fn list_strategies(AxumState(state): AxumState<Arc<AppState>>) -> Json<StrategiesResponse> {
     Json(StrategiesResponse {
         strategies: state.strategies.clone(),
     })
@@ -1149,15 +1266,18 @@ async fn list_strategies(
 async fn get_portfolio(
     AxumState(state): AxumState<Arc<AppState>>,
 ) -> Result<Json<PortfolioResponse>, AppError> {
-    let address = {
-        let orchestrator = state.lock_orchestrator().await;
-        orchestrator.evm_adapter().signer_address()
+    let evm = {
+        let orchestrator = state.read_orchestrator().await;
+        orchestrator.evm_adapter().clone()
     };
+    let address = evm.signer_address();
 
     if state.execution_enabled {
-        let orchestrator = state.lock_orchestrator().await;
-        let evm = orchestrator.evm_adapter();
-        let balance = evm.get_balance(&address).unwrap_or(0);
+        let address_for_task = address.clone();
+        let balance =
+            tokio::task::spawn_blocking(move || evm.get_balance(&address_for_task).unwrap_or(0))
+                .await
+                .map_err(|e| AppError::Internal(format!("balance task failed: {e}")))?;
         Ok(Json(PortfolioResponse {
             address,
             total_balance: balance,
@@ -1214,9 +1334,7 @@ async fn list_proofs(
     Ok(Json(ProofsResponse { proofs }))
 }
 
-async fn get_leaderboard(
-    AxumState(state): AxumState<Arc<AppState>>,
-) -> Json<LeaderboardResponse> {
+async fn get_leaderboard(AxumState(state): AxumState<Arc<AppState>>) -> Json<LeaderboardResponse> {
     let mut entries: Vec<LeaderboardEntry> = state
         .agents
         .iter()
@@ -1241,18 +1359,22 @@ async fn parse_intent(
     AxumState(state): AxumState<Arc<AppState>>,
     Json(body): Json<ParseRequest>,
 ) -> Result<Json<ParseResponse>, AppError> {
-    let mut orchestrator: tokio::sync::MutexGuard<'_, AgentOrchestrator> =
-        state.lock_orchestrator().await;
-    let intent = orchestrator.parse(&body.text)?;
+    let intent = {
+        let mut orchestrator = state.write_orchestrator().await;
+        orchestrator.parse(&body.text)?
+    };
     Ok(Json(ParseResponse { intent }))
 }
 
 async fn list_intents(
     AxumState(state): AxumState<Arc<AppState>>,
+    Extension(user): Extension<Option<AuthUser>>,
 ) -> Result<Json<IntentsResponse>, AppError> {
+    let user = user.map(|u| u.address);
     let records = state.storage.list_intents().await?;
     let intents = records
         .into_iter()
+        .filter(|r| matches_user(&r.user_address, &user))
         .map(|r| IntentSummary {
             id: r.id,
             text: r.text,
@@ -1264,10 +1386,13 @@ async fn list_intents(
 
 async fn list_delegations(
     AxumState(state): AxumState<Arc<AppState>>,
+    Extension(user): Extension<Option<AuthUser>>,
 ) -> Result<Json<DelegationsResponse>, AppError> {
+    let user = user.map(|u| u.address);
     let records = state.storage.list_delegations().await?;
     let delegations = records
         .into_iter()
+        .filter(|r| matches_user(&r.user_address, &user))
         .map(|r| DelegationSummary {
             hash: r.hash,
             payload_json: r.payload_json,
@@ -1298,11 +1423,14 @@ async fn list_executions(
 
 async fn create_intent(
     AxumState(state): AxumState<Arc<AppState>>,
+    Extension(user): Extension<Option<AuthUser>>,
     Json(body): Json<CreateIntentRequest>,
 ) -> Result<Json<CreateIntentResponse>, AppError> {
+    validate_intent_text(&body.text)?;
+
+    let user_address = user.map(|u| u.address);
     let conditional = {
-        let mut orchestrator: tokio::sync::MutexGuard<'_, AgentOrchestrator> =
-            state.lock_orchestrator().await;
+        let mut orchestrator = state.write_orchestrator().await;
         orchestrator.parse(&body.text)?
     };
 
@@ -1315,11 +1443,12 @@ async fn create_intent(
         state: "active".to_string(),
         created_at: now,
         updated_at: now,
+        user_address,
     };
     state.storage.save_intent(&record).await?;
 
     {
-        let mut orchestrator = state.lock_orchestrator().await;
+        let mut orchestrator = state.write_orchestrator().await;
         orchestrator.add_active_intent(id.clone(), body.text, conditional);
     }
 
@@ -1331,21 +1460,29 @@ async fn plan_intent(
     AxumState(state): AxumState<Arc<AppState>>,
     Json(body): Json<ParseRequest>,
 ) -> Result<Json<PlanResponse>, AppError> {
-    let mut orchestrator: tokio::sync::MutexGuard<'_, AgentOrchestrator> =
-        state.lock_orchestrator().await;
-    let plan = orchestrator.plan(&body.text)?;
+    let plan = {
+        let mut orchestrator = state.write_orchestrator().await;
+        orchestrator.plan(&body.text)?
+    };
     Ok(Json(PlanResponse { plan }))
 }
 
 async fn get_intent(
     AxumState(state): AxumState<Arc<AppState>>,
+    Extension(user): Extension<Option<AuthUser>>,
     Path(id): Path<String>,
 ) -> Result<Json<IntentDetailResponse>, AppError> {
+    let user = user.map(|u| u.address);
     let record = state
         .storage
         .get_intent(&id)
         .await?
         .ok_or(AppError::Storage(domain::ports::StorageError::NotFound(id)))?;
+    if !matches_user(&record.user_address, &user) {
+        return Err(AppError::Storage(domain::ports::StorageError::NotFound(
+            record.id,
+        )));
+    }
     Ok(Json(IntentDetailResponse {
         id: record.id,
         text: record.text,
@@ -1358,15 +1495,25 @@ async fn get_intent(
 
 async fn delete_intent(
     AxumState(state): AxumState<Arc<AppState>>,
+    Extension(user): Extension<Option<AuthUser>>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
+    let user = user.map(|u| u.address);
+    let record = state.storage.get_intent(&id).await?;
+    if let Some(ref rec) = record
+        && !matches_user(&rec.user_address, &user)
     {
-        let mut orchestrator: tokio::sync::MutexGuard<'_, AgentOrchestrator> =
-            state.lock_orchestrator().await;
+        return Err(AppError::Forbidden(
+            "not allowed to cancel this intent".to_string(),
+        ));
+    }
+
+    {
+        let mut orchestrator = state.write_orchestrator().await;
         orchestrator.remove_active_intent(&id);
     }
 
-    match state.storage.get_intent(&id).await? {
+    match record {
         Some(mut record) => {
             record.state = "cancelled".to_string();
             record.updated_at = now_secs();
@@ -1381,8 +1528,7 @@ async fn delete_intent(
 async fn orchestrator_state(
     AxumState(state): AxumState<Arc<AppState>>,
 ) -> Json<OrchestratorStateResponse> {
-    let orchestrator: tokio::sync::MutexGuard<'_, AgentOrchestrator> =
-        state.lock_orchestrator().await;
+    let orchestrator = state.read_orchestrator().await;
     let active_intents = orchestrator
         .active_intents()
         .iter()
@@ -1406,7 +1552,7 @@ async fn metrics(AxumState(state): AxumState<Arc<AppState>>) -> Response {
 
     let snapshot = state.metrics.snapshot();
     let (active_intents, witness_ms, prove_ms, verify_ms) = {
-        let orchestrator = state.lock_orchestrator().await;
+        let orchestrator = state.read_orchestrator().await;
         let zkp = orchestrator.zkp_adapter();
         (
             orchestrator.active_intents().len(),
@@ -1494,24 +1640,33 @@ async fn ready(AxumState(state): AxumState<Arc<AppState>>) -> Response {
             .map_err(|e| e.to_string()),
     ));
 
-    let rpc_check = {
-        let orchestrator = state.lock_orchestrator().await;
-        let evm = orchestrator.evm_adapter();
+    let (evm, oracle) = {
+        let orchestrator = state.read_orchestrator().await;
+        (
+            orchestrator.evm_adapter().clone(),
+            orchestrator.oracle_adapter().clone(),
+        )
+    };
+
+    let rpc_task = tokio::task::spawn_blocking(move || {
         evm.get_balance(&evm.signer_address())
             .map(|_| ())
             .map_err(|e| format!("rpc: {}", e))
-    };
-    checks.push(("rpc", rpc_check));
+    });
 
-    let oracle_check = {
-        let orchestrator = state.lock_orchestrator().await;
-        orchestrator
-            .fetch_metric_async(&Metric::Price, &Asset::Eth)
-            .await
+    let oracle_task = tokio::task::spawn_blocking(move || {
+        oracle
+            .fetch(&Metric::Price, Some(&Asset::Eth))
             .map(|_| ())
             .map_err(|e| format!("oracle: {}", e))
-    };
-    checks.push(("oracle", oracle_check));
+    });
+
+    let (rpc_check, oracle_check) = tokio::join!(rpc_task, oracle_task);
+    checks.push(("rpc", rpc_check.map_err(|e| e.to_string()).and_then(|r| r)));
+    checks.push((
+        "oracle",
+        oracle_check.map_err(|e| e.to_string()).and_then(|r| r),
+    ));
 
     if checks.iter().all(|(_, r)| r.is_ok()) {
         let body = serde_json::json!({"status": "ready", "checks": {}});
@@ -1542,6 +1697,8 @@ enum AppError {
     Storage(domain::ports::StorageError),
     Config(String),
     Internal(String),
+    Validation(String),
+    Forbidden(String),
 }
 
 impl From<application::orchestrator::OrchestratorError> for AppError {
@@ -1585,6 +1742,8 @@ impl IntoResponse for AppError {
             AppError::Config(msg) | AppError::Internal(msg) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, msg.clone())
             }
+            AppError::Validation(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+            AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg.clone()),
         };
         let body = Json(ErrorResponse { error: message });
         (status, body).into_response()
@@ -1594,7 +1753,7 @@ impl IntoResponse for AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::extract::ConnectInfo;
+    use axum::extract::{ConnectInfo, Extension};
     use infrastructure::blockchain::{AlloyEvmAdapter, CompositeOracle, OracleNetwork};
     use infrastructure::parsers::RegexParser;
     use infrastructure::storage::SqliteStorage;
@@ -1626,7 +1785,7 @@ mod tests {
             Arc::new(SqliteStorage::new(temp_db_path()).expect("sqlite storage should open"));
 
         Arc::new(AppState {
-            orchestrator: Arc::new(Mutex::new(orchestrator)),
+            orchestrator: Arc::new(RwLock::new(orchestrator)),
             storage,
             bus: EventBus::new(1).0,
             metrics: Arc::new(Metrics::default()),
@@ -1924,5 +2083,139 @@ mod tests {
             &EncodingKey::from_secret(secret.as_bytes()),
         )
         .unwrap()
+    }
+
+    fn zero32() -> String {
+        "0x0000000000000000000000000000000000000000000000000000000000000000".to_string()
+    }
+
+    fn sig64() -> Vec<String> {
+        (0..64).map(|_| "0x00".to_string()).collect()
+    }
+
+    fn valid_set_delegation_request() -> SetDelegationRequest {
+        SetDelegationRequest {
+            pubkey_x: zero32(),
+            pubkey_y: zero32(),
+            allowed_intents: zero32(),
+            max_amounts: (0..10).map(|_| zero32()).collect(),
+            allowed_protocols: (0..5).map(|_| zero32()).collect(),
+            expiry: zero32(),
+            nonce: zero32(),
+            target_contract: zero32(),
+            signature: sig64(),
+        }
+    }
+
+    #[tokio::test]
+    async fn create_intent_rejects_long_text() {
+        let state = test_state().await;
+        let long_text = "lend ".to_string() + &"x".repeat(MAX_INTENT_TEXT_LEN);
+        let req = CreateIntentRequest { text: long_text };
+        let response = create_intent(AxumState(state), Extension(None::<AuthUser>), Json(req))
+            .await
+            .into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn set_delegation_validates_hex_and_lengths() {
+        let state = test_state().await;
+
+        // Wrong max_amounts length.
+        let mut bad = valid_set_delegation_request();
+        bad.max_amounts = (0..9).map(|_| zero32()).collect();
+        let response = set_delegation(
+            AxumState(state.clone()),
+            Extension(None::<AuthUser>),
+            Json(bad),
+        )
+        .await
+        .into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        // Bad hex length for pubkey_x.
+        let mut bad = valid_set_delegation_request();
+        bad.pubkey_x = "0x00".to_string();
+        let response = set_delegation(
+            AxumState(state.clone()),
+            Extension(None::<AuthUser>),
+            Json(bad),
+        )
+        .await
+        .into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn intents_scoped_to_authenticated_user() {
+        let state = test_state().await;
+        let user_a = AuthUser {
+            address: "0xaaa".to_string(),
+        };
+        let user_b = AuthUser {
+            address: "0xbbb".to_string(),
+        };
+
+        let create = create_intent(
+            AxumState(state.clone()),
+            Extension(Some(user_a.clone())),
+            Json(CreateIntentRequest {
+                text: "lend 100 USDC on Aave".to_string(),
+            }),
+        )
+        .await
+        .unwrap();
+
+        let for_a = list_intents(AxumState(state.clone()), Extension(Some(user_a.clone())))
+            .await
+            .unwrap();
+        assert_eq!(for_a.intents.len(), 1);
+        assert_eq!(for_a.intents[0].id, create.id);
+
+        let for_b = list_intents(AxumState(state.clone()), Extension(Some(user_b.clone())))
+            .await
+            .unwrap();
+        assert!(for_b.intents.is_empty());
+
+        let detail = get_intent(
+            AxumState(state.clone()),
+            Extension(Some(user_b)),
+            Path(create.id.clone()),
+        )
+        .await;
+        assert_eq!(
+            detail.unwrap_err().into_response().status(),
+            StatusCode::NOT_FOUND
+        );
+    }
+
+    #[tokio::test]
+    async fn delegations_scoped_to_authenticated_user() {
+        let state = test_state().await;
+        let user_a = AuthUser {
+            address: "0xaaa".to_string(),
+        };
+        let user_b = AuthUser {
+            address: "0xbbb".to_string(),
+        };
+
+        let _ = set_delegation(
+            AxumState(state.clone()),
+            Extension(Some(user_a.clone())),
+            Json(valid_set_delegation_request()),
+        )
+        .await
+        .unwrap();
+
+        let for_a = list_delegations(AxumState(state.clone()), Extension(Some(user_a.clone())))
+            .await
+            .unwrap();
+        assert_eq!(for_a.delegations.len(), 1);
+
+        let for_b = list_delegations(AxumState(state.clone()), Extension(Some(user_b)))
+            .await
+            .unwrap();
+        assert!(for_b.delegations.is_empty());
     }
 }

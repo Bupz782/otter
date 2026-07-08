@@ -45,6 +45,10 @@ sol! {
 /// Number of seconds in a standard year.
 const SECONDS_PER_YEAR: f64 = 31_536_000.0;
 
+/// Dummy non-zero address used for callers that only need read-only Aave
+/// methods (e.g. `getReserveData` / `get_apy`).
+pub const DUMMY_ON_BEHALF_OF: &str = "0x0000000000000000000000000000000000000001";
+
 /// Aave V3 protocol adapter.
 ///
 /// Reads supply APYs from the Pool and encodes real Aave Pool calldata for
@@ -53,29 +57,34 @@ const SECONDS_PER_YEAR: f64 = 31_536_000.0;
 pub struct AaveAdapter {
     rpc_url: String,
     pool_address: Address,
-    /// Address used as `onBehalfOf` for supply/borrow/repay. Defaults to the
-    /// zero address if not provided (use the caller in production).
+    /// Address used as `onBehalfOf` for supply/borrow/repay. Must be an
+    /// explicit, non-zero address supplied by the caller.
     on_behalf_of: Address,
 }
 
 impl AaveAdapter {
     /// Create an adapter targeting the given Aave V3 Pool.
+    ///
+    /// `on_behalf_of` is required and must not be the zero address. Use
+    /// [`DUMMY_ON_BEHALF_OF`] for read-only operations where the address is not
+    /// used.
     pub fn new(
         rpc_url: impl Into<String>,
         pool_address: impl Into<String>,
-        on_behalf_of: Option<impl Into<String>>,
+        on_behalf_of: impl Into<String>,
     ) -> Result<Self, ProtocolError> {
         let pool_address = pool_address
             .into()
             .parse()
             .map_err(|e| ProtocolError::OperationFailed(format!("invalid pool address: {e}")))?;
-        let on_behalf_of = on_behalf_of
-            .map(|a| a.into().parse())
-            .transpose()
-            .map_err(|e| {
-                ProtocolError::OperationFailed(format!("invalid onBehalfOf address: {e}"))
-            })?
-            .unwrap_or(Address::ZERO);
+        let on_behalf_of: Address = on_behalf_of.into().parse().map_err(|e| {
+            ProtocolError::OperationFailed(format!("invalid onBehalfOf address: {e}"))
+        })?;
+        if on_behalf_of.is_zero() {
+            return Err(ProtocolError::OperationFailed(
+                "onBehalfOf must not be the zero address".to_string(),
+            ));
+        }
         Ok(Self {
             rpc_url: rpc_url.into(),
             pool_address,
@@ -84,20 +93,26 @@ impl AaveAdapter {
     }
 
     /// Adapter pointing at the official Aave V3 Sepolia pool.
-    pub fn sepolia(rpc_url: impl Into<String>) -> Result<Self, ProtocolError> {
+    pub fn sepolia(
+        rpc_url: impl Into<String>,
+        on_behalf_of: impl Into<String>,
+    ) -> Result<Self, ProtocolError> {
         Self::new(
             rpc_url,
             "0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951",
-            None::<String>,
+            on_behalf_of,
         )
     }
 
     /// Adapter pointing at the official Aave V3 mainnet pool.
-    pub fn mainnet(rpc_url: impl Into<String>) -> Result<Self, ProtocolError> {
+    pub fn mainnet(
+        rpc_url: impl Into<String>,
+        on_behalf_of: impl Into<String>,
+    ) -> Result<Self, ProtocolError> {
         Self::new(
             rpc_url,
             "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
-            None::<String>,
+            on_behalf_of,
         )
     }
 
@@ -253,7 +268,7 @@ pub enum Network {
 pub fn address_for(asset: &Asset, network: Network) -> Result<Address, ProtocolError> {
     let addr = match (network, asset) {
         (Network::Mainnet, Asset::Eth) => "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", // WETH
-        (Network::Mainnet, Asset::Usdc) => "0xA0b86a33E6441c3be33C6d8eFA5A0c2e55d2fE52", // USDC
+        (Network::Mainnet, Asset::Usdc) => "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC
         (Network::Mainnet, Asset::Dai) => "0x6B175474E89094C44Da98b954EedeAC495271d0F",
         (Network::Mainnet, Asset::Wbtc) => "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
         (Network::Mainnet, Asset::Link) => "0x514910771AF9Ca656af840dff83E8264EcF986CA",
@@ -275,9 +290,11 @@ pub fn address_for(asset: &Asset, network: Network) -> Result<Address, ProtocolE
 mod tests {
     use super::*;
 
+    const TEST_USER: &str = "0x1111111111111111111111111111111111111111";
+
     #[test]
     fn supply_encodes_valid_calldata() {
-        let aave = AaveAdapter::sepolia("http://localhost:8545").unwrap();
+        let aave = AaveAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
         let tx = aave.supply(&Asset::Usdc, 1_000_000).unwrap();
         assert_eq!(
             tx.to.to_lowercase(),
@@ -289,7 +306,7 @@ mod tests {
 
     #[test]
     fn borrow_encodes_variable_rate_calldata() {
-        let aave = AaveAdapter::sepolia("http://localhost:8545").unwrap();
+        let aave = AaveAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
         let tx = aave
             .borrow(
                 &Asset::Usdc,
@@ -304,7 +321,30 @@ mod tests {
 
     #[test]
     fn get_apy_rejects_unsupported_asset() {
-        let aave = AaveAdapter::sepolia("http://localhost:8545").unwrap();
+        let aave = AaveAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
         assert!(aave.get_apy(&Asset::Sol).is_err());
+    }
+
+    #[test]
+    fn rejects_zero_on_behalf_of() {
+        assert!(
+            AaveAdapter::sepolia(
+                "http://localhost:8545",
+                "0x0000000000000000000000000000000000000000",
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn mainnet_usdc_address_is_correct() {
+        let aave = AaveAdapter::mainnet("http://localhost:8545", TEST_USER).unwrap();
+        let expected: Address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+            .parse()
+            .unwrap();
+        assert_eq!(
+            AaveAdapter::asset_address(&Asset::Usdc, aave.network()).unwrap(),
+            expected
+        );
     }
 }

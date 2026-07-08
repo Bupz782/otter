@@ -1,5 +1,5 @@
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, ShieldCheck, Clock } from "lucide-react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -81,7 +81,9 @@ export function IntentDetailPage() {
           </div>
           <div className="rounded-lg border border-border/60 bg-secondary p-3">
             <p className="text-xs text-muted-foreground">Amount</p>
-            <p className="font-heading text-lg font-bold">{intent.parsed.amount} {intent.parsed.asset}</p>
+            <p className="font-heading text-lg font-bold">
+              {intent.parsed.amount} {intent.parsed.asset}
+            </p>
           </div>
           <div className="rounded-lg border border-border/60 bg-secondary p-3">
             <p className="text-xs text-muted-foreground">Protocol</p>
