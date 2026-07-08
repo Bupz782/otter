@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const STEP_KEY = "otter-onboarding-step";
@@ -178,28 +178,34 @@ const STEP_ORDER: OnboardingStep[] = [...ONBOARDING_STEPS.map((s) => s.id), "com
 
 export function useOnboarding() {
   const [step, setStep] = useState<OnboardingStep | null>(null);
-  const [isOpen, setIsOpen] = useState(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [hasHydrated, setHasHydrated] = useState(false);
   const navigate = useNavigate();
 
+  // Hydrate from localStorage once on mount.
   useEffect(() => {
-    const rawStep = localStorage.getItem(STEP_KEY) ?? "dashboard-balance";
+    const rawStep = localStorage.getItem(STEP_KEY);
     const rawWelcome = localStorage.getItem(WELCOME_KEY);
-    setStep(rawStep as OnboardingStep);
+
     if (!rawWelcome) {
       setWelcomeOpen(true);
-      setIsOpen(false);
+      setStep((rawStep as OnboardingStep) ?? "dashboard-balance");
     } else {
       setWelcomeOpen(false);
-      setIsOpen(rawStep !== "completed");
+      setStep((rawStep as OnboardingStep) ?? "completed");
     }
     setHasHydrated(true);
   }, []);
 
+  // Persist step changes.
   useEffect(() => {
     if (step) localStorage.setItem(STEP_KEY, step);
   }, [step]);
+
+  const isOpen = useMemo(
+    () => hasHydrated && step !== null && step !== "completed" && !welcomeOpen,
+    [hasHydrated, step, welcomeOpen]
+  );
 
   const goToStep = useCallback((next: OnboardingStep) => {
     setStep(next);
@@ -223,34 +229,30 @@ export function useOnboarding() {
     });
   }, []);
 
-  const skip = useCallback(() => {
+  const markWelcomeSeen = useCallback(() => {
     localStorage.setItem(WELCOME_KEY, "seen");
-    setIsOpen(false);
     setWelcomeOpen(false);
   }, []);
+
+  const skip = useCallback(() => {
+    markWelcomeSeen();
+    setStep("completed");
+  }, [markWelcomeSeen]);
 
   const restart = useCallback(() => {
-    localStorage.setItem(WELCOME_KEY, "seen");
+    markWelcomeSeen();
     goToStep("dashboard-balance");
-    setIsOpen(true);
-    setWelcomeOpen(false);
     navigate("/app/dashboard");
-  }, [goToStep, navigate]);
+  }, [goToStep, navigate, markWelcomeSeen]);
 
   const dismiss = useCallback(() => {
-    setIsOpen(false);
-  }, []);
-
-  const show = useCallback(() => {
-    setIsOpen(true);
+    setStep("completed");
   }, []);
 
   const startTour = useCallback(() => {
-    localStorage.setItem(WELCOME_KEY, "seen");
-    setWelcomeOpen(false);
-    setIsOpen(true);
+    markWelcomeSeen();
     goToStep("dashboard-balance");
-  }, [goToStep]);
+  }, [goToStep, markWelcomeSeen]);
 
   return {
     step,
@@ -264,7 +266,6 @@ export function useOnboarding() {
     skip,
     restart,
     dismiss,
-    show,
     startTour,
   };
 }

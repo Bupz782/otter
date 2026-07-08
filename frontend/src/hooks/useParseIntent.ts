@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api } from "@/lib/api";
+import { api, mapBackendConditionalIntent } from "@/lib/api";
 import type { IntentType } from "@/types/app";
 
 export function useParseIntent() {
@@ -19,26 +19,7 @@ export function useParseIntent() {
     setError(null);
     try {
       const result = await api.intents.parse(text);
-      const parsed = result.intent as {
-        type?: string;
-        amount?: number;
-        asset?: string;
-        protocol?: string;
-        condition?: string;
-        chain?: string;
-        action?: string;
-      };
-      const mapped = {
-        type:
-          (parsed.type?.toLowerCase() as IntentType) ||
-          (parsed.action?.toLowerCase() as IntentType) ||
-          "lend",
-        amount: parsed.amount || 0,
-        asset: parsed.asset || "USDC",
-        protocol: parsed.protocol || "Aave",
-        condition: parsed.condition,
-        chain: parsed.chain || "Ethereum",
-      };
+      const mapped = mapBackendConditionalIntent(result.intent);
       setData(mapped);
       return mapped;
     } catch (err) {
