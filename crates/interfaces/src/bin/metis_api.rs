@@ -426,6 +426,7 @@ async fn auth_middleware(
     next: Next,
 ) -> Response {
     if !state.auth_enabled {
+        request.extensions_mut().insert(Option::<AuthUser>::None);
         return next.run(request).await;
     }
 
@@ -444,7 +445,7 @@ async fn auth_middleware(
     match token {
         Some(token) => match service.validate_token(token) {
             Ok(user) => {
-                request.extensions_mut().insert(user);
+                request.extensions_mut().insert(Some(user));
                 next.run(request).await
             }
             Err(err) => unauthorized(&format!("invalid token: {}", err)),
@@ -654,14 +655,8 @@ fn default_strategies() -> Vec<StrategySummary> {
     ]
 }
 
-fn load_agent_pubkey(config: &Config) -> Option<AgentPubkey> {
-    let private_key: String = config.private_key.clone().or_else(|| {
-        config
-            .private_key_file
-            .as_ref()
-            .and_then(|path| std::fs::read_to_string(path).ok())
-    })?;
-    let wallet = LocalWalletAdapter::from_hex(private_key.trim()).ok()?;
+fn load_agent_pubkey(private_key: &[u8; 32]) -> Option<AgentPubkey> {
+    let wallet = LocalWalletAdapter::from_bytes(private_key).ok()?;
     let (x, y) = wallet.pubkey().ok()?;
     Some(AgentPubkey {
         x: format!("0x{}", hex::encode(x)),
@@ -744,7 +739,9 @@ async fn main() {
         event_tx: event_tx.clone(),
         agents: default_agents(),
         strategies: default_strategies(),
-        agent_pubkey: load_agent_pubkey(&config),
+        agent_pubkey: load_private_key(&config)
+            .ok()
+            .and_then(|(key, _)| load_agent_pubkey(&key)),
     });
 
     // Background monitoring loop: fetch on-chain metrics for active intents.
@@ -1094,7 +1091,9 @@ fn validate_hex_field(value: &str, name: &str) -> Result<(), AppError> {
 
 fn matches_user(record_user: &Option<String>, user: &Option<String>) -> bool {
     match (record_user, user) {
-        (_, None) => false,
+        // When authentication is disabled the handler receives no user; treat
+        // that as a wildcard so the API remains usable in dev/default mode.
+        (_, None) => true,
         (Some(a), Some(b)) => a.eq_ignore_ascii_case(b),
         (None, Some(_)) => false,
     }
@@ -1864,6 +1863,22 @@ mod tests {
         let (mut parts, body) = req.into_parts();
         parts.extensions.insert(ConnectInfo(test_addr()));
         Request::from_parts(parts, body)
+    }
+
+    #[tokio::test]
+    async fn auth_disabled_allows_unauthenticated_requests() {
+        let state = test_state().await;
+        let router = app(state.clone());
+
+        let req = with_connect_info(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/intents")
+                .body(Body::empty())
+                .unwrap(),
+        );
+        let response = router.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
     }
 
     #[tokio::test]
