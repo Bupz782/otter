@@ -11,21 +11,9 @@ contract DelegationVaultIntegrationTest is Test {
     DelegationVerifier public verifier;
     DelegationVault public vault;
 
-    bytes32 public delegationHash =
-        0x91ade02b79eb31565b2b5e9cbf73c2113af09524cc4dac59305b8a9ef7fad9f5;
+    bytes32 public delegationHash = 0x91ade02b79eb31565b2b5e9cbf73c2113af09524cc4dac59305b8a9ef7fad9f5;
     uint256 public allowedIntents = 0x05;
-    uint256[10] public maxAmounts = [
-        uint256(1_000_000),
-        2_000_000,
-        3_000_000,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0
-    ];
+    uint256[10] public maxAmounts = [uint256(1_000_000), 2_000_000, 3_000_000, 0, 0, 0, 0, 0, 0, 0];
     uint256[5] public allowedProtocols = [uint256(1), 2, 0, 0, 0];
     uint256 public expiry = 4_000_000_000;
     uint256 public nonce = 42;
@@ -37,10 +25,7 @@ contract DelegationVaultIntegrationTest is Test {
 
     function _loadPublicInputs() internal view returns (bytes32[] memory) {
         bytes memory publicInputsBytes = vm.readFileBinary("test/fixtures/public_inputs.bin");
-        require(
-            publicInputsBytes.length == vault.PUBLIC_INPUTS_SIZE() * 32,
-            "fixture size mismatch"
-        );
+        require(publicInputsBytes.length == vault.PUBLIC_INPUTS_SIZE() * 32, "fixture size mismatch");
 
         bytes32[] memory publicInputs = new bytes32[](vault.PUBLIC_INPUTS_SIZE());
         for (uint256 i = 0; i < vault.PUBLIC_INPUTS_SIZE(); i++) {

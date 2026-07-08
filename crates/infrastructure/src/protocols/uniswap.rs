@@ -83,12 +83,9 @@ impl UniswapAdapter {
             .into()
             .parse()
             .map_err(|e| ProtocolError::OperationFailed(format!("invalid quoter address: {e}")))?;
-        let recipient: Address = recipient
-            .into()
-            .parse()
-            .map_err(|e| {
-                ProtocolError::OperationFailed(format!("invalid recipient address: {e}"))
-            })?;
+        let recipient: Address = recipient.into().parse().map_err(|e| {
+            ProtocolError::OperationFailed(format!("invalid recipient address: {e}"))
+        })?;
         if recipient.is_zero() {
             return Err(ProtocolError::OperationFailed(
                 "recipient must not be the zero address".to_string(),
@@ -261,11 +258,7 @@ mod tests {
     fn swap_encodes_valid_calldata() {
         let uniswap = UniswapAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
         let call = uniswap
-            .build_exact_input_single(&Asset::Eth,
-                &Asset::Usdc,
-                1_000_000_000_000_000_000,
-                0,
-            )
+            .build_exact_input_single(&Asset::Eth, &Asset::Usdc, 1_000_000_000_000_000_000, 0)
             .unwrap();
         let tx = Transaction::new(uniswap.router_address.to_string(), 0, 300_000)
             .with_data(call.abi_encode());
@@ -291,10 +284,12 @@ mod tests {
 
     #[test]
     fn rejects_zero_recipient() {
-        assert!(UniswapAdapter::sepolia(
-            "http://localhost:8545",
-            "0x0000000000000000000000000000000000000000",
-        )
-        .is_err());
+        assert!(
+            UniswapAdapter::sepolia(
+                "http://localhost:8545",
+                "0x0000000000000000000000000000000000000000",
+            )
+            .is_err()
+        );
     }
 }

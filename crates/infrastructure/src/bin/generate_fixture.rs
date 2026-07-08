@@ -37,7 +37,12 @@ struct FixtureConfig {
     target_contract: [u8; 32],
 }
 
-fn generate_fixture(config: &FixtureConfig, signing_key: &SigningKey, fixture_dir: &PathBuf, circuit_dir: &PathBuf) {
+fn generate_fixture(
+    config: &FixtureConfig,
+    signing_key: &SigningKey,
+    fixture_dir: &PathBuf,
+    circuit_dir: &PathBuf,
+) {
     let encoded = signing_key.verifying_key().to_encoded_point(false);
     let pubkey_bytes = encoded.as_bytes();
     assert_eq!(pubkey_bytes.len(), 65);
@@ -98,10 +103,14 @@ fn generate_fixture(config: &FixtureConfig, signing_key: &SigningKey, fixture_di
         signature,
     };
 
-    let adapter = NoirAdapter::new(circuit_dir, "nargo", Some(format!(
-        "{}/.bb/bb",
-        std::env::var("HOME").expect("HOME not set")
-    )));
+    let adapter = NoirAdapter::new(
+        circuit_dir,
+        "nargo",
+        Some(format!(
+            "{}/.bb/bb",
+            std::env::var("HOME").expect("HOME not set")
+        )),
+    );
     let proof = adapter
         .prove_delegation(&public_inputs, &private_inputs)
         .expect("proof generation failed");
@@ -163,7 +172,10 @@ fn main() {
     let home = std::env::var("HOME").expect("HOME not set");
     let bb_bin = format!("{}/.bb/bb", home);
     if !std::path::Path::new(&bb_bin).exists() {
-        eprintln!("bb binary not found at {}. Install it with bbup first.", bb_bin);
+        eprintln!(
+            "bb binary not found at {}. Install it with bbup first.",
+            bb_bin
+        );
         std::process::exit(1);
     }
 

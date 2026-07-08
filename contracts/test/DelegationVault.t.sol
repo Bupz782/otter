@@ -10,31 +10,16 @@ contract DelegationVaultTest is Test {
     DelegationVerifier public verifier;
     DelegationVault public vault;
 
-    bytes32 public delegationHash =
-        0x91ade02b79eb31565b2b5e9cbf73c2113af09524cc4dac59305b8a9ef7fad9f5;
-    bytes32 public erc20DelegationHash =
-        0xafa17428ff07791e8725a8e624b119babe43eb11fce3f2d127da43119736e427;
+    bytes32 public delegationHash = 0x91ade02b79eb31565b2b5e9cbf73c2113af09524cc4dac59305b8a9ef7fad9f5;
+    bytes32 public erc20DelegationHash = 0xafa17428ff07791e8725a8e624b119babe43eb11fce3f2d127da43119736e427;
     uint256 public allowedIntents = 0x05;
-    uint256[10] public maxAmounts = [
-        uint256(1_000_000),
-        2_000_000,
-        3_000_000,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0
-    ];
+    uint256[10] public maxAmounts = [uint256(1_000_000), 2_000_000, 3_000_000, 0, 0, 0, 0, 0, 0, 0];
     uint256[5] public allowedProtocols = [uint256(1), 2, 0, 0, 0];
     uint256 public expiry = 4_000_000_000;
     uint256 public nonce = 42;
 
-    address public constant USDC_MAINNET =
-        0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address public constant PROTOCOL_ROUTER =
-        0x2222222222222222222222222222222222222222;
+    address public constant USDC_MAINNET = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address public constant PROTOCOL_ROUTER = 0x2222222222222222222222222222222222222222;
 
     event Executed(
         bytes32 indexed delegationHash,
@@ -50,13 +35,8 @@ contract DelegationVaultTest is Test {
     }
 
     function _loadPublicInputs() internal view returns (bytes32[] memory) {
-        bytes memory publicInputsBytes = vm.readFileBinary(
-            "test/fixtures/public_inputs.bin"
-        );
-        require(
-            publicInputsBytes.length == vault.PUBLIC_INPUTS_SIZE() * 32,
-            "fixture size mismatch"
-        );
+        bytes memory publicInputsBytes = vm.readFileBinary("test/fixtures/public_inputs.bin");
+        require(publicInputsBytes.length == vault.PUBLIC_INPUTS_SIZE() * 32, "fixture size mismatch");
 
         bytes32[] memory publicInputs = new bytes32[](vault.PUBLIC_INPUTS_SIZE());
         for (uint256 i = 0; i < vault.PUBLIC_INPUTS_SIZE(); i++) {
@@ -69,18 +49,9 @@ contract DelegationVaultTest is Test {
         return publicInputs;
     }
 
-    function _loadPublicInputsErc20()
-        internal
-        view
-        returns (bytes32[] memory)
-    {
-        bytes memory publicInputsBytes = vm.readFileBinary(
-            "test/fixtures/public_inputs_erc20.bin"
-        );
-        require(
-            publicInputsBytes.length == vault.PUBLIC_INPUTS_SIZE() * 32,
-            "erc20 fixture size mismatch"
-        );
+    function _loadPublicInputsErc20() internal view returns (bytes32[] memory) {
+        bytes memory publicInputsBytes = vm.readFileBinary("test/fixtures/public_inputs_erc20.bin");
+        require(publicInputsBytes.length == vault.PUBLIC_INPUTS_SIZE() * 32, "erc20 fixture size mismatch");
 
         bytes32[] memory publicInputs = new bytes32[](vault.PUBLIC_INPUTS_SIZE());
         for (uint256 i = 0; i < vault.PUBLIC_INPUTS_SIZE(); i++) {
@@ -98,14 +69,7 @@ contract DelegationVaultTest is Test {
         bytes32[] memory publicInputs = _loadPublicInputs();
 
         vm.prank(alice);
-        vault.delegate(
-            delegationHash,
-            allowedIntents,
-            maxAmounts,
-            allowedProtocols,
-            expiry,
-            nonce
-        );
+        vault.delegate(delegationHash, allowedIntents, maxAmounts, allowedProtocols, expiry, nonce);
 
         vm.deal(alice, 10 ether);
         vm.prank(alice);
@@ -137,14 +101,7 @@ contract DelegationVaultTest is Test {
         uint256 badAllowedIntents = 0x01;
 
         vm.prank(alice);
-        vault.delegate(
-            delegationHash,
-            badAllowedIntents,
-            maxAmounts,
-            allowedProtocols,
-            expiry,
-            nonce
-        );
+        vault.delegate(delegationHash, badAllowedIntents, maxAmounts, allowedProtocols, expiry, nonce);
 
         vm.deal(alice, 10 ether);
         vm.prank(alice);
@@ -160,14 +117,7 @@ contract DelegationVaultTest is Test {
         bytes32[] memory publicInputs = _loadPublicInputs();
 
         vm.prank(alice);
-        vault.delegate(
-            delegationHash,
-            allowedIntents,
-            maxAmounts,
-            allowedProtocols,
-            expiry,
-            nonce
-        );
+        vault.delegate(delegationHash, allowedIntents, maxAmounts, allowedProtocols, expiry, nonce);
 
         vm.expectRevert();
         vault.executeWithProof(proof, publicInputs);
@@ -179,14 +129,7 @@ contract DelegationVaultTest is Test {
 
         vm.deal(alice, 10 ether);
         vm.startPrank(alice);
-        vault.delegate(
-            delegationHash,
-            allowedIntents,
-            maxAmounts,
-            allowedProtocols,
-            expiry,
-            nonce
-        );
+        vault.delegate(delegationHash, allowedIntents, maxAmounts, allowedProtocols, expiry, nonce);
         vault.deposit{value: 10 ether}();
         vm.stopPrank();
 
@@ -210,14 +153,7 @@ contract DelegationVaultTest is Test {
         ERC20Mock usdc = ERC20Mock(USDC_MAINNET);
 
         vm.prank(alice);
-        vault.delegate(
-            erc20DelegationHash,
-            allowedIntents,
-            maxAmounts,
-            allowedProtocols,
-            expiry,
-            nonce
-        );
+        vault.delegate(erc20DelegationHash, allowedIntents, maxAmounts, allowedProtocols, expiry, nonce);
 
         usdc.mint(alice, 10_000e6);
         vm.startPrank(alice);
@@ -248,14 +184,7 @@ contract DelegationVaultTest is Test {
         ERC20Mock usdc = ERC20Mock(USDC_MAINNET);
 
         vm.prank(alice);
-        vault.delegate(
-            erc20DelegationHash,
-            allowedIntents,
-            maxAmounts,
-            allowedProtocols,
-            expiry,
-            nonce
-        );
+        vault.delegate(erc20DelegationHash, allowedIntents, maxAmounts, allowedProtocols, expiry, nonce);
 
         usdc.mint(alice, 10_000e6);
         vm.startPrank(alice);
@@ -263,12 +192,7 @@ contract DelegationVaultTest is Test {
         vault.deposit(USDC_MAINNET, 5_000e6);
         vm.stopPrank();
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                DelegationVault.ProtocolRouterNotSet.selector,
-                1
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(DelegationVault.ProtocolRouterNotSet.selector, 1));
         vm.prank(agent);
         vault.executeWithProof(proof, publicInputs);
     }

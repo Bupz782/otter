@@ -59,11 +59,7 @@ contract DelegationVault {
     uint256 public constant NONCE_OFFSET = 37;
 
     event Delegated(
-        bytes32 indexed delegationHash,
-        address indexed owner,
-        uint256 allowedIntents,
-        uint256 expiry,
-        uint256 nonce
+        bytes32 indexed delegationHash, address indexed owner, uint256 allowedIntents, uint256 expiry, uint256 nonce
     );
     event Deposited(address indexed user, address indexed token, uint256 amount);
     event Withdrawn(address indexed user, address indexed token, uint256 amount);
@@ -156,7 +152,7 @@ contract DelegationVault {
         require(balances[msg.sender] >= amount, InsufficientBalance());
         balances[msg.sender] -= amount;
 
-        (bool success, ) = payable(msg.sender).call{value: amount}("");
+        (bool success,) = payable(msg.sender).call{value: amount}("");
         require(success, NativeTransferFailed());
 
         emit Withdrawn(msg.sender, address(0), amount);
@@ -216,11 +212,7 @@ contract DelegationVault {
     /// @dev The circuit serializes `delegation_hash: [u8; 32]` as 32 field
     /// elements, each holding one byte in its low byte. The first public input
     /// is the most-significant byte of the hash.
-    function _reconstructHash(bytes32[] calldata publicInputs)
-        internal
-        pure
-        returns (bytes32 hash)
-    {
+    function _reconstructHash(bytes32[] calldata publicInputs) internal pure returns (bytes32 hash) {
         for (uint256 i = 0; i < 32; i++) {
             hash |= publicInputs[i] << (8 * (31 - i));
         }

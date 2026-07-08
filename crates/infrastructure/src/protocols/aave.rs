@@ -77,12 +77,9 @@ impl AaveAdapter {
             .into()
             .parse()
             .map_err(|e| ProtocolError::OperationFailed(format!("invalid pool address: {e}")))?;
-        let on_behalf_of: Address = on_behalf_of
-            .into()
-            .parse()
-            .map_err(|e| {
-                ProtocolError::OperationFailed(format!("invalid onBehalfOf address: {e}"))
-            })?;
+        let on_behalf_of: Address = on_behalf_of.into().parse().map_err(|e| {
+            ProtocolError::OperationFailed(format!("invalid onBehalfOf address: {e}"))
+        })?;
         if on_behalf_of.is_zero() {
             return Err(ProtocolError::OperationFailed(
                 "onBehalfOf must not be the zero address".to_string(),
@@ -330,11 +327,13 @@ mod tests {
 
     #[test]
     fn rejects_zero_on_behalf_of() {
-        assert!(AaveAdapter::sepolia(
-            "http://localhost:8545",
-            "0x0000000000000000000000000000000000000000",
-        )
-        .is_err());
+        assert!(
+            AaveAdapter::sepolia(
+                "http://localhost:8545",
+                "0x0000000000000000000000000000000000000000",
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -343,6 +342,9 @@ mod tests {
         let expected: Address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
             .parse()
             .unwrap();
-        assert_eq!(AaveAdapter::asset_address(&Asset::Usdc, aave.network()).unwrap(), expected);
+        assert_eq!(
+            AaveAdapter::asset_address(&Asset::Usdc, aave.network()).unwrap(),
+            expected
+        );
     }
 }
