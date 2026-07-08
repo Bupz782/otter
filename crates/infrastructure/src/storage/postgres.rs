@@ -50,14 +50,13 @@ async fn run_migrations(pool: &Pool<Postgres>) -> Result<(), StorageError> {
 
     for path in migrations::migration_files()? {
         let version = migrations::migration_version(&path)?;
-        let applied: bool = sqlx::query_scalar::<_, i64>(
-            "SELECT 1 FROM schema_migrations WHERE version = $1",
-        )
-        .bind(version)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|e| StorageError::InitFailed(e.to_string()))?
-        .is_some();
+        let applied: bool =
+            sqlx::query_scalar::<_, i64>("SELECT 1 FROM schema_migrations WHERE version = $1")
+                .bind(version)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|e| StorageError::InitFailed(e.to_string()))?
+                .is_some();
 
         if !applied {
             let sql = std::fs::read_to_string(&path).map_err(|e| {
@@ -67,16 +66,13 @@ async fn run_migrations(pool: &Pool<Postgres>) -> Result<(), StorageError> {
                     e
                 ))
             })?;
-            sqlx::raw_sql(&sql)
-                .execute(&mut *tx)
-                .await
-                .map_err(|e| {
-                    StorageError::InitFailed(format!(
-                        "failed to run migration {}: {}",
-                        path.display(),
-                        e
-                    ))
-                })?;
+            sqlx::raw_sql(&sql).execute(&mut *tx).await.map_err(|e| {
+                StorageError::InitFailed(format!(
+                    "failed to run migration {}: {}",
+                    path.display(),
+                    e
+                ))
+            })?;
 
             // Version 3 consolidates the `user_address` column addition. Postgres
             // supports `IF NOT EXISTS`, so the column additions are applied here
@@ -90,31 +86,26 @@ async fn run_migrations(pool: &Pool<Postgres>) -> Result<(), StorageError> {
                         "ALTER TABLE {} ADD COLUMN IF NOT EXISTS {} {}",
                         table, column, column_type
                     );
-                    sqlx::query(&alter)
-                        .execute(&mut *tx)
-                        .await
-                        .map_err(|e| {
-                            StorageError::InitFailed(format!(
-                                "failed to add column {} to {}: {}",
-                                column, table, e
-                            ))
-                        })?;
+                    sqlx::query(&alter).execute(&mut *tx).await.map_err(|e| {
+                        StorageError::InitFailed(format!(
+                            "failed to add column {} to {}: {}",
+                            column, table, e
+                        ))
+                    })?;
                 }
             }
 
-            sqlx::query(
-                "INSERT INTO schema_migrations (version, applied_at) VALUES ($1, $2)",
-            )
-            .bind(version)
-            .bind(migrations::unix_now())
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| {
-                StorageError::InitFailed(format!(
-                    "failed to record migration {}: {}",
-                    version, e
-                ))
-            })?;
+            sqlx::query("INSERT INTO schema_migrations (version, applied_at) VALUES ($1, $2)")
+                .bind(version)
+                .bind(migrations::unix_now())
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| {
+                    StorageError::InitFailed(format!(
+                        "failed to record migration {}: {}",
+                        version, e
+                    ))
+                })?;
         }
     }
 

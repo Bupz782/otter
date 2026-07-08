@@ -41,7 +41,11 @@ jobs:
           script: |
             set -euo pipefail
             cd /opt/otter-mainnet
-            export OTTER_TAG=${{ github.event.inputs.tag }}
+            tag=${{ github.event.inputs.tag }}
+            repo=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
+            export OTTER_TAG=$tag
+            export OTTER_API_IMAGE=ghcr.io/${repo}/api:${tag}
+            export OTTER_FRONTEND_IMAGE=ghcr.io/${repo}/frontend:${tag}
             docker compose pull
             docker compose up -d
             ./scripts/smoke-test.sh

@@ -101,10 +101,7 @@ fn run_migrations(conn: &Connection) -> Result<(), StorageError> {
                 [version, migrations::unix_now()],
             )
             .map_err(|e| {
-                StorageError::InitFailed(format!(
-                    "failed to record migration {}: {}",
-                    version, e
-                ))
+                StorageError::InitFailed(format!("failed to record migration {}: {}", version, e))
             })?;
         }
     }

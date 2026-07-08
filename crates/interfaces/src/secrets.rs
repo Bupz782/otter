@@ -188,8 +188,8 @@ impl AwsKmsSecretProvider {
 
     async fn do_decrypt(key_id: String, region: String, ciphertext: Vec<u8>) -> Option<String> {
         use aws_config::BehaviorVersion;
-        use aws_sdk_kms::primitives::Blob;
         use aws_sdk_kms::Client;
+        use aws_sdk_kms::primitives::Blob;
 
         let config = aws_config::defaults(BehaviorVersion::latest())
             .region(aws_sdk_kms::config::Region::new(region.clone()))
@@ -473,6 +473,10 @@ mod tests {
     #[test]
     fn aws_kms_decrypt_base64_blob_helper_works() {
         let provider = AwsKmsSecretProvider::new("alias/otter-agent", "us-east-1");
-        assert!(provider.decrypt_base64_blob("not-valid-base64!!!").is_none());
+        assert!(
+            provider
+                .decrypt_base64_blob("not-valid-base64!!!")
+                .is_none()
+        );
     }
 }

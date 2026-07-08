@@ -14,7 +14,6 @@ jobs:
       contracts: ${{ steps.filter.outputs.contracts }}
       circuit: ${{ steps.filter.outputs.circuit }}
       frontend: ${{ steps.filter.outputs.frontend }}
-      docker: ${{ steps.filter.outputs.docker }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -31,10 +30,6 @@ jobs:
               - 'delegation_circuit/**'
             frontend:
               - 'frontend/**'
-            docker:
-              - 'Dockerfile'
-              - 'frontend/Dockerfile'
-              - 'docker-compose.yml'
 
   rust-check:
     needs: changes

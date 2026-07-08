@@ -41,6 +41,15 @@ jobs:
             type=semver,pattern={{version}}
             type=sha,prefix=,suffix=,format=short
 
+      - name: Read tool versions
+        id: versions
+        run: |
+          set -euo pipefail
+          noir_version=$(grep compiler_version delegation_circuit/Nargo.toml | sed 's/.*= "\(.*\)".*/\1/')
+          bb_version=$(cat .bb-version)
+          echo "noir_version=$noir_version" >> "$GITHUB_OUTPUT"
+          echo "bb_version=$bb_version" >> "$GITHUB_OUTPUT"
+
       - name: Build and push backend image
         uses: docker/build-push-action@v5
         with:
@@ -48,6 +57,9 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: ${{ env.BACKEND_IMAGE }}:${{ github.ref_name }}
+          build-args: |
+            NOIR_VERSION=${{ steps.versions.outputs.noir_version }}
+            BB_VERSION=${{ steps.versions.outputs.bb_version }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -75,8 +87,11 @@ jobs:
           username: ${{ secrets.TESTNET_USER }}
           key: ${{ secrets.TESTNET_SSH_KEY }}
           script: |
-            set -e
+            set -euo pipefail
             cd /opt/otter
+            repo=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
+            export OTTER_API_IMAGE=ghcr.io/${repo}/api:${{ github.ref_name }}
+            export OTTER_FRONTEND_IMAGE=ghcr.io/${repo}/frontend:${{ github.ref_name }}
             docker compose pull
             docker compose up -d --remove-orphans
             docker compose ps
