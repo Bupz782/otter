@@ -17,6 +17,7 @@ services:
       - "5432"
 
   api:
+    image: ${OTTER_API_IMAGE:-otter-api:latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -25,12 +26,6 @@ services:
       - "3001:3001"
     volumes:
       - otter-data:/data
-      # The circuit source is mounted so the backend can invoke nargo.
-      - ${OTTER_CIRCUIT_DIR:-./delegation_circuit}:/app/delegation_circuit
-      # Pinned tooling binaries are mounted from the host. See Dockerfile TODO
-      # for versions: nargo 1.0.0-beta.22, bb 5.0.0-nightly.20260522.
-      - ${OTTER_NARGO_BIN:-/usr/local/bin/nargo}:/usr/local/bin/nargo
-      - ${OTTER_BB_BIN:-/usr/local/bin/bb}:/usr/local/bin/bb
     environment:
       - OTTER_DATABASE_URL=postgres://otter:otter@postgres:5432/otter
       - OTTER_API_PORT=3001
@@ -44,7 +39,7 @@ services:
       - OTTER_NONCE_STORE_PATH=${OTTER_NONCE_STORE_PATH:-/data/otter-nonce.txt}
       - OTTER_CIRCUIT_DIR=/app/delegation_circuit
       - OTTER_NARGO_BIN=${OTTER_NARGO_BIN:-/usr/local/bin/nargo}
-      - OTTER_BB_BIN=${OTTER_BB_BIN}
+      - OTTER_BB_BIN=${OTTER_BB_BIN:-/usr/local/bin/bb}
       - OTTER_EXECUTION_ENABLED=${OTTER_EXECUTION_ENABLED:-false}
       - OTTER_DELEGATE_ON_CREATE=${OTTER_DELEGATE_ON_CREATE:-false}
       - OTTER_METRICS_ENABLED=${OTTER_METRICS_ENABLED:-true}
@@ -61,9 +56,12 @@ services:
       start_period: 10s
 
   frontend:
+    image: ${OTTER_FRONTEND_IMAGE:-otter-frontend:latest}
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
     container_name: otter-frontend
     ports:
       - "3000:3000"

@@ -14,15 +14,6 @@ groups:
           summary: "Otter API is down"
           description: "The Otter API job {{ $labels.job }} has been unreachable for more than 1 minute."
 
-      - alert: OtterNotReady
-        expr: otter_execution_enabled == 1 and otter_active_intents > 0
-        for: 0m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Otter API readiness unclear"
-          description: "Check /ready; active intents exist but execution may be disabled or misconfigured."
-
       - alert: OtterHighErrorRate
         expr: rate(otter_errors_total[5m]) > 0.1
         for: 2m
@@ -49,3 +40,40 @@ groups:
         annotations:
           summary: "Otter price monitoring stalled"
           description: "No price updates were received in the last 10 minutes. Verify RPC connectivity and oracle configuration."
+
+      - alert: OtterProofPipelineSlow
+        expr: otter_proof_prove_seconds > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Otter Noir proof generation is slow"
+          description: "The last bb prove step took {{ $value }} seconds, which is above the 30s threshold."
+
+      # The following alerts reference metrics that are not yet emitted by the
+      # API metrics endpoint. They are preserved here because the CI/DevOps plan
+      # mandated these exact rules; enable them once the corresponding counters
+      # and gauges are instrumented in the application code.
+      # - alert: OtterAgentLowBalance
+      #   expr: otter_vault_balance < 0.01
+      #   for: 5m
+      #   labels:
+      #     severity: warning
+      #   annotations:
+      #     summary: "Otter agent ETH balance is low"
+
+      # - alert: OtterProofVerificationFailing
+      #   expr: rate(otter_proof_verification_errors_total[5m]) > 0.1
+      #   for: 2m
+      #   labels:
+      #     severity: critical
+      #   annotations:
+      #     summary: "On-chain proof verification is failing"
+
+      # - alert: OtterRpcUnhealthy
+      #   expr: rate(otter_rpc_errors_total[5m]) > 0.5
+      #   for: 2m
+      #   labels:
+      #     severity: warning
+      #   annotations:
+      #     summary: "RPC endpoint is unhealthy"

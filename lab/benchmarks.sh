@@ -1,7 +1,7 @@
 #!/bin/bash
 # benchmarks.sh - Mesure les performances de compilation et tests
 
-set -e
+set -euo pipefail
 
 echo "🔥 otter Benchmarks"
 echo "===================="
@@ -29,7 +29,7 @@ echo ""
 
 echo "📈 Test coverage..."
 if command -v cargo-tarpaulin &> /dev/null; then
-    cargo tarpaulin --workspace --out Stdout --output-dir coverage/ 2>/dev/null | grep "coverage:"
+    cargo tarpaulin --workspace --out Stdout --output-dir coverage/ 2>/dev/null | grep "coverage:" || true
 else
     echo "cargo-tarpaulin not installed (optional)"
 fi

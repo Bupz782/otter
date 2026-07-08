@@ -1,5 +1,4 @@
 name: CI Pipeline
-run-name: CI Run - ${{ github.run_id }}
 
 on:
   push:
@@ -8,134 +7,177 @@ on:
     branches: [main, develop]
 
 jobs:
-  build:
+  changes:
     runs-on: ubuntu-latest
-    
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      contracts: ${{ steps.filter.outputs.contracts }}
+      circuit: ${{ steps.filter.outputs.circuit }}
+      frontend: ${{ steps.filter.outputs.frontend }}
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Cache Cargo registry and build
-        uses: actions/cache@v3
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-      
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-          components: rustfmt, clippy
-      
-      - name: Build Application
-        run: cargo build --workspace --all-targets --verbose
-      
-      - name: Run Tests
-        run: cargo test --workspace --verbose
+          filters: |
+            rust:
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'crates/**'
+            contracts:
+              - 'contracts/**'
+            circuit:
+              - 'delegation_circuit/**'
+            frontend:
+              - 'frontend/**'
 
-  clippy:
+  rust-check:
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' }}
     runs-on: ubuntu-latest
-    
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Cache Cargo
-        uses: actions/cache@v3
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-      
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-          components: clippy
-      
-      - name: Run Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-  fmt:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-          components: rustfmt
-      
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
       - name: Check formatting
         run: cargo fmt --all -- --check
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Run tests
+        run: cargo test --workspace
 
-  forge-test:
+  contracts-check:
+    needs: changes
+    if: ${{ needs.changes.outputs.contracts == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: stable
-
-      - name: Run forge tests
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Check formatting
         working-directory: ./contracts
-        run: forge test -vvv
+        run: forge fmt --check
+      - name: Run tests
+        working-directory: ./contracts
+        run: forge test
 
-  nargo-test:
+  circuit-check:
+    needs: changes
+    if: ${{ needs.changes.outputs.circuit == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Nargo
+      - name: Read Noir compiler version
+        id: noir_version
+        working-directory: ./delegation_circuit
+        run: |
+          set -euo pipefail
+          version=$(grep compiler_version Nargo.toml | sed 's/.*= "\(.*\)".*/\1/')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Install Noir
         uses: noir-lang/noirup@v1
         with:
-          toolchain: 1.0.0-beta.22
-
-      - name: Run nargo tests
+          toolchain: ${{ steps.noir_version.outputs.version }}
+      - name: Install bb
+        run: |
+          set -euo pipefail
+          curl -L https://raw.githubusercontent.com/AztecProtocol/aztec-packages/master/barretenberg/bbup/install | bash
+          ~/.bb/bbup -v $(cat .bb-version)
+          echo "$HOME/.bb" >> $GITHUB_PATH
+      - name: Check formatting
+        working-directory: ./delegation_circuit
+        run: nargo fmt --check
+      - name: Run tests
         working-directory: ./delegation_circuit
         run: nargo test
+      - name: Smoke circuit build
+        working-directory: ./delegation_circuit
+        run: |
+          set -euo pipefail
+          nargo execute --package delegation_circuit
+          bb write_vk -b ./target/delegation_circuit.json
 
-  frontend:
+  frontend-check:
+    needs: changes
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./frontend
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
           cache: npm
           cache-dependency-path: ./frontend/package-lock.json
-
       - name: Install dependencies
         run: npm ci
-
       - name: Typecheck
         run: npm run typecheck
-
       - name: Lint
         run: npm run lint
-
       - name: Test
         run: npm run test
-
       - name: Build
         run: npm run build
+
+  docker-smoke:
+    needs: [changes, rust-check, contracts-check, circuit-check, frontend-check]
+    if: always() && needs.changes.result == 'success' && (needs.rust-check.result == 'success' || needs.rust-check.result == 'skipped') && (needs.contracts-check.result == 'success' || needs.contracts-check.result == 'skipped') && (needs.circuit-check.result == 'success' || needs.circuit-check.result == 'skipped') && (needs.frontend-check.result == 'success' || needs.frontend-check.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: |
+          set -euo pipefail
+          docker build -t otter-api --build-arg NOIR_VERSION=$(grep compiler_version delegation_circuit/Nargo.toml | sed 's/.*= "\(.*\)".*/\1/') --build-arg BB_VERSION=$(cat .bb-version) .
+      - name: Build frontend image
+        run: |
+          set -euo pipefail
+          docker build -t otter-frontend ./frontend
+      - name: Smoke backend
+        run: |
+          set -euo pipefail
+          network=otter-smoke
+          docker network create "$network" || true
+
+          cleanup() {
+            docker rm -f api-smoke anvil-smoke 2>/dev/null || true
+            docker network rm "$network" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          docker run -d --name anvil-smoke --network "$network" -p 8545:8545 ghcr.io/foundry-rs/foundry:stable anvil --host 0.0.0.0
+          echo "Waiting for Anvil..."
+          for _ in {1..30}; do
+            if curl -fsS http://localhost:8545 -X POST -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+
+          docker run -d --name api-smoke --network "$network" -p 3001:3001 \
+            -e OTTER_RPC_URL=http://anvil-smoke:8545 \
+            -e OTTER_CHAIN_ID=31337 \
+            -e OTTER_MIGRATIONS_DIR=/app/crates/infrastructure/migrations \
+            otter-api
+          sleep 10
+
+          echo "--- /health"
+          curl -fsS http://localhost:3001/api/v1/health
+
+          echo "--- /ready (may be 503 until the oracle/RPC warm up)"
+          status=$(curl -s -o /tmp/ready.json -w "%{http_code}" http://localhost:3001/ready)
+          echo "/ready HTTP status: $status"
+          cat /tmp/ready.json
+          if [[ "$status" != "200" && "$status" != "503" ]]; then
+            echo "ERROR: /ready returned unexpected status $status" >&2
+            docker logs api-smoke
+            exit 1
+          fi
+
+          docker logs api-smoke
