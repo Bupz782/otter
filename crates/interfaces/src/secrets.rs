@@ -37,15 +37,13 @@ impl SecretProvider for FileSecretProvider {
     }
 }
 
-/// Placeholder for HashiCorp Vault integration. In production this would use
-/// the Vault API (e.g. `v1/secret/data/{path}`) with AppRole / Kubernetes auth
-/// and return the value stored at the configured key.
+/// Reads secrets from HashiCorp Vault using the KV v2 secrets engine. When the
+/// `vault` feature is enabled the provider makes an authenticated HTTP call to
+/// Vault and returns the requested field. Without the feature it logs a warning
+/// and returns `None` so the crate still compiles.
 pub struct HashiCorpVaultSecretProvider {
-    #[allow(dead_code)]
     addr: String,
-    #[allow(dead_code)]
     mount: String,
-    #[allow(dead_code)]
     path: String,
 }
 
@@ -60,6 +58,31 @@ impl HashiCorpVaultSecretProvider {
 }
 
 impl SecretProvider for HashiCorpVaultSecretProvider {
+    #[cfg(feature = "vault")]
+    fn get(&self, name: &str) -> Option<String> {
+        use vaultrs::client::{VaultClient, VaultClientSettingsBuilder};
+        use vaultrs::kv2;
+
+        let token = std::env::var("VAULT_TOKEN").ok().unwrap_or_default();
+        let settings = VaultClientSettingsBuilder::default()
+            .address(&self.addr)
+            .token(&token)
+            .build()
+            .ok()?;
+        let client = VaultClient::new(settings).ok()?;
+
+        let runtime = tokio::runtime::Runtime::new().ok()?;
+        runtime.block_on(async {
+            let secret: serde_json::Value =
+                kv2::read(&client, &self.mount, &self.path).await.ok()?;
+            secret
+                .get(name)
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+        })
+    }
+
+    #[cfg(not(feature = "vault"))]
     fn get(&self, _name: &str) -> Option<String> {
         tracing::warn!(
             addr = %self.addr,
@@ -68,6 +91,57 @@ impl SecretProvider for HashiCorpVaultSecretProvider {
             "HashiCorp Vault secret provider is not implemented in V1; returning None"
         );
         None
+    }
+}
+
+/// Decrypts secrets using AWS KMS. The `name` passed to [`SecretProvider::get`]
+/// is interpreted as a base64-encoded ciphertext blob that was produced by a
+/// previous `Encrypt` call against the configured KMS key.
+#[cfg(feature = "aws-kms")]
+pub struct AwsKmsSecretProvider {
+    key_id: String,
+    region: String,
+}
+
+#[cfg(feature = "aws-kms")]
+impl AwsKmsSecretProvider {
+    pub fn new(key_id: impl Into<String>, region: impl Into<String>) -> Self {
+        Self {
+            key_id: key_id.into(),
+            region: region.into(),
+        }
+    }
+}
+
+#[cfg(feature = "aws-kms")]
+impl SecretProvider for AwsKmsSecretProvider {
+    fn get(&self, name: &str) -> Option<String> {
+        use aws_config::BehaviorVersion;
+        use aws_sdk_kms::primitives::Blob;
+        use aws_sdk_kms::Client;
+        use base64::Engine;
+
+        let ciphertext = base64::engine::general_purpose::STANDARD
+            .decode(name)
+            .ok()?;
+
+        let runtime = tokio::runtime::Runtime::new().ok()?;
+        runtime.block_on(async {
+            let config = aws_config::defaults(BehaviorVersion::latest())
+                .region(aws_sdk_kms::config::Region::new(self.region.clone()))
+                .load()
+                .await;
+            let client = Client::new(&config);
+            let response = client
+                .decrypt()
+                .key_id(&self.key_id)
+                .ciphertext_blob(Blob::new(ciphertext))
+                .send()
+                .await
+                .ok()?;
+            let plaintext = response.plaintext?;
+            Some(hex::encode(plaintext.as_ref()))
+        })
     }
 }
 

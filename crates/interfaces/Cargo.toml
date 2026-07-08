@@ -3,6 +3,11 @@ name = "interfaces"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+aws-kms = ["dep:aws-sdk-kms", "dep:aws-config"]
+vault = ["dep:vaultrs"]
+
 [dependencies]
 application = { path = "../application" }
 axum = { version = "0.7", features = ["ws"] }
@@ -23,3 +28,7 @@ siwe = "0.6"
 jsonwebtoken = "9"
 chrono = "0.4"
 rand = "0.8"
+base64 = "0.22"
+aws-config = { version = "1", optional = true }
+aws-sdk-kms = { version = "1", optional = true }
+vaultrs = { version = "0.7", optional = true }
