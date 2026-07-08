@@ -38,6 +38,7 @@ fn sample_intent_record(id: &str) -> IntentRecord {
         state: "active".to_string(),
         created_at: now_secs(),
         updated_at: now_secs(),
+        user_address: None,
     }
 }
 
@@ -47,6 +48,7 @@ fn sample_delegation_record(hash: &str) -> DelegationRecord {
         payload_json: r#"{"pubkey_x":[0;32],"pubkey_y":[0;32]}"#.to_string(),
         signature: "0x".to_string(),
         created_at: now_secs(),
+        user_address: None,
     }
 }
 
