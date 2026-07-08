@@ -6,7 +6,7 @@ use domain::models::delegation::{
 use domain::ports::zkp_port::ZkpPort;
 use infrastructure::zkp::NoirAdapter;
 use k256::ecdsa::{SigningKey, signature::DigestSigner};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn sign_delegation(delegation: &DelegationMessage, signing_key: &SigningKey) -> [u8; 64] {
     let serialized = serialize_delegation(delegation);
@@ -40,8 +40,8 @@ struct FixtureConfig {
 fn generate_fixture(
     config: &FixtureConfig,
     signing_key: &SigningKey,
-    fixture_dir: &PathBuf,
-    circuit_dir: &PathBuf,
+    fixture_dir: &Path,
+    circuit_dir: &Path,
 ) {
     let encoded = signing_key.verifying_key().to_encoded_point(false);
     let pubkey_bytes = encoded.as_bytes();

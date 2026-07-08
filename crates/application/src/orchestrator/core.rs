@@ -13,7 +13,7 @@ use domain::ports::intent_parser_port::IntentParserPort;
 use domain::ports::price_oracle_port::{OracleError, PriceOraclePort};
 use domain::ports::zkp_port::ZkpPort;
 use std::collections::HashSet;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -424,7 +424,10 @@ where
                             });
                         }
                         Ok(Err(err)) => {
-                            eprintln!("[orchestrator] execution failed for {}: {}", intent_id_for_task, err);
+                            eprintln!(
+                                "[orchestrator] execution failed for {}: {}",
+                                intent_id_for_task, err
+                            );
                             let _ = bus_for_task.publish(Event::Error {
                                 source: "executor".to_string(),
                                 message: err,

@@ -142,7 +142,10 @@ fn add_column_if_missing(
         .map_err(|e| StorageError::InitFailed(e.to_string()))?;
     if !exists {
         conn.execute(
-            &format!("ALTER TABLE {} ADD COLUMN {} {}", table, column, column_type),
+            &format!(
+                "ALTER TABLE {} ADD COLUMN {} {}",
+                table, column, column_type
+            ),
             [],
         )
         .map_err(|e| StorageError::InitFailed(e.to_string()))?;
