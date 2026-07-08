@@ -79,21 +79,22 @@ fn run_migrations(conn: &Connection) -> Result<(), StorageError> {
                     e
                 ))
             })?;
-            conn.execute_batch(&sql).map_err(|e| {
-                StorageError::InitFailed(format!(
-                    "failed to run migration {}: {}",
-                    path.display(),
-                    e
-                ))
-            })?;
 
-            // Version 3 consolidates the `user_address` column addition. The
-            // bundled SQLite in rusqlite 0.30 does not support
-            // `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so we add the columns
-            // from Rust when this migration is applied.
+            // Version 3 adds the `user_address` column using PostgreSQL's
+            // `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` syntax. SQLite does not
+            // support `IF NOT EXISTS` on `ADD COLUMN`, so we apply the equivalent
+            // idempotent change from Rust for SQLite deployments.
             if version == 3 {
                 add_column_if_missing(conn, "intents", "user_address", "TEXT")?;
                 add_column_if_missing(conn, "delegations", "user_address", "TEXT")?;
+            } else {
+                conn.execute_batch(&sql).map_err(|e| {
+                    StorageError::InitFailed(format!(
+                        "failed to run migration {}: {}",
+                        path.display(),
+                        e
+                    ))
+                })?;
             }
 
             conn.execute(
@@ -123,10 +124,7 @@ fn add_column_if_missing(
         .map_err(|e| StorageError::InitFailed(e.to_string()))?;
     if !exists {
         conn.execute(
-            &format!(
-                "ALTER TABLE {} ADD COLUMN {} {}",
-                table, column, column_type
-            ),
+            &format!("ALTER TABLE {} ADD COLUMN {} {}", table, column, column_type),
             [],
         )
         .map_err(|e| StorageError::InitFailed(e.to_string()))?;

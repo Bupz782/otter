@@ -74,27 +74,6 @@ async fn run_migrations(pool: &Pool<Postgres>) -> Result<(), StorageError> {
                 ))
             })?;
 
-            // Version 3 consolidates the `user_address` column addition. Postgres
-            // supports `IF NOT EXISTS`, so the column additions are applied here
-            // for any database that predates the consolidated schema.
-            if version == 3 {
-                for (table, column, column_type) in [
-                    ("intents", "user_address", "TEXT"),
-                    ("delegations", "user_address", "TEXT"),
-                ] {
-                    let alter = format!(
-                        "ALTER TABLE {} ADD COLUMN IF NOT EXISTS {} {}",
-                        table, column, column_type
-                    );
-                    sqlx::query(&alter).execute(&mut *tx).await.map_err(|e| {
-                        StorageError::InitFailed(format!(
-                            "failed to add column {} to {}: {}",
-                            column, table, e
-                        ))
-                    })?;
-                }
-            }
-
             sqlx::query("INSERT INTO schema_migrations (version, applied_at) VALUES ($1, $2)")
                 .bind(version)
                 .bind(migrations::unix_now())

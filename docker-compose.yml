@@ -17,7 +17,7 @@ services:
       - "5432"
 
   api:
-    image: ${OTTER_API_IMAGE:-ghcr.io/bupz782/metis/api:latest}
+    image: ${OTTER_API_IMAGE:-otter-api:latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -56,7 +56,7 @@ services:
       start_period: 10s
 
   frontend:
-    image: ${OTTER_FRONTEND_IMAGE:-ghcr.io/bupz782/metis/frontend:latest}
+    image: ${OTTER_FRONTEND_IMAGE:-otter-frontend:latest}
     build:
       context: ./frontend
       dockerfile: Dockerfile
