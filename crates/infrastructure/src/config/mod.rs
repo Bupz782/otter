@@ -98,8 +98,33 @@ pub struct Config {
 
     /// Human-readable description of where the private key is sourced. Used in
     /// logs and health output to audit secret management.
+    /// Recognized values: `environment-variable`, `file`, `keystore`, `aws-kms`, `vault`.
     #[serde(default)]
     pub private_key_source: Option<String>,
+
+    /// AWS KMS key ID (ARN or alias) used when `private_key_source` is `aws-kms`.
+    #[serde(default)]
+    pub aws_kms_key_id: Option<String>,
+
+    /// AWS region for the KMS key.
+    #[serde(default)]
+    pub aws_kms_region: Option<String>,
+
+    /// HashiCorp Vault address (e.g. `https://vault.example.com:8200`).
+    #[serde(default)]
+    pub vault_addr: Option<String>,
+
+    /// HashiCorp Vault KV mount (e.g. `secret`).
+    #[serde(default)]
+    pub vault_mount: Option<String>,
+
+    /// HashiCorp Vault secret path (e.g. `otter/agent`).
+    #[serde(default)]
+    pub vault_path: Option<String>,
+
+    /// HashiCorp Vault secret key containing the private key.
+    #[serde(default)]
+    pub vault_key: Option<String>,
 
     /// Whether JWT authentication is required on mutating API endpoints.
     #[serde(default = "default_auth_enabled")]
@@ -200,6 +225,12 @@ impl Default for Config {
             keystore_file: None,
             keystore_password: None,
             private_key_source: None,
+            aws_kms_key_id: None,
+            aws_kms_region: None,
+            vault_addr: None,
+            vault_mount: None,
+            vault_path: None,
+            vault_key: None,
             auth_enabled: default_auth_enabled(),
             jwt_secret: String::new(),
             jwt_ttl_hours: default_jwt_ttl_hours(),
@@ -321,6 +352,24 @@ impl Config {
         }
         if let Ok(val) = std::env::var("OTTER_PRIVATE_KEY_SOURCE") {
             self.private_key_source = Some(val);
+        }
+        if let Ok(val) = std::env::var("OTTER_AWS_KMS_KEY_ID") {
+            self.aws_kms_key_id = Some(val);
+        }
+        if let Ok(val) = std::env::var("OTTER_AWS_KMS_REGION") {
+            self.aws_kms_region = Some(val);
+        }
+        if let Ok(val) = std::env::var("OTTER_VAULT_ADDR") {
+            self.vault_addr = Some(val);
+        }
+        if let Ok(val) = std::env::var("OTTER_VAULT_MOUNT") {
+            self.vault_mount = Some(val);
+        }
+        if let Ok(val) = std::env::var("OTTER_VAULT_PATH") {
+            self.vault_path = Some(val);
+        }
+        if let Ok(val) = std::env::var("OTTER_VAULT_KEY") {
+            self.vault_key = Some(val);
         }
         if let Ok(val) = std::env::var("OTTER_AUTH_ENABLED")
             && let Ok(enabled) = val.parse()

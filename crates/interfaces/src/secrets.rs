@@ -285,6 +285,60 @@ where
 /// A clear warning is emitted when the key is read from the environment so
 /// operators know to rotate to a keystore- or KMS-based approach for production.
 pub fn load_private_key(config: &Config) -> Result<([u8; 32], String), String> {
+    let source = config.private_key_source.as_deref().unwrap_or("");
+
+    #[cfg(feature = "aws-kms")]
+    if source == "aws-kms" {
+        let key_id = config
+            .aws_kms_key_id
+            .as_deref()
+            .ok_or("aws-kms source requires aws_kms_key_id")?;
+        let region = config
+            .aws_kms_region
+            .as_deref()
+            .ok_or("aws-kms source requires aws_kms_region")?;
+        let ciphertext = config
+            .private_key
+            .as_deref()
+            .ok_or("aws-kms source requires private_key to contain the base64 ciphertext blob")?;
+        let provider = AwsKmsSecretProvider::new(key_id, region);
+        let hex_key = provider
+            .get(ciphertext)
+            .ok_or("aws-kms provider did not return a decrypted private key")?;
+        return decode_private_key(&hex_key).map(|key| (key, "aws-kms".to_string()));
+    }
+
+    #[cfg(feature = "vault")]
+    if source == "vault" {
+        let addr = config
+            .vault_addr
+            .as_deref()
+            .ok_or("vault source requires vault_addr")?;
+        let mount = config
+            .vault_mount
+            .as_deref()
+            .ok_or("vault source requires vault_mount")?;
+        let path = config
+            .vault_path
+            .as_deref()
+            .ok_or("vault source requires vault_path")?;
+        let key = config
+            .vault_key
+            .as_deref()
+            .ok_or("vault source requires vault_key")?;
+        let provider = HashiCorpVaultSecretProvider::new(addr, mount, path);
+        let hex_key = provider
+            .get(key)
+            .ok_or("vault provider did not return a private key")?;
+        return decode_private_key(&hex_key).map(|key| (key, "vault".to_string()));
+    }
+
+    if source == "aws-kms" || source == "vault" {
+        return Err(format!(
+            "private_key_source '{source}' requires the corresponding cargo feature (aws-kms or vault)"
+        ));
+    }
+
     if let Some(path) = &config.keystore_file {
         let password = config.keystore_password.as_deref().unwrap_or("");
         let key_bytes = eth_keystore::decrypt_key(path, password)

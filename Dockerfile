@@ -3,7 +3,7 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Rust backend build
 # -----------------------------------------------------------------------------
-FROM rustlang/rust:nightly AS builder
+FROM rustlang/rust:nightly-2026-07-07 AS builder
 
 WORKDIR /app
 
@@ -11,7 +11,7 @@ RUN apt-get update \
     && apt-get install -y pkg-config libssl-dev clang libclang-dev cmake curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY Cargo.toml Cargo.lock ./
+COPY rust-toolchain.toml Cargo.toml Cargo.lock ./
 COPY crates ./crates
 COPY delegation_circuit ./delegation_circuit
 COPY crates/infrastructure/migrations ./crates/infrastructure/migrations
@@ -21,21 +21,27 @@ RUN cargo build --release -p interfaces --bin metis_api
 # -----------------------------------------------------------------------------
 # Stage 2: Noir tooling
 # -----------------------------------------------------------------------------
-FROM alpine:latest AS noir
+FROM debian:bookworm-slim AS noir
 ARG NOIR_VERSION
 ENV SHELL=/bin/bash
-RUN apk add --no-cache curl bash git \
-    && curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash \
+RUN apt-get update \
+    && apt-get install -y curl bash git \
+    && rm -rf /var/lib/apt/lists/*
+COPY scripts/noirup-install.sh /tmp/noirup-install.sh
+RUN bash /tmp/noirup-install.sh \
     && /root/.nargo/bin/noirup -v ${NOIR_VERSION} \
     && cp /root/.nargo/bin/nargo /usr/local/bin/nargo
 
 # -----------------------------------------------------------------------------
 # Stage 3: Barretenberg tooling
 # -----------------------------------------------------------------------------
-FROM alpine:latest AS bb
+FROM debian:bookworm-slim AS bb
 ARG BB_VERSION
-RUN apk add --no-cache curl bash tar gzip \
-    && curl -L https://raw.githubusercontent.com/AztecProtocol/aztec-packages/master/barretenberg/bbup/install | bash \
+RUN apt-get update \
+    && apt-get install -y curl bash tar gzip \
+    && rm -rf /var/lib/apt/lists/*
+COPY scripts/bbup-install.sh /tmp/bbup-install.sh
+RUN bash /tmp/bbup-install.sh \
     && /root/.bb/bbup -v ${BB_VERSION} \
     && cp /root/.bb/bb /usr/local/bin/bb
 

@@ -42,7 +42,7 @@ NOIRUP_BIN="$HOME/.nargo/bin/noirup"
 NARGO_BIN="$HOME/.nargo/bin/nargo"
 if ! command -v nargo >/dev/null 2>&1 || [[ "$(nargo --version 2>/dev/null)" != *"$NOIR_VERSION"* ]]; then
     echo "Installing Noir $NOIR_VERSION..."
-    curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash
+    bash ./scripts/noirup-install.sh
     "$NOIRUP_BIN" -v "$NOIR_VERSION"
 fi
 
@@ -51,7 +51,7 @@ BBUP_BIN="$HOME/.bb/bbup"
 BB_BIN="$HOME/.bb/bb"
 if ! command -v bb >/dev/null 2>&1 || [[ "$(bb --version 2>/dev/null)" != *"$BB_VERSION"* ]]; then
     echo "Installing bb $BB_VERSION..."
-    curl -L https://raw.githubusercontent.com/AztecProtocol/aztec-packages/master/barretenberg/bbup/install | bash
+    bash ./scripts/bbup-install.sh
     "$BBUP_BIN" -v "$BB_VERSION"
 fi
 
