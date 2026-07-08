@@ -1,2 +1,0 @@
-ALTER TABLE intents ADD COLUMN IF NOT EXISTS user_address TEXT;
-ALTER TABLE delegations ADD COLUMN IF NOT EXISTS user_address TEXT;

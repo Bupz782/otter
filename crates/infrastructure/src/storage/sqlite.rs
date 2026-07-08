@@ -4,6 +4,7 @@ use domain::ports::storage_port::{
     DelegationRecord, ExecutionRecord, IntentRecord, StorageError, StoragePort,
 };
 use rusqlite::{Connection, OptionalExtension};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 #[cfg(test)]
@@ -20,62 +21,10 @@ pub struct SqliteStorage {
 
 impl SqliteStorage {
     /// Open (or create) a SQLite database at the given path and initialize the
-    /// schema.
+    /// schema by running pending migrations from `crates/infrastructure/migrations`.
     pub fn new<P: AsRef<std::path::Path>>(path: P) -> Result<Self, StorageError> {
         let conn = Connection::open(path).map_err(|e| StorageError::InitFailed(e.to_string()))?;
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS intents (
-                id TEXT PRIMARY KEY,
-                text TEXT NOT NULL,
-                intent_json TEXT NOT NULL,
-                state TEXT NOT NULL,
-                created_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL,
-                user_address TEXT
-            )",
-            [],
-        )
-        .map_err(|e| StorageError::InitFailed(e.to_string()))?;
-        add_column_if_missing(&conn, "intents", "user_address", "TEXT")?;
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_intents_updated_at ON intents(updated_at DESC)",
-            [],
-        )
-        .map_err(|e| StorageError::InitFailed(e.to_string()))?;
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS delegations (
-                hash TEXT PRIMARY KEY,
-                payload_json TEXT NOT NULL,
-                signature TEXT NOT NULL,
-                created_at INTEGER NOT NULL,
-                user_address TEXT
-            )",
-            [],
-        )
-        .map_err(|e| StorageError::InitFailed(e.to_string()))?;
-        add_column_if_missing(&conn, "delegations", "user_address", "TEXT")?;
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_delegations_created_at ON delegations(created_at DESC)",
-            [],
-        )
-        .map_err(|e| StorageError::InitFailed(e.to_string()))?;
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS executions (
-                id TEXT PRIMARY KEY,
-                intent_id TEXT NOT NULL,
-                tx_hash TEXT NOT NULL,
-                status TEXT NOT NULL,
-                gas_used INTEGER NOT NULL,
-                created_at INTEGER NOT NULL
-            )",
-            [],
-        )
-        .map_err(|e| StorageError::InitFailed(e.to_string()))?;
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_executions_intent_id ON executions(intent_id)",
-            [],
-        )
-        .map_err(|e| StorageError::InitFailed(e.to_string()))?;
+        run_migrations(&conn)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })
@@ -86,48 +35,83 @@ impl SqliteStorage {
     pub fn in_memory() -> Result<Self, StorageError> {
         let conn =
             Connection::open_in_memory().map_err(|e| StorageError::InitFailed(e.to_string()))?;
-        conn.execute(
-            "CREATE TABLE intents (
-                id TEXT PRIMARY KEY,
-                text TEXT NOT NULL,
-                intent_json TEXT NOT NULL,
-                state TEXT NOT NULL,
-                created_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL,
-                user_address TEXT
-            )",
-            [],
-        )
-        .map_err(|e| StorageError::InitFailed(e.to_string()))?;
-        conn.execute(
-            "CREATE TABLE delegations (
-                hash TEXT PRIMARY KEY,
-                payload_json TEXT NOT NULL,
-                signature TEXT NOT NULL,
-                created_at INTEGER NOT NULL,
-                user_address TEXT
-            )",
-            [],
-        )
-        .map_err(|e| StorageError::InitFailed(e.to_string()))?;
-        conn.execute(
-            "CREATE TABLE executions (
-                id TEXT PRIMARY KEY,
-                intent_id TEXT NOT NULL,
-                tx_hash TEXT NOT NULL,
-                status TEXT NOT NULL,
-                gas_used INTEGER NOT NULL,
-                created_at INTEGER NOT NULL
-            )",
-            [],
-        )
-        .map_err(|e| StorageError::InitFailed(e.to_string()))?;
+        run_migrations(&conn)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })
     }
 }
 
+/// Run every `.sql` file in the migrations directory in lexicographic order,
+/// skipping migrations already recorded in `schema_migrations`.
+fn run_migrations(conn: &Connection) -> Result<(), StorageError> {
+    // Ensure the tracking table exists before we query it.
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS schema_migrations (
+            version INTEGER PRIMARY KEY,
+            applied_at INTEGER NOT NULL
+        )",
+        [],
+    )
+    .map_err(|e| StorageError::InitFailed(e.to_string()))?;
+
+    let migrations_dir = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/migrations"));
+    let mut entries: Vec<PathBuf> = std::fs::read_dir(&migrations_dir)
+        .map_err(|e| {
+            StorageError::InitFailed(format!(
+                "failed to read migrations dir {}: {}",
+                migrations_dir.display(),
+                e
+            ))
+        })?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.extension().map(|e| e == "sql").unwrap_or(false))
+        .collect();
+    entries.sort();
+
+    for path in entries {
+        let version = migration_version(&path)?;
+        let applied: bool = conn
+            .query_row(
+                "SELECT 1 FROM schema_migrations WHERE version = ?1",
+                [version],
+                |_row| Ok(()),
+            )
+            .optional()
+            .map_err(|e| StorageError::InitFailed(e.to_string()))?
+            .is_some();
+
+        if !applied {
+            let sql = std::fs::read_to_string(&path).map_err(|e| {
+                StorageError::InitFailed(format!(
+                    "failed to read migration {}: {}",
+                    path.display(),
+                    e
+                ))
+            })?;
+            conn.execute_batch(&sql).map_err(|e| {
+                StorageError::InitFailed(format!(
+                    "failed to run migration {}: {}",
+                    path.display(),
+                    e
+                ))
+            })?;
+
+            // Version 3 consolidates the `user_address` column addition. The
+            // bundled SQLite in rusqlite 0.30 does not support
+            // `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so we add the columns
+            // from Rust when this migration is applied.
+            if version == 3 {
+                add_column_if_missing(conn, "intents", "user_address", "TEXT")?;
+                add_column_if_missing(conn, "delegations", "user_address", "TEXT")?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Add a column to a table only if it is not already present.
 fn add_column_if_missing(
     conn: &Connection,
     table: &str,
@@ -151,6 +135,25 @@ fn add_column_if_missing(
         .map_err(|e| StorageError::InitFailed(e.to_string()))?;
     }
     Ok(())
+}
+
+/// Extract the numeric version prefix from a migration filename such as
+/// `0001_init.sql`.
+fn migration_version(path: &Path) -> Result<i64, StorageError> {
+    let file_stem = path
+        .file_stem()
+        .ok_or_else(|| StorageError::InitFailed(format!("invalid migration path: {}", path.display())))?
+        .to_string_lossy();
+    file_stem
+        .split('_')
+        .next()
+        .and_then(|s| s.parse().ok())
+        .ok_or_else(|| {
+            StorageError::InitFailed(format!(
+                "invalid migration filename: {}",
+                path.display()
+            ))
+        })
 }
 
 #[async_trait]
