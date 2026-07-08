@@ -2,7 +2,9 @@ use crate::models::intent::{Asset, Protocol};
 
 pub type Address = String;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionPlan {
     steps: Vec<ExecutionStep>,
     protocol: Protocol,
@@ -10,7 +12,7 @@ pub struct ExecutionPlan {
     description: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionStep {
     Approve {
         asset: Asset,

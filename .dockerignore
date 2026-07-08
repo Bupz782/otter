@@ -1,0 +1,24 @@
+# Build artifacts
+target/
+frontend/.next/
+frontend/node_modules/
+frontend/out/
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Large binaries
+models/*.gguf

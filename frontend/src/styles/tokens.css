@@ -1,0 +1,51 @@
+:root {
+  /* Primitive colors */
+  --otter-black: #050505;
+  --otter-black-soft: #0a0a0a;
+  --otter-black-raised: #111111;
+  --otter-white: #f4f4f5;
+  --otter-white-soft: #e4e4e7;
+  --otter-gray-100: #a1a1aa;
+  --otter-gray-200: #71717a;
+  --otter-gray-300: #52525b;
+  --otter-gray-400: #3f3f46;
+
+  /* Accent: warm muted amber */
+  --otter-amber-100: #f2e2c9;
+  --otter-amber-200: #e6cc9e;
+  --otter-amber-300: #c8a46c;
+  --otter-amber-400: #a6834d;
+  --otter-amber-500: #7f6135;
+  --otter-amber-subtle: rgba(200, 164, 108, 0.12);
+  --otter-amber-ring: rgba(200, 164, 108, 0.35);
+
+  /* Status */
+  --otter-emerald: #34d399;
+  --otter-emerald-subtle: rgba(52, 211, 153, 0.12);
+  --otter-rose: #fb7185;
+  --otter-rose-subtle: rgba(251, 113, 133, 0.12);
+  --otter-amber-status: #fbbf24;
+  --otter-amber-status-subtle: rgba(251, 191, 36, 0.12);
+
+  /* Typography */
+  --font-heading: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+
+  /* Radius */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.45);
+
+  /* Motion */
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+  --duration-slow: 500ms;
+}

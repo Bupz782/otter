@@ -16,6 +16,7 @@ static SWAP_REGEX: OnceLock<Regex> = OnceLock::new();
 static BORROW_REGEX: OnceLock<Regex> = OnceLock::new();
 static STAKE_REGEX: OnceLock<Regex> = OnceLock::new();
 static CONDITION_REGEX: OnceLock<Regex> = OnceLock::new();
+static CONDITIONAL_SPLIT_REGEX: OnceLock<Regex> = OnceLock::new();
 
 mod parsers {
     use super::*;
@@ -275,7 +276,7 @@ pub struct ConditionParser;
 impl ConditionParser {
     pub fn parse(&self, text: &str) -> Result<Condition, ParseError> {
         let re = CONDITION_REGEX.get_or_init(|| {
-            Regex::new(r"(?i)if\s+(?P<metric>\w+)\s+(?P<comparator>[><=]+)\s+(?P<value>[\d,]+)")
+            Regex::new(r"(?i)if\s+(?P<metric>\w+)\s+(?P<comparator>[><=]+)\s+(?P<value>[\d,_]+)")
                 .expect("Invalid CONDITION_REGEX pattern")
         });
 
@@ -287,7 +288,8 @@ impl ConditionParser {
             .name("value")
             .ok_or(ParseError::InvalidFormat("Missing value".to_string()))?
             .as_str()
-            .replace(",", "");
+            .replace(",", "")
+            .replace("_", "");
         let value: u128 = value_str
             .parse()
             .map_err(|_| ParseError::InvalidAmount(value_str.clone()))?;
@@ -314,12 +316,18 @@ impl ConditionParser {
 
 /// Main regex parser that tries multiple parsers in sequence
 pub struct RegexParser {
-    parsers: Vec<Box<dyn IntentParser>>,
+    parsers: Vec<Box<dyn IntentParser + Send + Sync>>,
     condition_parser: ConditionParser,
 }
 
 impl Default for RegexParser {
     fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Clone for RegexParser {
+    fn clone(&self) -> Self {
         Self::new()
     }
 }
@@ -356,15 +364,25 @@ impl RegexParser {
 
     /// Parse a conditional intent (intent + optional condition)
     pub fn parse_conditional_intent(&self, text: &str) -> Result<ConditionalIntent, ParseError> {
-        let mut parts = text.splitn(2, " if ");
-        let intent_part = parts
-            .next()
-            .ok_or(ParseError::InvalidFormat("Missing intent part".to_string()))?;
-        let condition_part = parts.next();
+        let splitter = CONDITIONAL_SPLIT_REGEX
+            .get_or_init(|| Regex::new(r"(?i)\bif\b").expect("Invalid conditional split regex"));
+
+        let text = text.trim();
+        let (intent_part, condition_slice) = if let Some(mat) = splitter.find(text) {
+            let intent_part = text[..mat.start()].trim();
+            let condition_part = text[mat.end()..].trim();
+            (intent_part, Some(condition_part))
+        } else {
+            (text, None)
+        };
+
+        if intent_part.is_empty() {
+            return Err(ParseError::InvalidFormat("Missing intent part".to_string()));
+        }
 
         let intent = self.parse_intent(intent_part)?;
 
-        let condition = if let Some(cond_text) = condition_part {
+        let condition = if let Some(cond_text) = condition_slice {
             Some(self.parse_condition(&format!("if {}", cond_text))?)
         } else {
             None
@@ -376,6 +394,17 @@ impl RegexParser {
     /// Get descriptions of all registered parsers
     pub fn parser_descriptions(&self) -> Vec<&'static str> {
         self.parsers.iter().map(|p| p.description()).collect()
+    }
+}
+
+impl domain::ports::intent_parser_port::IntentParserPort for RegexParser {
+    fn parse(
+        &self,
+        text: &str,
+    ) -> Result<ConditionalIntent, domain::ports::intent_parser_port::IntentParserError> {
+        self.parse_conditional_intent(text).map_err(|e| {
+            domain::ports::intent_parser_port::IntentParserError::ParsingFailed(e.to_string())
+        })
     }
 }
 
@@ -480,6 +509,46 @@ mod tests {
         assert!(result.is_ok());
         let ci = result.unwrap();
         assert!(ci.condition.is_none());
+    }
+
+    #[test]
+    fn test_parse_conditional_handles_uppercase_if() {
+        let parser = RegexParser::new();
+        let result =
+            parser.parse_conditional_intent("Swap 1 ETH for USDC on Uniswap IF price > 2000");
+        assert!(result.is_ok());
+        let ci = result.unwrap();
+        assert!(ci.condition.is_some());
+    }
+
+    #[test]
+    fn test_parse_conditional_without_space_before_if_keyword() {
+        let parser = RegexParser::new();
+        let result =
+            parser.parse_conditional_intent("Swap 1 ETH for USDC on Uniswap.if price > 2000");
+        assert!(result.is_ok());
+        let ci = result.unwrap();
+        assert!(ci.condition.is_some());
+    }
+
+    #[test]
+    fn test_parse_condition_underscore_and_comma_value() {
+        let parser = RegexParser::new();
+        let result = parser.parse_condition("if price > 4_000_000");
+        assert!(result.is_ok());
+        if let Ok(Condition::Comparison { value, .. }) = result {
+            assert_eq!(value, 4_000_000);
+        } else {
+            panic!("Expected comparison condition");
+        }
+
+        let result = parser.parse_condition("if price >= 2,500,000");
+        assert!(result.is_ok());
+        if let Ok(Condition::Comparison { value, .. }) = result {
+            assert_eq!(value, 2_500_000);
+        } else {
+            panic!("Expected comparison condition");
+        }
     }
 
     #[test]

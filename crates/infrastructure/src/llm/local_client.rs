@@ -1,5 +1,5 @@
 use super::{
-    cache::{CachedClient, PromptCache},
+    cache::{CachedClient, ResponseCache},
     config::LlmConfig,
     error::LlmError,
     model_loader::LoadedModel,
@@ -24,7 +24,7 @@ pub struct LocalLlmClient {
     config: LlmConfig,
     prompt_builder: PromptBuilder,
     loaded_model: Option<LoadedModel>,
-    cache: PromptCache,
+    cache: ResponseCache<String, ConditionalIntent>,
     use_cache: bool,
 }
 
@@ -42,7 +42,7 @@ impl LocalLlmClient {
             config: LlmConfig::default(),
             prompt_builder: PromptBuilder::new(system_prompt),
             loaded_model: None,
-            cache: PromptCache::default(),
+            cache: ResponseCache::default(),
             use_cache: true,
         }
     }
@@ -58,7 +58,7 @@ impl LocalLlmClient {
             config,
             prompt_builder: PromptBuilder::new(system_prompt),
             loaded_model: None,
-            cache: PromptCache::new(100),
+            cache: ResponseCache::new(100),
             use_cache: true,
         }
     }
@@ -72,11 +72,16 @@ impl LocalLlmClient {
 
     /// Generate text from a prompt
     pub fn generate(&mut self, prompt: &str, max_tokens: usize) -> Result<IntentOutput, LlmError> {
-        // Check cache first if enabled
-        if self.use_cache
-            && let Some(cached) = self.cache.get(&prompt.to_string())
+        let cache_key = if self.use_cache {
+            Some(prompt.to_string())
+        } else {
+            None
+        };
+
+        if let Some(ref key) = cache_key
+            && let Some(cached) = self.cache.get(key)
         {
-            return Ok(IntentOutput::Raw(cached.clone()));
+            return Ok(IntentOutput::Conditional(cached.clone()));
         }
 
         let loaded = self.loaded_model.as_ref().ok_or(LlmError::ModelNotLoaded)?;
@@ -109,11 +114,11 @@ impl LocalLlmClient {
         // Generate response
         let output = generate_tokens(&loaded.model, &mut ctx, &mut batch, &mut n_cur, max_tokens)?;
 
-        if self.use_cache {
-            self.cache.insert(prompt.to_string(), output.clone());
-        }
-
         let output_intent = parse_intent(&output)?;
+
+        if let Some(key) = cache_key {
+            self.cache.insert(key, output_intent.clone());
+        }
 
         Ok(IntentOutput::Conditional(output_intent))
     }

@@ -1,0 +1,73 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: otter-postgres
+    environment:
+      POSTGRES_USER: otter
+      POSTGRES_PASSWORD: otter
+      POSTGRES_DB: otter
+    volumes:
+      - otter-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U otter -d otter"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    expose:
+      - "5432"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: otter-api
+    ports:
+      - "3001:3001"
+    volumes:
+      - otter-data:/data
+      - ${OTTER_CIRCUIT_DIR:-./delegation_circuit}:/app/delegation_circuit
+      - ${OTTER_NARGO_BIN:-/usr/local/bin/nargo}:/usr/local/bin/nargo
+      - ${OTTER_BB_BIN:-/usr/local/bin/bb}:/usr/local/bin/bb
+    environment:
+      - OTTER_DATABASE_URL=postgres://otter:otter@postgres:5432/otter
+      - OTTER_API_PORT=3001
+      - OTTER_RPC_URL=${OTTER_RPC_URL:-https://ethereum-sepolia-rpc.publicnode.com}
+      - OTTER_CHAIN_ID=${OTTER_CHAIN_ID:-11155111}
+      - OTTER_NETWORK=${OTTER_NETWORK:-sepolia}
+      - OTTER_VAULT_ADDRESS=${OTTER_VAULT_ADDRESS}
+      - OTTER_PRIVATE_KEY=${OTTER_PRIVATE_KEY}
+      - OTTER_PRIVATE_KEY_FILE=${OTTER_PRIVATE_KEY_FILE}
+      - OTTER_PRIVATE_KEY_SOURCE=${OTTER_PRIVATE_KEY_SOURCE:-env-file}
+      - OTTER_NONCE_STORE_PATH=${OTTER_NONCE_STORE_PATH:-/data/otter-nonce.txt}
+      - OTTER_CIRCUIT_DIR=/app/delegation_circuit
+      - OTTER_NARGO_BIN=${OTTER_NARGO_BIN:-/usr/local/bin/nargo}
+      - OTTER_BB_BIN=${OTTER_BB_BIN}
+      - OTTER_EXECUTION_ENABLED=${OTTER_EXECUTION_ENABLED:-false}
+      - OTTER_DELEGATE_ON_CREATE=${OTTER_DELEGATE_ON_CREATE:-false}
+      - OTTER_METRICS_ENABLED=${OTTER_METRICS_ENABLED:-true}
+      - OTTER_MONITORING_INTERVAL_SECS=${OTTER_MONITORING_INTERVAL_SECS:-60}
+      - RUST_LOG=${RUST_LOG:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: otter-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  otter-data:
+  otter-postgres-data:
