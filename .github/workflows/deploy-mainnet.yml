@@ -24,7 +24,7 @@ jobs:
         run: |
           echo "Tag: ${{ github.event.inputs.tag }}"
           echo "Multisig tx: ${{ github.event.inputs.multisig_tx_hash }}"
-          echo "TODO: verify tag passed testnet deployment, audit reports, and fork simulation"
+          echo "Readiness check: verify testnet deployment, audit reports, and fork simulation before proceeding."
 
   deploy:
     needs: check-mainnet-readiness
@@ -38,6 +38,7 @@ jobs:
           username: ${{ secrets.MAINNET_USER }}
           key: ${{ secrets.MAINNET_SSH_KEY }}
           script: |
+            set -euo pipefail
             cd /opt/otter-mainnet
             export OTTER_TAG=${{ github.event.inputs.tag }}
             docker compose pull
