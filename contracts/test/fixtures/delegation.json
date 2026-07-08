@@ -1,0 +1,30 @@
+{
+  "allowed_intents": "0x05",
+  "allowed_protocols": [
+    "1",
+    "2",
+    "0",
+    "0",
+    "0"
+  ],
+  "amount": "2000000",
+  "delegation_hash": "0x91ade02b79eb31565b2b5e9cbf73c2113af09524cc4dac59305b8a9ef7fad9f5",
+  "expiry": "4000000000",
+  "intent_type": "2",
+  "max_amounts": [
+    "1000000",
+    "2000000",
+    "3000000",
+    "0",
+    "0",
+    "0",
+    "0",
+    "0",
+    "0",
+    "0"
+  ],
+  "nonce": "42",
+  "protocol": "1",
+  "target_contract": "0",
+  "timestamp": "1000000"
+}

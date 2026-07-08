@@ -1,8 +1,9 @@
 pub mod blockchain;
 pub mod config;
-pub mod fhe;
-pub mod mempool;
+pub mod llm;
 pub mod observability;
 pub mod parsers;
+pub mod protocols;
+pub mod services;
 pub mod storage;
 pub mod zkp;

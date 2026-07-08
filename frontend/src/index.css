@@ -1,0 +1,140 @@
+@import "tailwindcss";
+@import "./styles/tokens.css";
+@import "@rainbow-me/rainbowkit/styles.css";
+
+@theme inline {
+  --font-sans: var(--font-body);
+  --font-heading: var(--font-heading);
+
+  --color-background: var(--otter-black);
+  --color-foreground: var(--otter-white);
+
+  --color-card: rgba(12, 12, 12, 0.78);
+  --color-card-foreground: var(--otter-white);
+
+  --color-popover: var(--otter-black-soft);
+  --color-popover-foreground: var(--otter-white);
+
+  --color-primary: var(--otter-white-soft);
+  --color-primary-foreground: var(--otter-black);
+
+  --color-secondary: var(--otter-black-raised);
+  --color-secondary-foreground: var(--otter-white);
+
+  --color-muted: var(--otter-gray-400);
+  --color-muted-foreground: var(--otter-gray-100);
+
+  --color-accent: var(--otter-amber-300);
+  --color-accent-foreground: var(--otter-black);
+
+  --color-accent-subtle: var(--otter-amber-subtle);
+  --color-accent-dark: var(--otter-amber-400);
+
+  --color-destructive: #7f1d1d;
+  --color-destructive-foreground: #fafafa;
+
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-input: rgba(255, 255, 255, 0.08);
+  --color-ring: var(--otter-amber-ring);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-body);
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.03em;
+  }
+
+  ::selection {
+    background: var(--otter-amber-subtle);
+    color: var(--otter-white);
+  }
+}
+
+@layer utilities {
+  .font-heading {
+    font-family: var(--font-heading);
+  }
+
+  .glass {
+    @apply border border-border/60 bg-card backdrop-blur-md;
+  }
+
+  .glass-strong {
+    @apply border-b border-border/50 bg-background/75 backdrop-blur-xl;
+  }
+
+  @keyframes spotlight-rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .animate-spotlight-rotate {
+    animation: spotlight-rotate 3s linear infinite;
+  }
+}
+
+@keyframes marquee-linear {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee-linear {
+  animation: marquee-linear 90s linear infinite;
+  will-change: transform;
+}
+
+@keyframes ambient-drift {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(2%, -2%) scale(1.05);
+  }
+  66% {
+    transform: translate(-2%, 2%) scale(0.98);
+  }
+}
+
+.animate-ambient-drift {
+  animation: ambient-drift 20s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2.5s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer {
+    animation: none;
+  }
+}
