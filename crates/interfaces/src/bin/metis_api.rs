@@ -82,6 +82,9 @@ struct Metrics {
     executions: AtomicU64,
     errors: AtomicU64,
     gas_used_total: AtomicU64,
+    proof_verification_errors: AtomicU64,
+    rpc_errors: AtomicU64,
+    vault_balance: AtomicU64,
 }
 
 impl Metrics {
@@ -92,6 +95,9 @@ impl Metrics {
             executions: self.executions.load(Ordering::Relaxed),
             errors: self.errors.load(Ordering::Relaxed),
             gas_used_total: self.gas_used_total.load(Ordering::Relaxed),
+            proof_verification_errors: self.proof_verification_errors.load(Ordering::Relaxed),
+            rpc_errors: self.rpc_errors.load(Ordering::Relaxed),
+            vault_balance: self.vault_balance.load(Ordering::Relaxed),
         }
     }
 }
@@ -103,6 +109,9 @@ struct MetricsSnapshot {
     executions: u64,
     errors: u64,
     gas_used_total: u64,
+    proof_verification_errors: u64,
+    rpc_errors: u64,
+    vault_balance: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -921,6 +930,7 @@ async fn monitoring_loop(state: Arc<AppState>, interval: Duration) {
                 }
                 Ok(Err(err)) => {
                     tracing::warn!(?asset, ?metric, %err, "metric fetch failed");
+                    state.metrics.rpc_errors.fetch_add(1, Ordering::Relaxed);
                     let _ = state.bus.publish(Event::Error {
                         source: "monitor".to_string(),
                         message: format!("{:?} {:?} fetch failed: {}", asset, metric, err),
@@ -928,6 +938,7 @@ async fn monitoring_loop(state: Arc<AppState>, interval: Duration) {
                 }
                 Err(err) => {
                     tracing::error!(?asset, ?metric, %err, "metric fetch task failed");
+                    state.metrics.rpc_errors.fetch_add(1, Ordering::Relaxed);
                     let _ = state.bus.publish(Event::Error {
                         source: "monitor".to_string(),
                         message: format!("{:?} {:?} fetch task failed: {}", asset, metric, err),
@@ -1592,7 +1603,16 @@ async fn metrics(AxumState(state): AxumState<Arc<AppState>>) -> Response {
          otter_proof_prove_seconds {}\n\
          # HELP otter_proof_verify_seconds Last bb verify time in seconds.\n\
          # TYPE otter_proof_verify_seconds gauge\n\
-         otter_proof_verify_seconds {}\n",
+         otter_proof_verify_seconds {}\n\
+         # HELP otter_proof_verification_errors_total Number of failed on-chain proof verifications.\n\
+         # TYPE otter_proof_verification_errors_total counter\n\
+         otter_proof_verification_errors_total {}\n\
+         # HELP otter_rpc_errors_total Number of RPC call failures.\n\
+         # TYPE otter_rpc_errors_total counter\n\
+         otter_rpc_errors_total {}\n\
+         # HELP otter_vault_balance Agent/vault ETH balance in wei.\n\
+         # TYPE otter_vault_balance gauge\n\
+         otter_vault_balance {}\n",
         snapshot.price_updates,
         snapshot.conditions_met,
         snapshot.executions,
@@ -1603,6 +1623,9 @@ async fn metrics(AxumState(state): AxumState<Arc<AppState>>) -> Response {
         witness_ms as f64 / 1000.0,
         prove_ms as f64 / 1000.0,
         verify_ms as f64 / 1000.0,
+        snapshot.proof_verification_errors,
+        snapshot.rpc_errors,
+        snapshot.vault_balance as f64 / 1e18,
     );
 
     (
@@ -1826,6 +1849,9 @@ mod tests {
         assert!(text.contains("otter_gas_used_total 42000"));
         assert!(text.contains("otter_active_intents 0"));
         assert!(text.contains("otter_proof_witness_seconds 0"));
+        assert!(text.contains("otter_proof_verification_errors_total 0"));
+        assert!(text.contains("otter_rpc_errors_total 0"));
+        assert!(text.contains("otter_vault_balance 0"));
     }
 
     #[tokio::test]

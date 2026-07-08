@@ -50,30 +50,29 @@ groups:
           summary: "Otter Noir proof generation is slow"
           description: "The last bb prove step took {{ $value }} seconds, which is above the 30s threshold."
 
-      # The following alerts reference metrics that are not yet emitted by the
-      # API metrics endpoint. They are preserved here because the CI/DevOps plan
-      # mandated these exact rules; enable them once the corresponding counters
-      # and gauges are instrumented in the application code.
-      # - alert: OtterAgentLowBalance
-      #   expr: otter_vault_balance < 0.01
-      #   for: 5m
-      #   labels:
-      #     severity: warning
-      #   annotations:
-      #     summary: "Otter agent ETH balance is low"
+      - alert: OtterAgentLowBalance
+        expr: otter_vault_balance < 0.01
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Otter agent ETH balance is low"
+          description: "The agent/vault ETH balance is {{ $value }} ETH, which is below the 0.01 ETH threshold."
 
-      # - alert: OtterProofVerificationFailing
-      #   expr: rate(otter_proof_verification_errors_total[5m]) > 0.1
-      #   for: 2m
-      #   labels:
-      #     severity: critical
-      #   annotations:
-      #     summary: "On-chain proof verification is failing"
+      - alert: OtterProofVerificationFailing
+        expr: rate(otter_proof_verification_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "On-chain proof verification is failing"
+          description: "Proof verification error rate is {{ $value }} errors/sec over the last 5 minutes."
 
-      # - alert: OtterRpcUnhealthy
-      #   expr: rate(otter_rpc_errors_total[5m]) > 0.5
-      #   for: 2m
-      #   labels:
-      #     severity: warning
-      #   annotations:
-      #     summary: "RPC endpoint is unhealthy"
+      - alert: OtterRpcUnhealthy
+        expr: rate(otter_rpc_errors_total[5m]) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RPC endpoint is unhealthy"
+          description: "RPC error rate is {{ $value }} errors/sec over the last 5 minutes."
