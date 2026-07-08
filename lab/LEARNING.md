@@ -1,4 +1,4 @@
-# Learning Journal - Metis
+# Learning Journal - otter
 
 ## Week 1 - [Date]
 

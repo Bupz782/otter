@@ -4,3 +4,22 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+application = { path = "../application" }
+axum = { version = "0.7", features = ["ws"] }
+domain = { path = "../domain" }
+infrastructure = { path = "../infrastructure" }
+hex = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "time", "sync", "net"] }
+tower = { version = "0.4", features = ["util"] }
+tower-http = { version = "0.5", features = ["cors"] }
+uuid = { version = "1", features = ["v4"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+eth-keystore = "0.5"
+thiserror = "2"
+siwe = "0.6"
+jsonwebtoken = "9"
+chrono = "0.4"
+rand = "0.8"

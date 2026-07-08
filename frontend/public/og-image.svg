@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <rect width="1200" height="630" fill="#050505"/>
+  <circle cx="600" cy="315" r="180" fill="none" stroke="#c8a46c" stroke-width="24" opacity="0.9"/>
+  <circle cx="600" cy="315" r="64" fill="#c8a46c"/>
+  <text x="600" y="560" text-anchor="middle" font-family="Space Grotesk, sans-serif" font-size="48" font-weight="700" fill="#f4f4f5">Otter — Trustless DeFi intents</text>
+  <text x="600" y="600" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="24" fill="#a1a1aa">Conditional execution with zero-knowledge proofs</text>
+</svg>
