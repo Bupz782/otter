@@ -7,8 +7,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  BACKEND_IMAGE: "ghcr.io/${{ github.repository | lower }}/api"
-  FRONTEND_IMAGE: "ghcr.io/${{ github.repository | lower }}/frontend"
 
 jobs:
   build-and-push:
@@ -19,6 +17,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Lowercase repository name
+        id: repo
+        run: |
+          set -euo pipefail
+          echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -35,8 +39,8 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ env.BACKEND_IMAGE }}
-            ${{ env.FRONTEND_IMAGE }}
+            ghcr.io/${{ steps.repo.outputs.name }}/api
+            ghcr.io/${{ steps.repo.outputs.name }}/frontend
           tags: |
             type=semver,pattern={{version}}
             type=sha,prefix=,suffix=,format=short
@@ -56,7 +60,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ env.BACKEND_IMAGE }}:${{ github.ref_name }}
+          tags: ghcr.io/${{ steps.repo.outputs.name }}/api:${{ github.ref_name }}
           build-args: |
             NOIR_VERSION=${{ steps.versions.outputs.noir_version }}
             BB_VERSION=${{ steps.versions.outputs.bb_version }}
@@ -70,7 +74,7 @@ jobs:
           context: ./frontend
           file: ./frontend/Dockerfile
           push: true
-          tags: ${{ env.FRONTEND_IMAGE }}:${{ github.ref_name }}
+          tags: ghcr.io/${{ steps.repo.outputs.name }}/frontend:${{ github.ref_name }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

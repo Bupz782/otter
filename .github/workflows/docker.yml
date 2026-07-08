@@ -9,8 +9,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  BACKEND_IMAGE: "ghcr.io/${{ github.repository | lower }}/api"
-  FRONTEND_IMAGE: "ghcr.io/${{ github.repository | lower }}/frontend"
 
 jobs:
   build-and-push:
@@ -22,6 +20,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Lowercase repository name
+        id: repo
+        run: |
+          set -euo pipefail
+          echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -41,7 +45,7 @@ jobs:
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.BACKEND_IMAGE }}
+          images: ghcr.io/${{ steps.repo.outputs.name }}/api
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
@@ -51,7 +55,7 @@ jobs:
         id: meta-frontend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.FRONTEND_IMAGE }}
+          images: ghcr.io/${{ steps.repo.outputs.name }}/frontend
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
