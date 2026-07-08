@@ -1,5 +1,4 @@
 name: CI Pipeline
-run-name: CI Run - ${{ github.run_id }}
 
 on:
   push:
@@ -8,134 +7,143 @@ on:
     branches: [main, develop]
 
 jobs:
-  build:
+  changes:
     runs-on: ubuntu-latest
-    
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      contracts: ${{ steps.filter.outputs.contracts }}
+      circuit: ${{ steps.filter.outputs.circuit }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      docker: ${{ steps.filter.outputs.docker }}
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Cache Cargo registry and build
-        uses: actions/cache@v3
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-      
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-          components: rustfmt, clippy
-      
-      - name: Build Application
-        run: cargo build --workspace --all-targets --verbose
-      
-      - name: Run Tests
-        run: cargo test --workspace --verbose
+          filters: |
+            rust:
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'crates/**'
+            contracts:
+              - 'contracts/**'
+            circuit:
+              - 'delegation_circuit/**'
+            frontend:
+              - 'frontend/**'
+            docker:
+              - 'Dockerfile'
+              - 'frontend/Dockerfile'
+              - 'docker-compose.yml'
 
-  clippy:
+  rust-check:
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' }}
     runs-on: ubuntu-latest
-    
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Cache Cargo
-        uses: actions/cache@v3
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-      
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-          components: clippy
-      
-      - name: Run Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-  fmt:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-          components: rustfmt
-      
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
       - name: Check formatting
         run: cargo fmt --all -- --check
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Run tests
+        run: cargo test --workspace
 
-  forge-test:
+  contracts-check:
+    needs: changes
+    if: ${{ needs.changes.outputs.contracts == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: stable
-
-      - name: Run forge tests
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Check formatting
         working-directory: ./contracts
-        run: forge test -vvv
+        run: forge fmt --check
+      - name: Run tests
+        working-directory: ./contracts
+        run: forge test
 
-  nargo-test:
+  circuit-check:
+    needs: changes
+    if: ${{ needs.changes.outputs.circuit == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Nargo
+      - name: Install Noir
         uses: noir-lang/noirup@v1
         with:
-          toolchain: 1.0.0-beta.22
-
-      - name: Run nargo tests
+          toolchain: ${{ env.NOIR_VERSION }}
+        env:
+          NOIR_VERSION: ${{ vars.NOIR_VERSION || '1.0.0-beta.22' }}
+      - name: Install bb
+        run: |
+          set -euo pipefail
+          curl -L https://raw.githubusercontent.com/AztecProtocol/aztec-packages/master/barretenberg/bbup/install | bash
+          ~/.bb/bbup -v $(cat .bb-version)
+          echo "$HOME/.bb" >> $GITHUB_PATH
+      - name: Check formatting
+        working-directory: ./delegation_circuit
+        run: nargo fmt --check
+      - name: Run tests
         working-directory: ./delegation_circuit
         run: nargo test
+      - name: Smoke circuit build
+        working-directory: ./delegation_circuit
+        run: |
+          set -euo pipefail
+          nargo execute --package delegation_circuit
+          bb write_vk -b ./target/delegation_circuit.json
 
-  frontend:
+  frontend-check:
+    needs: changes
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./frontend
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
           cache: npm
           cache-dependency-path: ./frontend/package-lock.json
-
       - name: Install dependencies
         run: npm ci
-
       - name: Typecheck
         run: npm run typecheck
-
       - name: Lint
         run: npm run lint
-
       - name: Test
         run: npm run test
-
       - name: Build
         run: npm run build
+
+  docker-smoke:
+    needs: [rust-check, contracts-check, circuit-check, frontend-check]
+    if: always() && needs.rust-check.result == 'success' && needs.contracts-check.result == 'success' && needs.circuit-check.result == 'success' && needs.frontend-check.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: |
+          set -euo pipefail
+          docker build -t otter-api --build-arg NOIR_VERSION=$(grep compiler_version delegation_circuit/Nargo.toml | sed 's/.*= "\(.*\)".*/\1/') --build-arg BB_VERSION=$(cat .bb-version) .
+      - name: Build frontend image
+        run: |
+          set -euo pipefail
+          docker build -t otter-frontend ./frontend
+      - name: Smoke backend
+        run: |
+          set -euo pipefail
+          docker run -d --name api-smoke -p 3001:3001 -e OTTER_RPC_URL=http://localhost:8545 -e OTTER_CHAIN_ID=31337 otter-api
+          sleep 10
+          curl -fsS http://localhost:3001/ready
+          docker logs api-smoke
+          docker stop api-smoke
