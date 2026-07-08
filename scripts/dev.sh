@@ -57,8 +57,14 @@ for _ in {1..30}; do
     sleep 1
 done
 
-# Default Anvil funded account private key.
-DEPLOYER_PK="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+# Require a deployer private key via environment variable. Do not hardcode keys.
+if [[ -z "${DEPLOYER_PRIVATE_KEY:-}" ]]; then
+    echo "ERROR: DEPLOYER_PRIVATE_KEY is not set." >&2
+    echo "Set it to a funded Anvil private key, e.g.:" >&2
+    echo "  DEPLOYER_PRIVATE_KEY=0x... ./scripts/dev.sh" >&2
+    exit 1
+fi
+DEPLOYER_PK="$DEPLOYER_PRIVATE_KEY"
 OTTER_VAULT_ADDRESS=""
 
 # Deploy contracts to the local Anvil chain and try to capture the vault address.

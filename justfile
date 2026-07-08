@@ -17,7 +17,10 @@ test:
     cd frontend && npm run test
 
 build-images:
-    docker build -t otter-api .
+    docker build -t otter-api \
+        --build-arg NOIR_VERSION=$(grep compiler_version delegation_circuit/Nargo.toml | sed 's/.*= "\(.*\)".*/\1/') \
+        --build-arg BB_VERSION=$(cat .bb-version) \
+        .
     docker build -t otter-frontend ./frontend
 
 smoke:

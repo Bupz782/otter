@@ -88,6 +88,7 @@ jobs:
           username: ${{ secrets.TESTNET_USER }}
           key: ${{ secrets.TESTNET_SSH_KEY }}
           script: |
+            set -euo pipefail
             cd /opt/otter
             export OTTER_API_URL=http://localhost:3001
             ./scripts/smoke-test.sh

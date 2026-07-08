@@ -17,8 +17,24 @@ pretty_json() {
 
 echo "==> Smoke testing $API_URL"
 
-echo "--- /ready"
-curl -fsS "$API_URL/ready" | pretty_json
+echo "--- /ready (polling until warm, 503 is retryable)"
+ready_status=""
+for _ in {1..30}; do
+    ready_status=$(curl -s -o /tmp/otter-ready.json -w "%{http_code}" "$API_URL/ready" || true)
+    if [[ "$ready_status" == "200" ]]; then
+        break
+    fi
+    if [[ "$ready_status" != "503" && -n "$ready_status" ]]; then
+        echo "ERROR: /ready returned unexpected status $ready_status" >&2
+        exit 1
+    fi
+    sleep 1
+done
+if [[ "$ready_status" != "200" ]]; then
+    echo "ERROR: /ready did not become ready within 30 seconds (last status: $ready_status)" >&2
+    exit 1
+fi
+cat /tmp/otter-ready.json | pretty_json
 
 echo "--- /health"
 curl -fsS "$API_URL/api/v1/health" | pretty_json
