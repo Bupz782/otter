@@ -80,3 +80,14 @@ jobs:
             docker compose pull
             docker compose up -d --remove-orphans
             docker compose ps
+
+      - name: Run smoke tests
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.TESTNET_HOST }}
+          username: ${{ secrets.TESTNET_USER }}
+          key: ${{ secrets.TESTNET_SSH_KEY }}
+          script: |
+            cd /opt/otter
+            export OTTER_API_URL=http://localhost:3001
+            ./scripts/smoke-test.sh
