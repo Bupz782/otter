@@ -13,6 +13,7 @@ use domain::ports::intent_parser_port::IntentParserPort;
 use domain::ports::price_oracle_port::{OracleError, PriceOraclePort};
 use domain::ports::zkp_port::ZkpPort;
 use std::collections::HashSet;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -229,12 +230,11 @@ where
         let metric = *metric;
         let asset = asset.clone();
         tokio::task::spawn_blocking(move || {
-            std::thread::spawn(move || oracle.fetch(&metric, Some(&asset)))
-                .join()
+            catch_unwind(AssertUnwindSafe(|| oracle.fetch(&metric, Some(&asset))))
                 .map_err(|_| OracleError::FetchFailed("oracle fetch panicked".to_string()))?
         })
         .await
-        .map_err(|_| OracleError::FetchFailed("oracle fetch panicked".to_string()))?
+        .map_err(|_| OracleError::FetchFailed("oracle fetch task failed".to_string()))?
     }
 
     /// Return the primary asset of an intent, used for price/yield monitoring.
@@ -254,6 +254,11 @@ where
     /// Remove an intent from the active set by id.
     pub fn remove_active_intent(&mut self, id: &str) {
         self.active_intents.retain(|i| i.id != id);
+    }
+
+    /// Borrow the configured oracle adapter.
+    pub fn oracle_adapter(&self) -> &O {
+        &self.oracle
     }
 
     /// Borrow the configured ZKP adapter.
@@ -315,8 +320,35 @@ where
                 let oracle = self.oracle.clone();
                 let intents = self.active_intents.clone();
                 let bus = bus.clone();
-                std::thread::spawn(move || {
-                    Self::evaluate_conditions(&oracle, &intents, &asset, &metric, value, &bus);
+                let asset = asset.clone();
+
+                tokio::spawn(async move {
+                    let bus_for_error = bus.clone();
+                    let result = tokio::task::spawn_blocking(move || {
+                        catch_unwind(AssertUnwindSafe(|| {
+                            Self::evaluate_conditions(
+                                &oracle, &intents, &asset, &metric, value, &bus,
+                            );
+                        }))
+                    })
+                    .await;
+
+                    match result {
+                        Ok(Ok(())) => {}
+                        Ok(Err(_)) => {
+                            let _ = bus_for_error.publish(Event::Error {
+                                source: "orchestrator".to_string(),
+                                message: "condition evaluation panicked".to_string(),
+                            });
+                        }
+                        Err(err) => {
+                            tracing::error!(%err, "condition evaluation task failed");
+                            let _ = bus_for_error.publish(Event::Error {
+                                source: "orchestrator".to_string(),
+                                message: format!("condition evaluation task failed: {err}"),
+                            });
+                        }
+                    }
                 });
             }
             Event::ConditionMet { intent_id } => {
@@ -358,58 +390,54 @@ where
                 let executed = self.executed_intents.clone();
                 let executing = self.executing_intents.clone();
 
-                std::thread::spawn(move || {
-                    let result = execution.execute(&input);
-                    match result {
-                        Ok(tx_hash) => {
-                            let _ = bus_for_task.publish(Event::TransactionSubmitted {
-                                intent_id: intent_id_for_task.clone(),
-                                tx_hash: tx_hash.clone(),
-                            });
+                tokio::spawn(async move {
+                    let bus_for_blocking = bus_for_task.clone();
+                    let intent_id_for_blocking = intent_id_for_task.clone();
+                    let task = tokio::task::spawn_blocking(move || {
+                        let tx_hash = execution.execute(&input).map_err(|e| e.to_string())?;
+                        let _ = bus_for_blocking.publish(Event::TransactionSubmitted {
+                            intent_id: intent_id_for_blocking.clone(),
+                            tx_hash: tx_hash.clone(),
+                        });
 
-                            match execution.confirm(&tx_hash) {
-                                Ok(result) if result.success => {
-                                    {
-                                        let mut guard =
-                                            executed.lock().unwrap_or_else(|e| e.into_inner());
-                                        guard.insert(intent_id_for_task.clone());
-                                    }
-                                    let _ = bus_for_task.publish(Event::TransactionConfirmed {
-                                        intent_id: intent_id_for_task.clone(),
-                                        receipt: tx_hash,
-                                        gas_used: result.gas_used,
-                                    });
-                                }
-                                Ok(result) => {
-                                    eprintln!(
-                                        "[orchestrator] transaction {} failed on-chain for {} (gas used: {})",
-                                        tx_hash, intent_id_for_task, result.gas_used
-                                    );
-                                    let _ = bus_for_task.publish(Event::Error {
-                                        source: "executor".to_string(),
-                                        message: format!("transaction {} failed on-chain", tx_hash),
-                                    });
-                                }
-                                Err(err) => {
-                                    eprintln!(
-                                        "[orchestrator] confirmation failed for {}: {}",
-                                        intent_id_for_task, err
-                                    );
-                                    let _ = bus_for_task.publish(Event::Error {
-                                        source: "executor".to_string(),
-                                        message: err.to_string(),
-                                    });
-                                }
+                        let result = execution.confirm(&tx_hash).map_err(|e| e.to_string())?;
+                        if result.success {
+                            Ok((tx_hash, result.gas_used))
+                        } else {
+                            Err(format!(
+                                "transaction {} failed on-chain (gas used: {})",
+                                tx_hash, result.gas_used
+                            ))
+                        }
+                    });
+
+                    match task.await {
+                        Ok(Ok((tx_hash, gas_used))) => {
+                            {
+                                let mut guard = executed.lock().unwrap_or_else(|e| e.into_inner());
+                                guard.insert(intent_id_for_task.clone());
                             }
+                            let _ = bus_for_task.publish(Event::TransactionConfirmed {
+                                intent_id: intent_id_for_task.clone(),
+                                receipt: tx_hash,
+                                gas_used,
+                            });
+                        }
+                        Ok(Err(err)) => {
+                            eprintln!("[orchestrator] execution failed for {}: {}", intent_id_for_task, err);
+                            let _ = bus_for_task.publish(Event::Error {
+                                source: "executor".to_string(),
+                                message: err,
+                            });
                         }
                         Err(err) => {
                             eprintln!(
-                                "[orchestrator] execution failed for {}: {}",
+                                "[orchestrator] execution task failed for {}: {}",
                                 intent_id_for_task, err
                             );
                             let _ = bus_for_task.publish(Event::Error {
                                 source: "executor".to_string(),
-                                message: err.to_string(),
+                                message: format!("execution task failed: {err}"),
                             });
                         }
                     }
