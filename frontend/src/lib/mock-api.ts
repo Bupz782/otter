@@ -217,7 +217,8 @@ const STRATEGIES: Strategy[] = [
     agentId: "agent-1",
     agentName: "Aave Ace",
     title: "Steady USDC Lending",
-    description: "Otter official strategy. Lend USDC on Aave Ethereum whenever supply APY exceeds 3%.",
+    description:
+      "Otter official strategy. Lend USDC on Aave Ethereum whenever supply APY exceeds 3%.",
     rawText: "Lend USDC on Aave if yield > 3%",
     riskProfile: "Conservative",
     copies: 1240,
@@ -230,7 +231,8 @@ const STRATEGIES: Strategy[] = [
     agentId: "agent-2",
     agentName: "Uni-Unicorn",
     title: "Low-Gas ETH Swaps",
-    description: "Otter official strategy. Swap USDC to ETH on Uniswap only when base fee is below 20 gwei.",
+    description:
+      "Otter official strategy. Swap USDC to ETH on Uniswap only when base fee is below 20 gwei.",
     rawText: "Swap USDC to ETH on Uniswap when gas < 20 gwei",
     riskProfile: "Balanced",
     copies: 856,
@@ -243,7 +245,8 @@ const STRATEGIES: Strategy[] = [
     agentId: "agent-4",
     agentName: "Cross-Chain Carl",
     title: "Arbitrum Yield Chase",
-    description: "Otter official strategy. Move USDC to the highest yielding Aave or Compound market across chains.",
+    description:
+      "Otter official strategy. Move USDC to the highest yielding Aave or Compound market across chains.",
     rawText: "Lend USDC on highest yield market across Ethereum and Arbitrum",
     riskProfile: "Advanced",
     copies: 643,

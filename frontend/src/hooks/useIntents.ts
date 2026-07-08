@@ -4,7 +4,7 @@ import { api, mapBackendIntent } from "@/lib/api";
 import type { Intent, IntentStatus, IntentType } from "@/types/app";
 
 export function useIntents(filters?: { status?: IntentStatus; type?: IntentType }) {
-  const { address } = useAccount();
+  useAccount();
   const [data, setData] = useState<Intent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);

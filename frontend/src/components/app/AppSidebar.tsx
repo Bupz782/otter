@@ -38,7 +38,9 @@ const navGroups: NavGroup[] = [
         to: "/app/delegations",
         label: "Delegations",
         icon: <FileSignature className="h-5 w-5" />,
-        children: [{ to: "/app/delegations/new", label: "New", icon: <Plus className="h-4 w-4" /> }],
+        children: [
+          { to: "/app/delegations/new", label: "New", icon: <Plus className="h-4 w-4" /> },
+        ],
       },
     ],
   },

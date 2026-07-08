@@ -63,7 +63,10 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
           <nav aria-label="Breadcrumb">
             <ol className="flex items-center gap-2 text-sm">
               <li>
-                <Link to="/app/dashboard" className="text-muted-foreground transition-colors hover:text-accent">
+                <Link
+                  to="/app/dashboard"
+                  className="text-muted-foreground transition-colors hover:text-accent"
+                >
                   App
                 </Link>
               </li>
@@ -71,7 +74,9 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
               <li
                 className={cn(
                   "font-medium",
-                  location.pathname === "/app/dashboard" ? "text-foreground" : "text-muted-foreground"
+                  location.pathname === "/app/dashboard"
+                    ? "text-foreground"
+                    : "text-muted-foreground"
                 )}
               >
                 {label}
@@ -150,9 +155,9 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
               <h3 className="font-heading text-xl font-bold">What's an intent?</h3>
             </div>
             <p className="mt-4 text-sm text-muted-foreground">
-              An intent is a conditional rule you write in plain English. Instead of signing every transaction, you
-              describe what should happen and when. Otter monitors the condition, generates a proof that the action
-              respects your limits, and executes it.
+              An intent is a conditional rule you write in plain English. Instead of signing every
+              transaction, you describe what should happen and when. Otter monitors the condition,
+              generates a proof that the action respects your limits, and executes it.
             </p>
             <div className="mt-6 flex justify-end">
               <Button onClick={() => setIntentHelpOpen(false)} className="rounded-full">

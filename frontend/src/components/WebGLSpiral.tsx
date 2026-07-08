@@ -47,10 +47,9 @@ export function WebGLSpiral({ className }: { className?: string }) {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const observer = new IntersectionObserver(
-      ([entry]) => setIsVisible(entry.isIntersecting),
-      { threshold: 0 }
-    );
+    const observer = new IntersectionObserver(([entry]) => setIsVisible(entry.isIntersecting), {
+      threshold: 0,
+    });
     observer.observe(canvas);
     return () => observer.disconnect();
   }, []);
@@ -84,12 +83,7 @@ export function WebGLSpiral({ className }: { className?: string }) {
     }
 
     const scene = new Scene();
-    const camera = new PerspectiveCamera(
-      60,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      100
-    );
+    const camera = new PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
     camera.position.set(0, 0, 3.6);
 
     const renderer = new WebGLRenderer({ canvas, alpha: true, antialias: false });
@@ -142,11 +136,6 @@ export function WebGLSpiral({ className }: { className?: string }) {
   }, [isVisible]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className={className}
-      style={{ display: "block" }}
-      aria-hidden="true"
-    />
+    <canvas ref={canvasRef} className={className} style={{ display: "block" }} aria-hidden="true" />
   );
 }

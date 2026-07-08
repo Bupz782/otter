@@ -30,9 +30,7 @@ function StatusIndicator({ status }: { status: string }) {
           }`}
         />
       </span>
-      <span className="text-xs font-medium text-muted-foreground capitalize">
-        {status}
-      </span>
+      <span className="text-xs font-medium text-muted-foreground capitalize">{status}</span>
       <span className="sr-only">{isMonitoring ? "Monitoring" : "Pending"}</span>
     </div>
   );

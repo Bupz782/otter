@@ -9,11 +9,8 @@ import "./index.css";
 import { App } from "./App";
 import { wagmiConfig } from "./lib/wagmi-config";
 import { AppLayout } from "./components/app/AppLayout";
-import { OnboardingProvider } from "./components/app/OnboardingProvider";
 
-const DemoPage = lazy(() =>
-  import("./pages/DemoPage").then((m) => ({ default: m.DemoPage }))
-);
+const DemoPage = lazy(() => import("./pages/DemoPage").then((m) => ({ default: m.DemoPage })));
 
 const DashboardPage = lazy(() =>
   import("./pages/app/DashboardPage").then((m) => ({ default: m.DashboardPage }))
@@ -51,7 +48,7 @@ const SettingsPage = lazy(() =>
 
 const queryClient = new QueryClient();
 
-function AppRoutes() {
+export function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>

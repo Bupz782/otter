@@ -1,12 +1,6 @@
 import { motion } from "framer-motion";
 import { FileCode, Server, ShieldCheck, Activity } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const technologies = [
   {

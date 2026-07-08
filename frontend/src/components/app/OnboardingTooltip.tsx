@@ -99,7 +99,10 @@ export function OnboardingTooltip({
 
   return createPortal(
     <>
-      <div className="fixed inset-0 z-[120] bg-background/60 backdrop-blur-sm" onClick={onDismiss} />
+      <div
+        className="fixed inset-0 z-[120] bg-background/60 backdrop-blur-sm"
+        onClick={onDismiss}
+      />
       <AnimatePresence mode="wait">
         <motion.div
           key={targetId}

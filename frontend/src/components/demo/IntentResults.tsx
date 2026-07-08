@@ -39,7 +39,9 @@ export function IntentResults({ intent }: IntentResultsProps) {
                 <ArrowRightLeft className="h-3.5 w-3.5" />
                 Action
               </div>
-              <p className="text-sm font-medium text-foreground capitalize">{intent.parsed.action}</p>
+              <p className="text-sm font-medium text-foreground capitalize">
+                {intent.parsed.action}
+              </p>
               <p className="text-sm text-muted-foreground">{intent.parsed.amount}</p>
             </div>
             <div className="rounded-lg border border-border/50 bg-secondary/40 p-4">
@@ -69,8 +71,12 @@ export function IntentResults({ intent }: IntentResultsProps) {
           </div>
 
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span>Delegation: <span className="font-mono text-foreground">{intent.delegationHash}</span></span>
-            <span>Proof: <span className="font-mono text-foreground">{intent.proofHash}</span></span>
+            <span>
+              Delegation: <span className="font-mono text-foreground">{intent.delegationHash}</span>
+            </span>
+            <span>
+              Proof: <span className="font-mono text-foreground">{intent.proofHash}</span>
+            </span>
           </div>
         </CardContent>
       </Card>

@@ -29,7 +29,10 @@ export function useParseIntent() {
         action?: string;
       };
       const mapped = {
-        type: (parsed.type?.toLowerCase() as IntentType) || (parsed.action?.toLowerCase() as IntentType) || "lend",
+        type:
+          (parsed.type?.toLowerCase() as IntentType) ||
+          (parsed.action?.toLowerCase() as IntentType) ||
+          "lend",
         amount: parsed.amount || 0,
         asset: parsed.asset || "USDC",
         protocol: parsed.protocol || "Aave",

@@ -9,7 +9,6 @@ export function AppConnectButton() {
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const [authLoading, setAuthLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [authenticated, setAuthenticated] = useState(() => !!localStorage.getItem("otter_token"));
 
   const handleAuth = async () => {
@@ -23,7 +22,7 @@ export function AppConnectButton() {
       setAuthToken(token);
       setAuthenticated(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Authentication failed");
+      console.error(err instanceof Error ? err.message : "Authentication failed");
     } finally {
       setAuthLoading(false);
     }
@@ -35,13 +34,12 @@ export function AppConnectButton() {
 
   if (!authenticated) {
     return (
-      <Button
-        size="sm"
-        onClick={handleAuth}
-        disabled={authLoading}
-        className="rounded-full"
-      >
-        {authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+      <Button size="sm" onClick={handleAuth} disabled={authLoading} className="rounded-full">
+        {authLoading ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : (
+          <ShieldCheck className="mr-2 h-4 w-4" />
+        )}
         Sign In
       </Button>
     );
