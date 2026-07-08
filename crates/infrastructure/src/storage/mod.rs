@@ -1,3 +1,4 @@
+pub(crate) mod migrations;
 pub mod postgres;
 pub mod sqlite;
 

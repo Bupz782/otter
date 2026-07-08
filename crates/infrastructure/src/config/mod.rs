@@ -51,7 +51,9 @@ pub struct Config {
     #[serde(default)]
     pub vault_address: Option<String>,
 
-    /// Hex private key used to sign delegations and transactions.
+    /// Hex private key used to sign delegations and transactions. For AWS KMS
+    /// deployments set this to the base64-encoded KMS ciphertext blob so the
+    /// configured provider can decrypt it.
     #[serde(default)]
     pub private_key: Option<String>,
 

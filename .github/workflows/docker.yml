@@ -9,8 +9,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  BACKEND_IMAGE: ghcr.io/${{ github.repository }}/api
-  FRONTEND_IMAGE: ghcr.io/${{ github.repository }}/frontend
 
 jobs:
   build-and-push:
@@ -22,6 +20,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Lowercase repository name
+        id: repo
+        run: |
+          set -euo pipefail
+          echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -41,7 +45,7 @@ jobs:
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.BACKEND_IMAGE }}
+          images: ghcr.io/${{ steps.repo.outputs.name }}/api
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
@@ -51,11 +55,20 @@ jobs:
         id: meta-frontend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.FRONTEND_IMAGE }}
+          images: ghcr.io/${{ steps.repo.outputs.name }}/frontend
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=sha,prefix=,suffix=,format=short
+
+      - name: Read tool versions
+        id: versions
+        run: |
+          set -euo pipefail
+          noir_version=$(grep compiler_version delegation_circuit/Nargo.toml | sed 's/.*= "\(.*\)".*/\1/')
+          bb_version=$(cat .bb-version)
+          echo "noir_version=$noir_version" >> "$GITHUB_OUTPUT"
+          echo "bb_version=$bb_version" >> "$GITHUB_OUTPUT"
 
       - name: Build and push backend image
         uses: docker/build-push-action@v5
@@ -65,6 +78,9 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta-backend.outputs.tags }}
           labels: ${{ steps.meta-backend.outputs.labels }}
+          build-args: |
+            NOIR_VERSION=${{ steps.versions.outputs.noir_version }}
+            BB_VERSION=${{ steps.versions.outputs.bb_version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

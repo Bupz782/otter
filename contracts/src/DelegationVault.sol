@@ -4,6 +4,7 @@ pragma solidity ^0.8.21;
 import {DelegationVerifier} from "./DelegationVerifier.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @title DelegationVault
 /// @notice User vault that delegates execution rights to an agent via ZK proofs.
@@ -12,7 +13,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// can later call `executeWithProof` with a Noir/UltraHonk proof that the
 /// proposed intent respects those limits. If the proof verifies, the vault
 /// releases the requested native ETH or ERC-20 amount to the executor.
-contract DelegationVault {
+contract DelegationVault is Ownable {
     using SafeERC20 for IERC20;
 
     /// @notice On-chain limits associated with a delegation hash.
@@ -84,14 +85,14 @@ contract DelegationVault {
     error InsufficientBalance();
     error NativeTransferFailed();
 
-    constructor(DelegationVerifier _verifier) {
+    constructor(DelegationVerifier _verifier) Ownable(msg.sender) {
         verifier = _verifier;
     }
 
     /// @notice Register a whitelisted protocol router address.
     /// @param protocol Protocol identifier matching the intent's `protocol` field.
     /// @param router Address of the protocol router/pool that receives tokens.
-    function setProtocolRouter(uint256 protocol, address router) external {
+    function setProtocolRouter(uint256 protocol, address router) external onlyOwner {
         require(router != address(0), "invalid router");
         protocolRouters[protocol] = router;
         emit ProtocolRouterSet(protocol, router);

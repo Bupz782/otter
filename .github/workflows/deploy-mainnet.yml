@@ -1,0 +1,51 @@
+name: Deploy Mainnet
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Git tag to deploy"
+        required: true
+      multisig_tx_hash:
+        description: "Multisig deployment transaction hash"
+        required: true
+
+jobs:
+  check-mainnet-readiness:
+    runs-on: ubuntu-latest
+    environment: mainnet
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag }}
+
+      - name: Mainnet readiness checklist
+        run: |
+          set -euo pipefail
+          echo "Tag: ${{ github.event.inputs.tag }}"
+          echo "Multisig tx: ${{ github.event.inputs.multisig_tx_hash }}"
+          echo "Readiness check: verify testnet deployment, audit reports, and fork simulation before proceeding."
+
+  deploy:
+    needs: check-mainnet-readiness
+    runs-on: ubuntu-latest
+    environment: mainnet
+    steps:
+      - name: Deploy to mainnet host
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.MAINNET_HOST }}
+          username: ${{ secrets.MAINNET_USER }}
+          key: ${{ secrets.MAINNET_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd /opt/otter-mainnet
+            tag=${{ github.event.inputs.tag }}
+            repo=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
+            export OTTER_TAG=$tag
+            export OTTER_API_IMAGE=ghcr.io/${repo}/api:${tag}
+            export OTTER_FRONTEND_IMAGE=ghcr.io/${repo}/frontend:${tag}
+            docker compose pull
+            docker compose up -d
+            ./scripts/smoke-test.sh

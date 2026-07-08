@@ -1,0 +1,27 @@
+set dotenv-load
+
+default:
+    @just --list
+
+setup:
+    ./scripts/dev-setup.sh
+
+dev:
+    ./scripts/dev.sh
+
+test:
+    cargo test --workspace
+    cargo test -p interfaces --features aws-kms,vault
+    cd contracts && forge test
+    cd delegation_circuit && nargo test
+    cd frontend && npm run test
+
+build-images:
+    docker build -t otter-api \
+        --build-arg NOIR_VERSION=$(grep compiler_version delegation_circuit/Nargo.toml | sed 's/.*= "\(.*\)".*/\1/') \
+        --build-arg BB_VERSION=$(cat .bb-version) \
+        .
+    docker build -t otter-frontend ./frontend
+
+smoke:
+    ./scripts/smoke-test.sh

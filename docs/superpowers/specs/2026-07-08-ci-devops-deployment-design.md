@@ -1,0 +1,453 @@
+# Otter CI, Dev Env, Testnet & Mainnet Strategy
+
+**Date:** 2026-07-08  
+**Status:** Design approved — ready for implementation plan  
+**Goal:** Define a unified, reproducible, and auditable path from local development to mainnet deployment for the Otter DeFi agent stack.
+
+---
+
+## 1. Scope
+
+This document covers the developer experience and deployment strategy for the whole Otter stack:
+
+- Rust backend (`crates/`)
+- Foundry smart contracts (`contracts/`)
+- Noir ZKP circuit (`delegation_circuit/`)
+- React frontend (`frontend/`)
+
+### Target environments
+
+| Environment | Purpose | Trigger |
+|---|---|---|
+| `local` | Fast inner dev loop | Manual |
+| `ci` | Validate every change | Push/PR to `main` or `develop` |
+| `testnet` (Sepolia) | Public demo and acceptance | Tag `v*` or manual dispatch |
+| `mainnet` | Production deployment | Manual approval + multisig |
+
+### Out of scope
+
+- Contract upgradeability mechanics (covered by contract design docs).
+- Circuit constraint logic (covered by circuit design docs).
+- Specific cloud vendor integrations beyond reference providers.
+
+---
+
+## 2. Principles
+
+1. **Reproducibility.** Every environment builds from the same `Dockerfile`, `docker-compose.yml`, and pinned tool versions.
+2. **Shift-left validation.** Contracts, circuit, and frontend must be tested in CI before any Docker image is built.
+3. **Fail fast.** Static checks (`fmt`, `clippy`, `typecheck`) run before expensive tests (`forge test`, `nargo test`, integration tests).
+4. **Least privilege.** Private keys never live in `.env` in production; prefer file, keystore, or KMS providers.
+5. **Observable.** Every deployment exposes health, metrics, and structured logs.
+
+---
+
+## 3. CI Pipeline
+
+### 3.1 Unified workflow: `.github/workflows/ci.yml`
+
+Replace the current Rust-only CI with one workflow that validates every component.
+
+```yaml
+jobs:
+  changes:
+    # Detect which parts of the repo changed to skip unnecessary jobs.
+
+  rust-check:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    steps:
+      - checkout
+      - rustup nightly
+      - cargo fmt --check
+      - cargo clippy --workspace --all-targets -- -D warnings
+      - cargo test --workspace
+
+  contracts-check:
+    needs: changes
+    if: needs.changes.outputs.contracts == 'true'
+    steps:
+      - checkout
+      - foundry
+      - forge fmt --check
+      - forge test
+      # Optional: forge coverage with threshold
+
+  circuit-check:
+    needs: changes
+    if: needs.changes.outputs.circuit == 'true'
+    steps:
+      - checkout
+      - noirup (pinned to Nargo.toml version)
+      - bbup (pinned to compatible version)
+      - nargo fmt --check
+      - nargo test
+      - bb write_vk (smoke test that circuit compiles and vk is generated)
+
+  frontend-check:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    steps:
+      - checkout
+      - node LTS
+      - npm ci (frontend/)
+      - npm run typecheck
+      - npm run lint
+      - npm run test
+      - npm run build
+
+  docker-smoke:
+    needs: [rust-check, contracts-check, circuit-check, frontend-check]
+    steps:
+      - build backend image
+      - build frontend image
+      - start backend with SQLite
+      - wait for /ready
+      - curl /ready, /metrics, /api/v1/health
+```
+
+### 3.2 Path filtering
+
+Use `dorny/paths-filter` or GitHub native `on.push.paths` to avoid running all jobs when only one component changes.
+
+### 3.3 Rust toolchain note
+
+Keep `actions-rs/toolchain@v1` for now or migrate to `dtolnay/rust-toolchain@nightly` if `actions-rs` becomes unreliable.
+
+---
+
+## 4. Local Development Environment
+
+### 4.1 One-command setup
+
+Introduce a `justfile` (or `Taskfile.yml`) as the single entry point.
+
+```justfile
+dev:
+    scripts/dev.sh
+
+setup:
+    scripts/dev-setup.sh
+
+test:
+    cargo test --workspace
+    cd contracts && forge test
+    cd delegation_circuit && nargo test
+    cd frontend && npm run test
+
+build-images:
+    docker build -t otter-api .
+    docker build -t otter-frontend ./frontend
+```
+
+### 4.2 Setup script: `scripts/dev-setup.sh`
+
+Verifies or installs:
+
+- Rust + nightly toolchain
+- Foundry (`foundryup`)
+- Noir (`noirup`) pinned to version in `delegation_circuit/Nargo.toml`
+- Barretenberg (`bbup`) pinned to compatible version (stored in `.bb-version`)
+- Node.js LTS
+- `just` or `task`
+
+Reads tool versions from:
+- `delegation_circuit/Nargo.toml` → `compiler_version`
+- `.bb-version` → `x.y.z`
+
+### 4.3 Dev script: `scripts/dev.sh`
+
+Launches:
+
+1. `anvil` (local EVM, optionally fork Sepolia).
+2. Postgres via `docker compose up postgres -d`.
+3. Rust API with `cargo watch` hot reload.
+4. Vite frontend dev server.
+5. Deploys contracts to Anvil and prints addresses to `.env.local`.
+
+### 4.4 Environment files
+
+| File | Purpose |
+|---|---|
+| `.env.example` | Template, committed |
+| `.env` | Local overrides, ignored |
+| `.env.local` | Generated by `scripts/dev.sh` (Anvil addresses, local URLs) |
+
+`config.example.toml` is deprecated; move all config into `.env.example` and document env precedence.
+
+---
+
+## 5. Docker Images
+
+### 5.1 Backend image
+
+Make it self-contained so it does not depend on host binaries.
+
+```dockerfile
+# Stage 1: build
+FROM rustlang/rust:nightly AS builder
+# install deps, build workspace
+
+# Stage 2: noir tooling
+FROM noir/noir:<pin> AS noir
+COPY --from=noir /usr/local/bin/nargo /usr/local/bin/nargo
+
+FROM aztecprotocol/barretenberg:<pin> AS bb
+COPY --from=bb /usr/local/bin/bb /usr/local/bin/bb
+
+# Stage 3: runtime
+FROM debian:bookworm-slim AS runtime
+COPY --from=builder /app/target/release/metis_api /usr/local/bin/
+COPY --from=builder /app/delegation_circuit /app/delegation_circuit
+COPY --from=noir /usr/local/bin/nargo /usr/local/bin/nargo
+COPY --from=bb /usr/local/bin/bb /usr/local/bin/bb
+COPY scripts/docker-entrypoint.sh /usr/local/bin/
+
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["metis_api"]
+```
+
+### 5.2 Entrypoint: `scripts/docker-entrypoint.sh`
+
+Responsibilities:
+
+1. If Postgres URL, wait for Postgres and run migrations.
+2. If SQLite, ensure the parent directory exists.
+3. Validate required env vars (`OTTER_RPC_URL`, `OTTER_CHAIN_ID`, etc.).
+4. If `OTTER_EXECUTION_ENABLED=true`, verify `nargo`, `bb`, and `OTTER_VAULT_ADDRESS` are reachable/valid.
+5. Exec `metis_api`.
+
+### 5.3 Frontend image
+
+Create `frontend/Dockerfile`:
+
+```dockerfile
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 3000
+```
+
+### 5.4 Docker Compose
+
+Update `docker-compose.yml`:
+
+- Remove host-binary volume mounts for `nargo`/`bb`.
+- Mount `OTTER_PRIVATE_KEY_FILE` as a secret, not `.env`.
+- Add migration service or rely on entrypoint.
+- Add health checks for frontend.
+
+---
+
+## 6. Testnet Deployment
+
+### 6.1 Trigger
+
+- Tag `v*` on `main`.
+- `workflow_dispatch` with a chosen ref.
+
+### 6.2 Pre-deployment checks
+
+1. `forge test` and `nargo test` passed in CI.
+2. Docker images built and pushed to GHCR.
+3. Optional: dry-run deployment on Sepolia fork.
+
+### 6.3 Deployment workflow: `.github/workflows/deploy-testnet.yml`
+
+```yaml
+jobs:
+  build-and-push:
+    uses: ./.github/workflows/docker.yml
+
+  deploy:
+    needs: build-and-push
+    environment: testnet
+    steps:
+      - ssh to testnet host
+      - pull new images
+      - run migrations
+      - docker compose up -d
+      - run smoke tests
+      - notify on failure / success
+```
+
+### 6.4 Smoke tests
+
+After deployment, run:
+
+```bash
+curl -fsS http://localhost:3001/ready
+curl -X POST http://localhost:3001/api/v1/intents/parse \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"lend 100 USDC on Aave if yield > 1"}'
+```
+
+Store the smoke test script in `scripts/smoke-test.sh`.
+
+### 6.5 Rollback
+
+Keep the previous image tag on the host. Rollback command:
+
+```bash
+docker compose pull api:previous-tag
+docker compose up -d api
+```
+
+---
+
+## 7. Mainnet Runbook & Hardening
+
+### 7.1 Prerequisites
+
+- Contracts audited.
+- Circuit audited / formally reviewed.
+- At least 3 successful ERC-20 intent executions on Sepolia with captured tx hashes.
+- Multisig / timelock deployed for `DelegationVault`.
+- Emergency pause function implemented and tested.
+
+### 7.2 Deployment checklist
+
+1. Fork mainnet and simulate full deployment + intent execution.
+2. Verify token addresses: USDC, Aave Pool, Uniswap Router, etc.
+3. Submit deployment transactions through multisig.
+4. Verify contracts on Etherscan.
+5. Configure agent with KMS-backed key.
+6. Set conservative delegation limits (low amounts, short expiry).
+7. Enable monitoring and alerts.
+8. Run 24h observation before increasing limits.
+
+### 7.3 Security controls
+
+| Control | Implementation |
+|---|---|
+| Key storage | KMS/HSM provider (`KmsSecretProvider`) |
+| Contract upgrades | Multisig + timelock |
+| Emergency | Pause function + runbook |
+| Access | Separate operator, executor, and governance roles |
+| Audit | All privileged actions logged with source label |
+
+### 7.4 KMS provider
+
+Add a real implementation in `crates/interfaces/src/secrets.rs`:
+
+```rust
+pub struct AwsKmsSecretProvider { ... }
+pub struct HashiCorpVaultSecretProvider { ... } // replace placeholder
+```
+
+---
+
+## 8. Observability
+
+### 8.1 Metrics
+
+Keep existing Prometheus metrics and add:
+
+- `otter_rpc_latency_seconds` — RPC call latency
+- `otter_rpc_errors_total` — RPC failures by provider/chain
+- `otter_proof_generation_seconds` — ZKP generation time
+- `otter_proof_verification_errors_total` — On-chain proof reverts
+- `otter_vault_balance` — Agent ETH balance
+- `otter_active_delegations` — Number of active delegations
+
+### 8.2 Logging
+
+- Local: text format, debug level.
+- Testnet/mainnet: JSON structured logs.
+- `OTTER_LOG_FORMAT=json|text`.
+
+### 8.3 Alerting
+
+`alerting.yml` already defines basic rules. Add:
+
+- `OtterAgentLowBalance` — agent ETH below threshold.
+- `OtterProofVerificationFailing` — repeated proof reverts.
+- `OtterRpcUnhealthy` — RPC latency/errors above threshold.
+
+---
+
+## 9. Database Migrations
+
+### 9.1 Consolidation
+
+- Move all migrations to one directory: `crates/infrastructure/migrations/`.
+- Use sequential numbering: `0001_init.sql`, `0002_delegations.sql`, etc.
+- Single source of truth: the same SQL initializes SQLite and Postgres.
+- Add a migration runner in Rust or as a Docker entrypoint step.
+
+### 9.2 Migration strategy
+
+- Back up Postgres before deploying migrations.
+- Never delete or modify a released migration; add new ones.
+- Track migration state in a `schema_migrations` table.
+
+---
+
+## 10. Implementation Phases
+
+### Phase 1 — Unblock demo (short term)
+
+1. Create `frontend/Dockerfile`.
+2. Make backend Dockerfile self-contained (nargo + bb inside).
+3. Add `forge test`, `nargo test`, `npm run build` to CI.
+4. Add `justfile` + `scripts/dev-setup.sh` + `scripts/dev.sh`.
+5. Clean up migrations.
+
+### Phase 2 — Testnet stability
+
+1. Add smoke tests to `deploy-testnet.yml`.
+2. Run migrations automatically in entrypoint.
+3. Fork-testing step before testnet deployment.
+4. Promote `develop` images separately from `main`.
+
+### Phase 3 — Mainnet readiness
+
+1. Implement KMS providers.
+2. Multisig/timelock + pause.
+3. Mainnet runbook and checklist.
+4. Grafana dashboard.
+5. Production audit logging.
+
+---
+
+## 11. Open Questions
+
+- Which task runner is preferred: `just` or `task`?
+- Which KMS provider should be implemented first: AWS KMS, HashiCorp Vault, or Turnkey?
+- Should testnet deployment also happen on every push to `develop` with a `develop` image tag?
+- Do we want contract upgradeability via proxy from day one?
+
+---
+
+## 12. Related Files
+
+| File | Change |
+|---|---|
+| `.github/workflows/ci.yml` | Rewrite with multi-component jobs |
+| `.github/workflows/docker.yml` | Keep, ensure it runs after CI |
+| `.github/workflows/deploy-testnet.yml` | Add smoke tests and migration step |
+| `.github/workflows/deploy-mainnet.yml` | New manual workflow |
+| `Dockerfile` | Multi-stage with nargo/bb |
+| `frontend/Dockerfile` | New |
+| `docker-compose.yml` | Remove host binary mounts, add secret mounts |
+| `scripts/dev-setup.sh` | New |
+| `scripts/dev.sh` | New |
+| `scripts/docker-entrypoint.sh` | New |
+| `scripts/smoke-test.sh` | New |
+| `justfile` or `Taskfile.yml` | New |
+| `.bb-version` | New |
+| `crates/infrastructure/migrations/` | Consolidate |
+| `crates/interfaces/src/secrets.rs` | Add KMS providers |
+| `.env.example` | Single source of truth |
+| `config.example.toml` | Deprecate |
+
+---
+
+*Spec self-review: no placeholders, scope is bounded to CI/DevOps/deployment, sections are internally consistent. Ready for implementation planning.*
