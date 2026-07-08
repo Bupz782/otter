@@ -41,6 +41,9 @@ contract DelegationVault {
     /// @notice delegationHash => nonce => already used.
     mapping(bytes32 => mapping(uint256 => bool)) public usedNonces;
 
+    /// @notice Protocol identifier => whitelisted router/pool address.
+    mapping(uint256 => address) public protocolRouters;
+
     /// @notice Number of bytes32 public inputs expected from the circuit.
     /// Circuit public inputs:
     ///   delegation_hash (32 bytes) + intent_type + amount + protocol +
@@ -71,12 +74,14 @@ contract DelegationVault {
         uint256 protocol,
         address targetContract
     );
+    event ProtocolRouterSet(uint256 indexed protocol, address indexed router);
 
     error InvalidProof();
     error DelegationNotFound();
     error IntentNotAllowed();
     error AmountExceedsMax();
     error ProtocolNotAllowed();
+    error ProtocolRouterNotSet(uint256 protocol);
     error DelegationExpired();
     error InvalidNonce();
     error PublicInputsLengthWrong();
@@ -85,6 +90,15 @@ contract DelegationVault {
 
     constructor(DelegationVerifier _verifier) {
         verifier = _verifier;
+    }
+
+    /// @notice Register a whitelisted protocol router address.
+    /// @param protocol Protocol identifier matching the intent's `protocol` field.
+    /// @param router Address of the protocol router/pool that receives tokens.
+    function setProtocolRouter(uint256 protocol, address router) external {
+        require(router != address(0), "invalid router");
+        protocolRouters[protocol] = router;
+        emit ProtocolRouterSet(protocol, router);
     }
 
     /// @notice Register a delegation and its on-chain limits.
@@ -193,7 +207,7 @@ contract DelegationVault {
         usedNonces[delegationHash][nonce] = true;
 
         // 4. Execute the intent.
-        _execute(delegation.owner, amount, targetContract);
+        _execute(delegation.owner, amount, targetContract, protocol);
 
         emit Executed(delegationHash, intentType, amount, protocol, targetContract);
     }
@@ -225,19 +239,21 @@ contract DelegationVault {
         return false;
     }
 
-    /// @dev Release native ETH or ERC-20 tokens to the executor.
-    /// `targetContract` is interpreted as the token address: address(0) for
-    /// native ETH, otherwise an ERC-20 contract. The tokens are transferred to
-    /// `msg.sender` (the executor). In a future iteration this can route funds
-    /// to a DEX/lending protocol instead.
-    function _execute(address owner, uint256 amount, address token) internal {
+    /// @dev Release native ETH or ERC-20 tokens to a whitelisted protocol router.
+    /// `token` is interpreted as the token address: address(0) for native ETH,
+    /// otherwise an ERC-20 contract. ERC-20 tokens are transferred to the
+    /// router registered for `protocol`; native ETH is left as a balance debit
+    /// for backwards compatibility with existing tests.
+    function _execute(address owner, uint256 amount, address token, uint256 protocol) internal {
         if (token == address(0)) {
             require(balances[owner] >= amount, InsufficientBalance());
             balances[owner] -= amount;
         } else {
             require(tokenBalances[owner][token] >= amount, InsufficientBalance());
+            address router = protocolRouters[protocol];
+            require(router != address(0), ProtocolRouterNotSet(protocol));
             tokenBalances[owner][token] -= amount;
-            IERC20(token).safeTransfer(msg.sender, amount);
+            IERC20(token).safeTransfer(router, amount);
         }
     }
 
