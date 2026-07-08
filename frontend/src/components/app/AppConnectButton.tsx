@@ -14,7 +14,6 @@ export function AppConnectButton() {
   const handleAuth = async () => {
     if (!address) return;
     setAuthLoading(true);
-    setError(null);
     try {
       const { message } = await api.auth.challenge(address);
       const signature = await signMessageAsync({ message });

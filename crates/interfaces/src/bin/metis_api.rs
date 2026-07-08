@@ -1094,7 +1094,7 @@ fn validate_hex_field(value: &str, name: &str) -> Result<(), AppError> {
 
 fn matches_user(record_user: &Option<String>, user: &Option<String>) -> bool {
     match (record_user, user) {
-        (_, None) => true,
+        (_, None) => false,
         (Some(a), Some(b)) => a.eq_ignore_ascii_case(b),
         (None, Some(_)) => false,
     }

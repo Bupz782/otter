@@ -126,7 +126,7 @@ jobs:
         run: npm run build
 
   docker-smoke:
-    needs: [rust-check, contracts-check, circuit-check, frontend-check]
+    needs: [changes, rust-check, contracts-check, circuit-check, frontend-check]
     if: always() && needs.changes.result == 'success' && (needs.rust-check.result == 'success' || needs.rust-check.result == 'skipped') && (needs.contracts-check.result == 'success' || needs.contracts-check.result == 'skipped') && (needs.circuit-check.result == 'success' || needs.circuit-check.result == 'skipped') && (needs.frontend-check.result == 'success' || needs.frontend-check.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
