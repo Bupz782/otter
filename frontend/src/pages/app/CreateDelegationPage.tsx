@@ -2,7 +2,14 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Check, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -69,7 +76,9 @@ export function CreateDelegationPage() {
         transition={{ duration: 0.5 }}
       >
         <h1 className="font-heading text-3xl font-bold tracking-tight">New Delegation</h1>
-        <p className="text-muted-foreground">Authorize an agent to execute intents within your limits.</p>
+        <p className="text-muted-foreground">
+          Authorize an agent to execute intents within your limits.
+        </p>
       </motion.div>
 
       <Card>
@@ -100,7 +109,9 @@ export function CreateDelegationPage() {
                   <p className="font-heading text-lg font-bold">{agent.name}</p>
                   <div className="text-right">
                     <p className="text-sm font-medium">{agent.reputation} ★</p>
-                    <p className="text-xs text-muted-foreground">{agent.proofsSubmitted.toLocaleString()} proofs</p>
+                    <p className="text-xs text-muted-foreground">
+                      {agent.proofsSubmitted.toLocaleString()} proofs
+                    </p>
                   </div>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">{agent.description}</p>
@@ -118,7 +129,9 @@ export function CreateDelegationPage() {
         <CardContent className="grid gap-4 sm:grid-cols-2">
           {Object.entries(maxAmounts).map(([key, value]) => (
             <div key={key} className="space-y-2">
-              <Label htmlFor={key} className="capitalize">{key} limit (USDC)</Label>
+              <Label htmlFor={key} className="capitalize">
+                {key} limit (USDC)
+              </Label>
               <Input
                 id={key}
                 type="number"
@@ -144,7 +157,10 @@ export function CreateDelegationPage() {
             <p className="text-sm font-medium">Protocols</p>
             <div className="flex flex-wrap gap-3">
               {protocols.map((protocol) => (
-                <label key={protocol} className="flex items-center gap-2 rounded-lg border border-border/60 bg-card px-3 py-2">
+                <label
+                  key={protocol}
+                  className="flex items-center gap-2 rounded-lg border border-border/60 bg-card px-3 py-2"
+                >
                   <Checkbox
                     checked={allowedProtocols.includes(protocol)}
                     onCheckedChange={() => toggle(allowedProtocols, protocol, setAllowedProtocols)}
@@ -158,7 +174,10 @@ export function CreateDelegationPage() {
             <p className="text-sm font-medium">Chains</p>
             <div className="flex flex-wrap gap-3">
               {chains.map((chain) => (
-                <label key={chain} className="flex items-center gap-2 rounded-lg border border-border/60 bg-card px-3 py-2">
+                <label
+                  key={chain}
+                  className="flex items-center gap-2 rounded-lg border border-border/60 bg-card px-3 py-2"
+                >
                   <Checkbox
                     checked={allowedChains.includes(chain)}
                     onCheckedChange={() => toggle(allowedChains, chain, setAllowedChains)}

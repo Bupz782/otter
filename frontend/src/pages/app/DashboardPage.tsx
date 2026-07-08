@@ -1,12 +1,5 @@
 import { Link } from "react-router-dom";
-import {
-  Wallet,
-  TrendingUp,
-  Coins,
-  Lightbulb,
-  ArrowRight,
-  Plus,
-} from "lucide-react";
+import { Wallet, TrendingUp, Coins, Lightbulb, ArrowRight, Plus } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -81,7 +74,11 @@ export function DashboardPage() {
   const { data: activity, isLoading: activityLoading } = useActivity();
 
   const activeIntents = intents.filter(
-    (i) => i.status === "monitoring" || i.status === "condition_met" || i.status === "proving" || i.status === "submitted"
+    (i) =>
+      i.status === "monitoring" ||
+      i.status === "condition_met" ||
+      i.status === "proving" ||
+      i.status === "submitted"
   );
 
   return (
@@ -93,10 +90,15 @@ export function DashboardPage() {
         className="space-y-2"
       >
         <h1 className="font-heading text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">Overview of your vault, intents, and recent activity.</p>
+        <p className="text-muted-foreground">
+          Overview of your vault, intents, and recent activity.
+        </p>
       </motion.div>
 
-      <ShimmerCard id="onboarding-dashboard-balance" className="rounded-xl border border-accent/20 bg-gradient-to-br from-accent-subtle/40 to-transparent">
+      <ShimmerCard
+        id="onboarding-dashboard-balance"
+        className="rounded-xl border border-accent/20 bg-gradient-to-br from-accent-subtle/40 to-transparent"
+      >
         <div className="p-6 sm:p-8">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -109,7 +111,9 @@ export function DashboardPage() {
                 </p>
               )}
               <p className="mt-2 text-sm text-muted-foreground">
-                {portfolio ? `${portfolio.positions.length} positions · $${portfolio.available.toLocaleString()} available` : ""}
+                {portfolio
+                  ? `${portfolio.positions.length} positions · $${portfolio.available.toLocaleString()} available`
+                  : ""}
               </p>
             </div>
             <div className="flex gap-3">
@@ -211,9 +215,12 @@ export function DashboardPage() {
                   className="group flex items-center justify-between rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-accent/40"
                 >
                   <div className="space-y-1">
-                    <p className="font-medium transition-colors group-hover:text-accent">{intent.rawText}</p>
+                    <p className="font-medium transition-colors group-hover:text-accent">
+                      {intent.rawText}
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      {intent.parsed.amount} {intent.parsed.asset} · {intent.parsed.protocol} · {intent.parsed.chain}
+                      {intent.parsed.amount} {intent.parsed.asset} · {intent.parsed.protocol} ·{" "}
+                      {intent.parsed.chain}
                     </p>
                   </div>
                   <IntentStatusBadge status={intent.status} />

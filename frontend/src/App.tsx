@@ -41,11 +41,7 @@ export function App() {
       <Navigation />
       <AnimatePresence mode="wait">
         <PageTransition key={location.pathname}>
-          <main
-            id="main-content"
-            tabIndex={-1}
-            className="outline-none"
-          >
+          <main id="main-content" tabIndex={-1} className="outline-none">
             <HeroSection />
             <DemoPreview />
             <FlowSchema />

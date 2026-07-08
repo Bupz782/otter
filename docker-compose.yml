@@ -25,7 +25,10 @@ services:
       - "3001:3001"
     volumes:
       - otter-data:/data
+      # The circuit source is mounted so the backend can invoke nargo.
       - ${OTTER_CIRCUIT_DIR:-./delegation_circuit}:/app/delegation_circuit
+      # Pinned tooling binaries are mounted from the host. See Dockerfile TODO
+      # for versions: nargo 1.0.0-beta.22, bb 5.0.0-nightly.20260522.
       - ${OTTER_NARGO_BIN:-/usr/local/bin/nargo}:/usr/local/bin/nargo
       - ${OTTER_BB_BIN:-/usr/local/bin/bb}:/usr/local/bin/bb
     environment:

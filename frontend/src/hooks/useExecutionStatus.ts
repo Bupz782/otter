@@ -26,9 +26,10 @@ export function useExecutionStatus(intentId: string | undefined, poll = false) {
         });
     };
     fetch();
-    if (!poll) return () => {
-      mounted = false;
-    };
+    if (!poll)
+      return () => {
+        mounted = false;
+      };
     const interval = setInterval(fetch, 5000);
     return () => {
       mounted = false;

@@ -5,9 +5,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { MetricsBanner } from "./MetricsBanner";
 
-const WebGLSpiral = lazy(() =>
-  import("./WebGLSpiral").then((m) => ({ default: m.WebGLSpiral }))
-);
+const WebGLSpiral = lazy(() => import("./WebGLSpiral").then((m) => ({ default: m.WebGLSpiral })));
 
 export function HeroSection() {
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -43,8 +41,8 @@ export function HeroSection() {
         </h1>
 
         <p className="mt-6 max-w-2xl text-balance text-lg text-muted-foreground md:text-xl">
-          Set a condition, sign a limited delegation, and let Otter execute on-chain
-          with zero-knowledge proofs. You keep custody.
+          Set a condition, sign a limited delegation, and let Otter execute on-chain with
+          zero-knowledge proofs. You keep custody.
         </p>
 
         <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row">

@@ -88,12 +88,15 @@ export function buildDelegationMessage(
   nonce: bigint,
   targetContract: string
 ): DelegationMessage {
-  const allowedIntentsBitmap = Object.entries(INTENT_TYPE_INDICES).reduce((bitmap, [key, index]) => {
-    if (key in limits && limits[key as keyof DelegationLimits] > 0) {
-      bitmap |= 1 << index;
-    }
-    return bitmap;
-  }, 0);
+  const allowedIntentsBitmap = Object.entries(INTENT_TYPE_INDICES).reduce(
+    (bitmap, [key, index]) => {
+      if (key in limits && limits[key as keyof DelegationLimits] > 0) {
+        bitmap |= 1 << index;
+      }
+      return bitmap;
+    },
+    0
+  );
 
   const maxAmounts: string[] = Array(INTENT_TYPE_COUNT).fill(fieldFromU256(0n));
   for (const [key, index] of Object.entries(INTENT_TYPE_INDICES)) {
@@ -106,7 +109,9 @@ export function buildDelegationMessage(
   for (const protocol of allowedProtocols) {
     const index = PROTOCOL_INDICES[protocol];
     if (index !== undefined) {
-      allowedProtocolsArray[index] = padHex32("0x000000000000000000000000" + protocol.toLowerCase().padEnd(8, "0"));
+      allowedProtocolsArray[index] = padHex32(
+        "0x000000000000000000000000" + protocol.toLowerCase().padEnd(8, "0")
+      );
     }
   }
 

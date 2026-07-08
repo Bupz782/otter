@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Plus, FileSignature, ShieldCheck } from "lucide-react";
 import { motion } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,7 +20,9 @@ export function DelegationsPage() {
       >
         <div>
           <h1 className="font-heading text-3xl font-bold tracking-tight">Delegations</h1>
-          <p className="text-muted-foreground">Agents you have authorized to execute intents on your behalf.</p>
+          <p className="text-muted-foreground">
+            Agents you have authorized to execute intents on your behalf.
+          </p>
         </div>
         <Button asChild className="rounded-full">
           <Link to="/app/delegations/new">

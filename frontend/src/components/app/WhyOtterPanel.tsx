@@ -9,35 +9,40 @@ const comparisons: ComparisonPoint[] = [
     title: "vs. vaults & yield aggregators",
     icon: "vault",
     comparison: "You define the condition",
-    description: "Vaults ask you to trust a strategy manager. Otter lets you write the rule in plain English and enforce it cryptographically.",
+    description:
+      "Vaults ask you to trust a strategy manager. Otter lets you write the rule in plain English and enforce it cryptographically.",
   },
   {
     id: "bots",
     title: "vs. automation bots",
     icon: "bot",
     comparison: "Cryptographic limits, not API keys",
-    description: "Bots need your private keys or API access. Otter uses signed delegations with hard limits that even Otter cannot exceed.",
+    description:
+      "Bots need your private keys or API access. Otter uses signed delegations with hard limits that even Otter cannot exceed.",
   },
   {
     id: "intents",
     title: "vs. one-shot intents",
     icon: "scan",
     comparison: "Persistent, monitored delegation",
-    description: "Most intents execute once. Otter keeps watching until your condition is met, then proves every action respects your limits.",
+    description:
+      "Most intents execute once. Otter keeps watching until your condition is met, then proves every action respects your limits.",
   },
   {
     id: "mev",
     title: "vs. MEV searchers",
     icon: "coins",
     comparison: "Rebates go to you",
-    description: "Searchers keep MEV profits. Otter captures MEV through protected channels and rebates the majority back to depositors.",
+    description:
+      "Searchers keep MEV profits. Otter captures MEV through protected channels and rebates the majority back to depositors.",
   },
   {
     id: "custody",
     title: "vs. opaque custodians",
     icon: "shield",
     comparison: "Proof-of-solvency on-chain",
-    description: "Custodians ask for trust. Otter publishes zero-knowledge proofs that the vault is solvent without revealing balances.",
+    description:
+      "Custodians ask for trust. Otter publishes zero-knowledge proofs that the vault is solvent without revealing balances.",
   },
 ];
 
@@ -92,7 +97,9 @@ export function WhyOtterPanel({ open, onClose }: { open: boolean; onClose: () =>
                       {iconMap[item.icon]}
                     </div>
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.title}</p>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        {item.title}
+                      </p>
                       <p className="font-heading text-lg font-bold">{item.comparison}</p>
                     </div>
                   </div>

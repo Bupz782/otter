@@ -24,8 +24,7 @@ export function DemoPreview() {
 
     const lower = prompt.toLowerCase();
     const matched =
-      mockIntents.find((i) => lower.includes(i.parsed.asset.toLowerCase())) ||
-      mockIntents[0];
+      mockIntents.find((i) => lower.includes(i.parsed.asset.toLowerCase())) || mockIntents[0];
     setSelectedIntent(matched);
   }, []);
 
@@ -95,8 +94,7 @@ export function DemoPreview() {
           >
             <div className="mx-auto mb-6 max-w-3xl text-center">
               <p className="text-sm text-muted-foreground">
-                Simulated execution for:{" "}
-                <span className="text-foreground">{submittedPrompt}</span>
+                Simulated execution for: <span className="text-foreground">{submittedPrompt}</span>
               </p>
             </div>
             <IntentResults intent={selectedIntent} />

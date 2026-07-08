@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Search, CheckCircle2, Loader2, Clock, ArrowRightCircle, XCircle } from "lucide-react";
+import { Search, CheckCircle2, Loader2, Clock, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ExecutionStatus, IntentStatus } from "@/types/app";
 
@@ -14,7 +13,13 @@ const stepIcons: Record<IntentStatus, React.ReactNode> = {
   revoked: <XCircle className="h-5 w-5" />,
 };
 
-export function KineticTimeline({ status, isLoading }: { status: ExecutionStatus | null; isLoading?: boolean }) {
+export function KineticTimeline({
+  status,
+  isLoading,
+}: {
+  status: ExecutionStatus | null;
+  isLoading?: boolean;
+}) {
   if (isLoading || !status) {
     return (
       <div className="space-y-6 py-4">

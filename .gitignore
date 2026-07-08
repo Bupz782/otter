@@ -170,6 +170,9 @@ portfolios/*.enc
 # Agent tooling
 .pi/
 
+# Isolated worktrees
+.worktrees/
+
 # Delegation signatures
 delegations/*.sig
 

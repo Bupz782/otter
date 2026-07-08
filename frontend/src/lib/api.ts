@@ -1,4 +1,4 @@
-import type { Delegation, Intent, IntentStatus, IntentType, ParsedIntent } from "@/types/app";
+import type { Delegation, Intent, ParsedIntent } from "@/types/app";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -69,9 +69,24 @@ export interface BackendConditionalIntent {
 
 export type BackendIntentVariant =
   | { Lend: { asset: BackendAsset; amount: string; protocol: BackendLendingProtocol } }
-  | { Swap: { from_asset: BackendAsset; to_asset: BackendAsset; amount: string; protocol: BackendDexProtocol } }
+  | {
+      Swap: {
+        from_asset: BackendAsset;
+        to_asset: BackendAsset;
+        amount: string;
+        protocol: BackendDexProtocol;
+      };
+    }
   | { Stake: { asset: BackendAsset; amount: string; protocol: BackendLendingProtocol } }
-  | { Borrow: { asset: BackendAsset; amount: string; collateral: BackendAsset; collateral_amount: string; protocol: BackendLendingProtocol } }
+  | {
+      Borrow: {
+        asset: BackendAsset;
+        amount: string;
+        collateral: BackendAsset;
+        collateral_amount: string;
+        protocol: BackendLendingProtocol;
+      };
+    }
   | { Composite: { intents: BackendIntentVariant[] } };
 
 export type BackendAsset = "Eth" | "Dai" | "Usdc" | "Wbtc" | "Link" | "Sol";
@@ -81,7 +96,8 @@ export type BackendLendingProtocol = "Aave" | "Compound";
 export interface BackendCondition {
   Comparison: {
     metric: "Yield" | "Price" | "GasCost" | "Volume";
-    comparator: "GreaterThan" | "LessThan" | "EqualTo" | "LessThanOrEqualTo" | "GreaterThanOrEqualTo";
+    comparator:
+      "GreaterThan" | "LessThan" | "EqualTo" | "LessThanOrEqualTo" | "GreaterThanOrEqualTo";
     value: string;
   };
 }
@@ -329,19 +345,13 @@ export function mapBackendIntent(record: BackendIntentRecord): Intent {
     status,
     createdAt: new Date(record.created_at * 1000).toISOString(),
     delegationId: "",
-    executedAt: status === "confirmed" ? new Date(record.updated_at * 1000).toISOString() : undefined,
+    executedAt:
+      status === "confirmed" ? new Date(record.updated_at * 1000).toISOString() : undefined,
     txHash,
   };
 }
 
 export function mapBackendDelegation(record: BackendDelegationRecord): Delegation {
-  let payload: Record<string, unknown> = {};
-  try {
-    payload = JSON.parse(record.payload_json) as Record<string, unknown>;
-  } catch {
-    // ignore
-  }
-
   return {
     id: record.hash,
     userAddress: "",
@@ -477,10 +487,11 @@ export const api = {
       expiry: string;
       nonce: string;
       target_contract: string;
-    }) => request<{ delegation_hash: string }>("/api/v1/delegation/hash", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
+    }) =>
+      request<{ delegation_hash: string }>("/api/v1/delegation/hash", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
     set: (body: {
       pubkey_x: string;
       pubkey_y: string;
@@ -491,10 +502,11 @@ export const api = {
       nonce: string;
       target_contract: string;
       signature: string[];
-    }) => request<{ delegation_hash: string }>("/api/v1/delegation", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
+    }) =>
+      request<{ delegation_hash: string }>("/api/v1/delegation", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
   },
   agents: {
     list: () => request<{ agents: BackendAgentSummary[] }>("/api/v1/agents"),

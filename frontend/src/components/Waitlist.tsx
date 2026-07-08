@@ -66,9 +66,7 @@ export function Waitlist() {
                     aria-live="polite"
                   >
                     <CheckCircle2 className="h-8 w-8 text-emerald-500" aria-hidden="true" />
-                    <p className="text-base font-medium text-foreground">
-                      You are on the list.
-                    </p>
+                    <p className="text-base font-medium text-foreground">You are on the list.</p>
                     <p className="text-sm text-muted-foreground">
                       We will reach out when early access opens.
                     </p>

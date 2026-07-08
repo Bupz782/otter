@@ -19,21 +19,21 @@ Headings use the `font-heading` utility or are targeted globally via `h1`–`h6`
 
 ### Base
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--color-background` | `#050505` | Page background |
-| `--color-foreground` | `#f4f4f5` | Primary text |
-| `--color-card` | `rgba(12, 12, 12, 0.78)` | Card surfaces |
-| `--color-border` | `rgba(255, 255, 255, 0.08)` | Borders/dividers |
+| Token                | Value                       | Usage            |
+| -------------------- | --------------------------- | ---------------- |
+| `--color-background` | `#050505`                   | Page background  |
+| `--color-foreground` | `#f4f4f5`                   | Primary text     |
+| `--color-card`       | `rgba(12, 12, 12, 0.78)`    | Card surfaces    |
+| `--color-border`     | `rgba(255, 255, 255, 0.08)` | Borders/dividers |
 
 ### Accent
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--color-accent` | `#c8a46c` | CTAs, active links, highlights |
-| `--color-accent-dark` | `#a6834d` | Hover states |
-| `--color-accent-subtle` | `rgba(200, 164, 108, 0.12)` | Ghost hover, badge bg |
-| `--color-ring` | `rgba(200, 164, 108, 0.35)` | Focus rings |
+| Token                   | Value                       | Usage                          |
+| ----------------------- | --------------------------- | ------------------------------ |
+| `--color-accent`        | `#c8a46c`                   | CTAs, active links, highlights |
+| `--color-accent-dark`   | `#a6834d`                   | Hover states                   |
+| `--color-accent-subtle` | `rgba(200, 164, 108, 0.12)` | Ghost hover, badge bg          |
+| `--color-ring`          | `rgba(200, 164, 108, 0.35)` | Focus rings                    |
 
 Use the accent for primary actions and small status highlights only. Never use it for large backgrounds or glows.
 
@@ -63,12 +63,12 @@ Follow Tailwind's default scale. Section vertical padding is `py-28`. Max conten
 
 ## Radius
 
-| Token | Value |
-|-------|-------|
+| Token         | Value      |
+| ------------- | ---------- |
 | `--radius-sm` | `0.375rem` |
-| `--radius-md` | `0.5rem` |
-| `--radius-lg` | `0.75rem` |
-| `--radius-xl` | `1rem` |
+| `--radius-md` | `0.5rem`   |
+| `--radius-lg` | `0.75rem`  |
+| `--radius-xl` | `1rem`     |
 
 Buttons and pills use `rounded-full` for a softer CTA shape.
 
@@ -76,8 +76,8 @@ Buttons and pills use `rounded-full` for a softer CTA shape.
 
 ### Durations
 
-| Token | Value |
-|-------|-------|
+| Token             | Value   |
+| ----------------- | ------- |
 | `--duration-fast` | `150ms` |
 | `--duration-base` | `250ms` |
 | `--duration-slow` | `500ms` |
@@ -114,12 +114,12 @@ Always uses glassmorphism. Title uses `font-heading`.
 
 ## File map
 
-| File | Purpose |
-|------|---------|
-| `src/styles/tokens.css` | Primitive tokens |
-| `src/index.css` | Semantic tokens, utilities, animations |
-| `src/components/ui/*` | shadcn/ui components styled to system |
-| `src/components/AmbientBackground.tsx` | Ambient motion layer |
-| `src/components/PageTransition.tsx` | Route transition wrapper |
-| `src/components/DemoPreview.tsx` | Home page demo widget |
-| `src/components/demo/*` | Demo page intent simulator components |
+| File                                   | Purpose                                |
+| -------------------------------------- | -------------------------------------- |
+| `src/styles/tokens.css`                | Primitive tokens                       |
+| `src/index.css`                        | Semantic tokens, utilities, animations |
+| `src/components/ui/*`                  | shadcn/ui components styled to system  |
+| `src/components/AmbientBackground.tsx` | Ambient motion layer                   |
+| `src/components/PageTransition.tsx`    | Route transition wrapper               |
+| `src/components/DemoPreview.tsx`       | Home page demo widget                  |
+| `src/components/demo/*`                | Demo page intent simulator components  |
