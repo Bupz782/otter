@@ -3,8 +3,8 @@ use application::orchestrator::{ActiveIntent, Orchestrator};
 use axum::{
     Json, Router,
     body::Body,
-    extract::{ConnectInfo, Path, State as AxumState, WebSocketUpgrade},
     extract::ws::{Message, WebSocket},
+    extract::{ConnectInfo, Path, State as AxumState, WebSocketUpgrade},
     http::{Request, StatusCode, header},
     middleware::{Next, from_fn_with_state},
     response::{IntoResponse, Response},
@@ -14,9 +14,11 @@ use domain::models::condition::Metric;
 use domain::models::delegation::DelegationMessage;
 use domain::models::execution_plan::ExecutionPlan;
 use domain::models::intent::{Asset, ConditionalIntent};
-use domain::ports::{BlockchainPort, DelegationRecord, ExecutionRecord, IntentRecord, StoragePort};
 use domain::ports::wallet_port::WalletPort;
-use infrastructure::blockchain::{AlloyEvmAdapter, CompositeOracle, LocalWalletAdapter, OracleNetwork};
+use domain::ports::{BlockchainPort, DelegationRecord, ExecutionRecord, IntentRecord, StoragePort};
+use infrastructure::blockchain::{
+    AlloyEvmAdapter, CompositeOracle, LocalWalletAdapter, OracleNetwork,
+};
 use infrastructure::config::Config;
 use infrastructure::parsers::RegexParser;
 use infrastructure::services::OnChainExecutionService;
@@ -517,10 +519,7 @@ async fn auth_verify(
     Ok(Json(VerifyResponse { token }))
 }
 
-async fn ws_handler(
-    ws: WebSocketUpgrade,
-    AxumState(state): AxumState<Arc<AppState>>,
-) -> Response {
+async fn ws_handler(ws: WebSocketUpgrade, AxumState(state): AxumState<Arc<AppState>>) -> Response {
     ws.on_upgrade(move |socket| handle_socket(socket, state))
 }
 
@@ -650,8 +649,12 @@ fn default_strategies() -> Vec<StrategySummary> {
 }
 
 fn load_agent_pubkey(config: &Config) -> Option<AgentPubkey> {
-    let private_key: String = config.private_key.clone()
-        .or_else(|| config.private_key_file.as_ref().and_then(|path| std::fs::read_to_string(path).ok()))?;
+    let private_key: String = config.private_key.clone().or_else(|| {
+        config
+            .private_key_file
+            .as_ref()
+            .and_then(|path| std::fs::read_to_string(path).ok())
+    })?;
     let wallet = LocalWalletAdapter::from_hex(private_key.trim()).ok()?;
     let (x, y) = wallet.pubkey().ok()?;
     Some(AgentPubkey {
@@ -1129,18 +1132,17 @@ async fn get_agent(
 async fn get_agent_pubkey(
     AxumState(state): AxumState<Arc<AppState>>,
 ) -> Result<Json<AgentPubkeyResponse>, AppError> {
-    let pubkey = state.agent_pubkey.as_ref().ok_or_else(|| {
-        AppError::Internal("agent public key not configured".to_string())
-    })?;
+    let pubkey = state
+        .agent_pubkey
+        .as_ref()
+        .ok_or_else(|| AppError::Internal("agent public key not configured".to_string()))?;
     Ok(Json(AgentPubkeyResponse {
         pubkey_x: pubkey.x.clone(),
         pubkey_y: pubkey.y.clone(),
     }))
 }
 
-async fn list_strategies(
-    AxumState(state): AxumState<Arc<AppState>>,
-) -> Json<StrategiesResponse> {
+async fn list_strategies(AxumState(state): AxumState<Arc<AppState>>) -> Json<StrategiesResponse> {
     Json(StrategiesResponse {
         strategies: state.strategies.clone(),
     })
@@ -1214,9 +1216,7 @@ async fn list_proofs(
     Ok(Json(ProofsResponse { proofs }))
 }
 
-async fn get_leaderboard(
-    AxumState(state): AxumState<Arc<AppState>>,
-) -> Json<LeaderboardResponse> {
+async fn get_leaderboard(AxumState(state): AxumState<Arc<AppState>>) -> Json<LeaderboardResponse> {
     let mut entries: Vec<LeaderboardEntry> = state
         .agents
         .iter()

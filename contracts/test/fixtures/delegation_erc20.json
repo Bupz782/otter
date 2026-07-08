@@ -8,7 +8,7 @@
     "0"
   ],
   "amount": "2000000",
-  "delegation_hash": "0x91ade02b79eb31565b2b5e9cbf73c2113af09524cc4dac59305b8a9ef7fad9f5",
+  "delegation_hash": "0xafa17428ff07791e8725a8e624b119babe43eb11fce3f2d127da43119736e427",
   "expiry": "4000000000",
   "intent_type": "2",
   "max_amounts": [
@@ -25,6 +25,6 @@
   ],
   "nonce": "42",
   "protocol": "1",
-  "target_contract": "0x0",
+  "target_contract": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
   "timestamp": "1000000"
 }

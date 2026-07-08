@@ -45,6 +45,10 @@ sol! {
 /// Default Uniswap V3 fee tier: 0.30 %.
 const DEFAULT_FEE_TIER: u32 = 3000;
 
+/// Dummy non-zero address used for callers that only need read-only Uniswap
+/// methods (e.g. `get_quote`).
+pub const DUMMY_RECIPIENT: &str = "0x0000000000000000000000000000000000000001";
+
 /// Uniswap V3 protocol adapter.
 ///
 /// Uses QuoterV2 to estimate outputs and encodes real SwapRouter
@@ -54,17 +58,22 @@ pub struct UniswapAdapter {
     rpc_url: String,
     router_address: Address,
     quoter_address: Address,
-    /// Address receiving the swapped output. Defaults to zero (caller).
+    /// Address receiving the swapped output. Must be an explicit, non-zero
+    /// address supplied by the caller.
     recipient: Address,
 }
 
 impl UniswapAdapter {
     /// Create an adapter targeting the given SwapRouter and QuoterV2.
+    ///
+    /// `recipient` is required and must not be the zero address. Use
+    /// [`DUMMY_RECIPIENT`] for read-only operations where the address is not
+    /// used.
     pub fn new(
         rpc_url: impl Into<String>,
         router_address: impl Into<String>,
         quoter_address: impl Into<String>,
-        recipient: Option<impl Into<String>>,
+        recipient: impl Into<String>,
     ) -> Result<Self, ProtocolError> {
         let router_address = router_address
             .into()
@@ -74,11 +83,14 @@ impl UniswapAdapter {
             .into()
             .parse()
             .map_err(|e| ProtocolError::OperationFailed(format!("invalid quoter address: {e}")))?;
-        let recipient = recipient
-            .map(|a| a.into().parse())
-            .transpose()
-            .map_err(|e| ProtocolError::OperationFailed(format!("invalid recipient address: {e}")))?
-            .unwrap_or(Address::ZERO);
+        let recipient: Address = recipient.into().parse().map_err(|e| {
+            ProtocolError::OperationFailed(format!("invalid recipient address: {e}"))
+        })?;
+        if recipient.is_zero() {
+            return Err(ProtocolError::OperationFailed(
+                "recipient must not be the zero address".to_string(),
+            ));
+        }
         Ok(Self {
             rpc_url: rpc_url.into(),
             router_address,
@@ -88,22 +100,28 @@ impl UniswapAdapter {
     }
 
     /// Adapter pointing at the official Uniswap V3 mainnet contracts.
-    pub fn mainnet(rpc_url: impl Into<String>) -> Result<Self, ProtocolError> {
+    pub fn mainnet(
+        rpc_url: impl Into<String>,
+        recipient: impl Into<String>,
+    ) -> Result<Self, ProtocolError> {
         Self::new(
             rpc_url,
             "0xE592427A0AEce92De3Edee1F18E0157C05861564",
             "0x61fFE014bA17989E743c5F6cB21bF96909c97d5b",
-            None::<String>,
+            recipient,
         )
     }
 
     /// Adapter pointing at the official Uniswap V3 Sepolia contracts.
-    pub fn sepolia(rpc_url: impl Into<String>) -> Result<Self, ProtocolError> {
+    pub fn sepolia(
+        rpc_url: impl Into<String>,
+        recipient: impl Into<String>,
+    ) -> Result<Self, ProtocolError> {
         Self::new(
             rpc_url,
             "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E",
             "0xEd1f64733475F1b43a963611B4E0A6A50e39c40d",
-            None::<String>,
+            recipient,
         )
     }
 
@@ -234,9 +252,11 @@ impl DexProtocol for UniswapAdapter {
 mod tests {
     use super::*;
 
+    const TEST_USER: &str = "0x1111111111111111111111111111111111111111";
+
     #[test]
     fn swap_encodes_valid_calldata() {
-        let uniswap = UniswapAdapter::sepolia("http://localhost:8545").unwrap();
+        let uniswap = UniswapAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
         let call = uniswap
             .build_exact_input_single(&Asset::Eth, &Asset::Usdc, 1_000_000_000_000_000_000, 0)
             .unwrap();
@@ -252,13 +272,24 @@ mod tests {
 
     #[test]
     fn get_quote_rejects_same_asset() {
-        let uniswap = UniswapAdapter::sepolia("http://localhost:8545").unwrap();
+        let uniswap = UniswapAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
         assert!(uniswap.get_quote(&Asset::Eth, &Asset::Eth, 1).is_err());
     }
 
     #[test]
     fn swap_rejects_excessive_slippage() {
-        let uniswap = UniswapAdapter::sepolia("http://localhost:8545").unwrap();
+        let uniswap = UniswapAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
         assert!(uniswap.swap(&Asset::Eth, &Asset::Usdc, 1, 20_000).is_err());
+    }
+
+    #[test]
+    fn rejects_zero_recipient() {
+        assert!(
+            UniswapAdapter::sepolia(
+                "http://localhost:8545",
+                "0x0000000000000000000000000000000000000000",
+            )
+            .is_err()
+        );
     }
 }
