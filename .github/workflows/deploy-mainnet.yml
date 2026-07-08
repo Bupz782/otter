@@ -1,0 +1,45 @@
+name: Deploy Mainnet
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Git tag to deploy"
+        required: true
+      multisig_tx_hash:
+        description: "Multisig deployment transaction hash"
+        required: true
+
+jobs:
+  check-mainnet-readiness:
+    runs-on: ubuntu-latest
+    environment: mainnet
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag }}
+
+      - name: Mainnet readiness checklist
+        run: |
+          echo "Tag: ${{ github.event.inputs.tag }}"
+          echo "Multisig tx: ${{ github.event.inputs.multisig_tx_hash }}"
+          echo "TODO: verify tag passed testnet deployment, audit reports, and fork simulation"
+
+  deploy:
+    needs: check-mainnet-readiness
+    runs-on: ubuntu-latest
+    environment: mainnet
+    steps:
+      - name: Deploy to mainnet host
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.MAINNET_HOST }}
+          username: ${{ secrets.MAINNET_USER }}
+          key: ${{ secrets.MAINNET_SSH_KEY }}
+          script: |
+            cd /opt/otter-mainnet
+            export OTTER_TAG=${{ github.event.inputs.tag }}
+            docker compose pull
+            docker compose up -d
+            ./scripts/smoke-test.sh
