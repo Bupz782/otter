@@ -2429,6 +2429,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn delegations_scoped_to_authenticated_user() {
+        let state = test_state().await;
+        let user_a = AuthUser {
+            address: "0xaaa".to_string(),
+        };
+        let user_b = AuthUser {
+            address: "0xbbb".to_string(),
+        };
+
+        let _ = set_delegation(
+            AxumState(state.clone()),
+            Extension(Some(user_a.clone())),
+            Json(valid_set_delegation_request()),
+        )
+        .await
+        .unwrap();
+
+        let for_a = list_delegations(AxumState(state.clone()), Extension(Some(user_a.clone())))
+            .await
+            .unwrap();
+        assert_eq!(for_a.delegations.len(), 1);
+
+        let for_b = list_delegations(AxumState(state.clone()), Extension(Some(user_b)))
+            .await
+            .unwrap();
+        assert!(for_b.delegations.is_empty());
+    }
+
+    #[tokio::test]
     async fn intents_scoped_to_authenticated_user() {
         let state = test_state().await;
         let user_a = AuthUser {
@@ -2497,6 +2526,33 @@ mod tests {
         assert_eq!(listed.strategies.len(), 1);
         assert_eq!(listed.strategies[0].id, created.id);
         assert_eq!(listed.strategies[0].agent_name, "Aave Ace");
+    }
+
+    #[tokio::test]
+    async fn get_strategy_returns_created_strategy_detail() {
+        let state = test_state().await;
+        let body = CreateStrategyRequest {
+            title: "Yield Hunt".to_string(),
+            description: "Find yield.".to_string(),
+            raw_text: "lend 100 USDC on Aave if yield > 3%".to_string(),
+            agent_id: "agent-1".to_string(),
+            risk_profile: "Conservative".to_string(),
+        };
+
+        let created = create_strategy(
+            AxumState(state.clone()),
+            Extension(None::<AuthUser>),
+            Json(body),
+        )
+        .await
+        .unwrap();
+
+        let detail = get_strategy(AxumState(state), Path(created.id.clone()))
+            .await
+            .unwrap();
+        assert_eq!(detail.title, "Yield Hunt");
+        assert_eq!(detail.raw_text, "lend 100 USDC on Aave if yield > 3%");
+        assert!(detail.intent.condition.is_some());
     }
 
     #[tokio::test]
