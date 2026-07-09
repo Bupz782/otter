@@ -2,6 +2,8 @@ pub mod intent;
 pub use intent::{Asset, ConditionalIntent, DexType, Intent, LendingType, Protocol};
 pub mod condition;
 pub use condition::{Comparator, Condition, Metric};
+pub mod strategy;
+pub use strategy::{Strategy, StrategyValidationError};
 pub mod delegation;
 pub mod execution_plan;
 pub mod transaction;
