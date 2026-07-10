@@ -73,7 +73,7 @@ export function CreateIntentPage() {
     if (delegationId && delegations) {
       setSelectedDelegation(delegationId);
     }
-  }, [searchParams, strategy, delegations]);
+  }, [searchParams, strategy, delegations, agentId, delegationId, strategyId]);
 
   const handleParse = async () => {
     if (!text.trim()) return;
