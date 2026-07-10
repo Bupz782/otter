@@ -58,8 +58,6 @@ struct AppState {
     cors_allowed_origins: String,
     event_tx: tokio::sync::broadcast::Sender<Event>,
     agents: Vec<AgentSummary>,
-    #[allow(dead_code)]
-    strategies: Vec<StrategySummary>,
     agent_pubkey: Option<AgentPubkey>,
 }
 
@@ -292,6 +290,7 @@ struct StrategySummary {
     total_volume: u64,
     apy: f64,
     created_at: i64,
+    updated_at: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -678,6 +677,7 @@ fn default_strategies() -> Vec<StrategySummary> {
             total_volume: 5_400_000,
             apy: 4.1,
             created_at: 1_720_000_000,
+            updated_at: 1_720_000_000,
         },
         StrategySummary {
             id: "strategy-2".to_string(),
@@ -691,6 +691,7 @@ fn default_strategies() -> Vec<StrategySummary> {
             total_volume: 2_100_000,
             apy: 0.0,
             created_at: 1_720_500_000,
+            updated_at: 1_720_500_000,
         },
         StrategySummary {
             id: "strategy-3".to_string(),
@@ -704,6 +705,7 @@ fn default_strategies() -> Vec<StrategySummary> {
             total_volume: 1_800_000,
             apy: 5.2,
             created_at: 1_720_900_000,
+            updated_at: 1_720_900_000,
         },
     ]
 }
@@ -803,10 +805,6 @@ async fn main() {
         cors_allowed_origins: config.cors_allowed_origins.clone(),
         event_tx: event_tx.clone(),
         agents: default_agents(),
-        strategies: hydrate_strategies(&storage).await.unwrap_or_else(|err| {
-            tracing::warn!(?err, "failed to hydrate strategies; using defaults");
-            default_strategies()
-        }),
         agent_pubkey: load_private_key(&config)
             .ok()
             .and_then(|(key, _)| load_agent_pubkey(&key)),
@@ -1430,6 +1428,7 @@ fn map_strategy_record_to_summary(record: StrategyRecord) -> StrategySummary {
         total_volume: record.total_volume,
         apy: record.apy,
         created_at: record.created_at,
+        updated_at: record.updated_at,
     }
 }
 
@@ -1469,13 +1468,6 @@ fn agent_name_fallback(agent_id: &str) -> String {
         "agent-4" => "Cross-Chain Carl".to_string(),
         _ => "Otter Agent".to_string(),
     }
-}
-
-async fn hydrate_strategies(
-    storage: &Arc<dyn StoragePort>,
-) -> Result<Vec<StrategySummary>, AppError> {
-    let records = storage.list_strategies().await?;
-    Ok(records.into_iter().map(map_strategy_record_to_summary).collect())
 }
 
 async fn seed_default_strategies(
@@ -2061,7 +2053,6 @@ mod tests {
             cors_allowed_origins: "*".to_string(),
             event_tx: tokio::sync::broadcast::channel(1).0,
             agents: default_agents(),
-            strategies: default_strategies(),
             agent_pubkey: None,
         })
     }
@@ -2112,7 +2103,6 @@ mod tests {
             cors_allowed_origins: state.cors_allowed_origins.clone(),
             event_tx: state.event_tx.clone(),
             agents: state.agents.clone(),
-            strategies: state.strategies.clone(),
             agent_pubkey: state.agent_pubkey.clone(),
         });
 
@@ -2335,7 +2325,6 @@ mod tests {
             cors_allowed_origins: state.cors_allowed_origins.clone(),
             event_tx: state.event_tx.clone(),
             agents: state.agents.clone(),
-            strategies: state.strategies.clone(),
             agent_pubkey: state.agent_pubkey.clone(),
         }
     }

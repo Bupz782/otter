@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2, Check, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
@@ -28,6 +28,10 @@ export function CreateStrategyPage() {
   const [rawText, setRawText] = useState("");
   const [agentId, setAgentId] = useState<string | null>(null);
   const [riskProfile, setRiskProfile] = useState<Strategy["riskProfile"]>("Balanced");
+
+  useEffect(() => {
+    reset();
+  }, [rawText, reset]);
 
   const handleParse = async () => {
     if (!rawText.trim()) return;

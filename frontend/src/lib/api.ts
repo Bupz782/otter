@@ -160,6 +160,7 @@ export interface BackendStrategySummary {
   total_volume: number;
   apy: number;
   created_at: number;
+  updated_at: number;
 }
 
 export interface BackendStrategyDetail extends BackendStrategySummary {
@@ -403,7 +404,7 @@ export function mapBackendStrategy(strategy: BackendStrategySummary): Strategy {
     totalVolume: strategy.total_volume,
     apy: strategy.apy,
     createdAt: new Date(strategy.created_at * 1000).toISOString(),
-    updatedAt: new Date(strategy.created_at * 1000).toISOString(),
+    updatedAt: new Date(strategy.updated_at * 1000).toISOString(),
   };
 }
 
