@@ -1,4 +1,4 @@
-import type { Delegation, Intent, ParsedIntent } from "@/types/app";
+import type { CreateStrategyPayload, Delegation, Intent, ParsedIntent, Strategy } from "@/types/app";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -160,6 +160,13 @@ export interface BackendStrategySummary {
   total_volume: number;
   apy: number;
   created_at: number;
+  updated_at: number;
+}
+
+export interface BackendStrategyDetail extends BackendStrategySummary {
+  intent: BackendConditionalIntent;
+  creator_address: string | null;
+  updated_at: number;
 }
 
 export interface BackendPositionSummary {
@@ -397,6 +404,16 @@ export function mapBackendStrategy(strategy: BackendStrategySummary): Strategy {
     totalVolume: strategy.total_volume,
     apy: strategy.apy,
     createdAt: new Date(strategy.created_at * 1000).toISOString(),
+    updatedAt: new Date(strategy.updated_at * 1000).toISOString(),
+  };
+}
+
+export function mapBackendStrategyDetail(record: BackendStrategyDetail): Strategy {
+  return {
+    ...mapBackendStrategy(record),
+    creatorAddress: record.creator_address ?? undefined,
+    updatedAt: new Date(record.updated_at * 1000).toISOString(),
+    intent: mapBackendConditionalIntent(record.intent),
   };
 }
 
@@ -515,6 +532,16 @@ export const api = {
   },
   strategies: {
     list: () => request<{ strategies: BackendStrategySummary[] }>("/api/v1/strategies"),
+    get: (id: string) => request<BackendStrategyDetail>(`/api/v1/strategies/${id}`),
+    create: (body: CreateStrategyPayload) =>
+      request<{ id: string }>("/api/v1/strategies", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    fork: (id: string) =>
+      request<{ strategy_id: string; redirect_to: string }>(`/api/v1/strategies/${id}/fork`, {
+        method: "POST",
+      }),
   },
   portfolio: {
     get: () => request<BackendPortfolioResponse>("/api/v1/portfolio"),
