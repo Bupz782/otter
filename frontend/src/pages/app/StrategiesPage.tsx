@@ -1,5 +1,5 @@
-import { Link } from "react-router-dom";
-import { BookOpen, Sparkles, Trophy } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { BookOpen, FilePlus, Sparkles, Trophy } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useStrategies } from "@/hooks/useStrategies";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { EmptyState } from "@/components/app/EmptyState";
+import { api } from "@/lib/api";
 
 const riskVariant: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   Conservative: "default",
@@ -16,8 +17,19 @@ const riskVariant: Record<string, "default" | "secondary" | "outline" | "destruc
 };
 
 export function StrategiesPage() {
+  const navigate = useNavigate();
   const { data: strategies, isLoading: strategiesLoading } = useStrategies();
   const { data: leaderboard, isLoading: leaderboardLoading } = useLeaderboard();
+
+  const handleFork = async (strategyId: string) => {
+    try {
+      await api.strategies.fork(strategyId);
+      navigate(`/app/delegations/new?strategy=${strategyId}`);
+    } catch (err) {
+      // TODO surface toast
+      console.error(err);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
@@ -32,6 +44,23 @@ export function StrategiesPage() {
           Official Otter strategies you can use as a starting point.
         </p>
       </motion.div>
+
+      <Card className="border-accent/20 bg-accent-subtle">
+        <CardContent className="flex flex-col items-start justify-between gap-4 p-6 sm:flex-row sm:items-center">
+          <div className="space-y-1">
+            <p className="font-heading text-lg font-bold">Have a winning strategy?</p>
+            <p className="text-sm text-muted-foreground">
+              Publish your own Otter strategy and share it with the community.
+            </p>
+          </div>
+          <Button asChild className="rounded-full">
+            <Link to="/app/strategies/new">
+              <FilePlus className="mr-2 h-4 w-4" />
+              Publish strategy
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-8 lg:grid-cols-3">
         <Card id="onboarding-strategies-list" className="lg:col-span-2">
@@ -83,16 +112,14 @@ export function StrategiesPage() {
                       </div>
                     </div>
                     <Button
-                      asChild
                       id={index === 0 ? "onboarding-strategies-use" : undefined}
                       variant="outline"
                       size="sm"
                       className="shrink-0"
+                      onClick={() => handleFork(strategy.id)}
                     >
-                      <Link to={`/app/intents/new?strategy=${strategy.id}`}>
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        Use strategy
-                      </Link>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Fork strategy
                     </Button>
                   </div>
                 </div>

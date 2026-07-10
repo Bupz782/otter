@@ -21,7 +21,7 @@ import { useParseIntent } from "@/hooks/useParseIntent";
 import { useCreateIntent } from "@/hooks/useCreateIntent";
 import { useDelegations } from "@/hooks/useDelegations";
 import { useAgents } from "@/hooks/useAgents";
-import { useStrategies } from "@/hooks/useStrategies";
+import { useStrategy } from "@/hooks/useStrategy";
 
 const examples = [
   "Lend 1000 USDC on Aave if yield > 3%",
@@ -40,7 +40,10 @@ const steps = [
 export function CreateIntentPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { data: strategies } = useStrategies();
+  const delegationId = searchParams.get("delegation");
+  const strategyId = searchParams.get("strategy");
+  const agentId = searchParams.get("agent");
+  const { data: strategy } = useStrategy(strategyId ?? undefined);
   const [step, setStep] = useState(0);
   const [text, setText] = useState("");
   const [selectedDelegation, setSelectedDelegation] = useState<string | null>(null);
@@ -61,16 +64,16 @@ export function CreateIntentPage() {
   }, [onboardingStep]);
 
   useEffect(() => {
-    const strategyId = searchParams.get("strategy");
-    const agentId = searchParams.get("agent");
-    if (strategyId && strategies) {
-      const strategy = strategies.find((s) => s.id === strategyId);
-      if (strategy) setText(strategy.rawText);
+    if (strategyId && strategy) {
+      setText(strategy.rawText);
     } else if (agentId && delegations) {
       const delegation = delegations.find((d) => d.agentId === agentId);
       if (delegation) setSelectedDelegation(delegation.id);
     }
-  }, [searchParams, strategies, delegations]);
+    if (delegationId && delegations) {
+      setSelectedDelegation(delegationId);
+    }
+  }, [searchParams, strategy, delegations]);
 
   const handleParse = async () => {
     if (!text.trim()) return;

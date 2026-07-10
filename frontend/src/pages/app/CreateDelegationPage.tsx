@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Check, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAgents } from "@/hooks/useAgents";
 import { useCreateDelegation } from "@/hooks/useCreateDelegation";
+import { useStrategy } from "@/hooks/useStrategy";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +26,9 @@ const chains = ["Ethereum", "Arbitrum"];
 
 export function CreateDelegationPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const strategyId = searchParams.get("strategy");
+  const { data: strategy } = useStrategy(strategyId ?? undefined);
   const { data: agents, isLoading: agentsLoading } = useAgents();
   const { mutate: create, isLoading: creating, data: created } = useCreateDelegation();
 
@@ -39,6 +43,15 @@ export function CreateDelegationPage() {
   const [allowedChains, setAllowedChains] = useState<string[]>(["Ethereum"]);
   const [expiryDays, setExpiryDays] = useState(30);
 
+  useEffect(() => {
+    if (strategy?.intent) {
+      setSelectedAgent(strategy.agentId);
+      if (strategy.intent.protocol && protocols.includes(strategy.intent.protocol)) {
+        setAllowedProtocols([strategy.intent.protocol]);
+      }
+    }
+  }, [strategy]);
+
   const toggle = (list: string[], value: string, setter: (v: string[]) => void) => {
     if (list.includes(value)) {
       setter(list.filter((v) => v !== value));
@@ -49,14 +62,20 @@ export function CreateDelegationPage() {
 
   const handleCreate = async () => {
     if (!selectedAgent) return;
-    await create({
+    const created = await create({
       agentId: selectedAgent,
       maxAmounts,
       allowedProtocols,
       allowedChains,
       expiryDays,
     });
-    setTimeout(() => navigate("/app/delegations"), 800);
+    setTimeout(() => {
+      if (strategyId) {
+        navigate(`/app/intents/new?delegation=${created.id}&strategy=${strategyId}`);
+      } else {
+        navigate("/app/delegations");
+      }
+    }, 800);
   };
 
   return (
