@@ -2564,7 +2564,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn fork_strategy_increments_copies() {
+    async fn fork_strategy_handler_increments_copies() {
         let state = test_state().await;
         let body = CreateStrategyRequest {
             title: "Forkable Strategy".to_string(),
@@ -2585,6 +2585,88 @@ mod tests {
 
         let listed = list_strategies(AxumState(state)).await.unwrap();
         assert_eq!(listed.strategies[0].copies, 1);
+    }
+
+    #[tokio::test]
+    async fn create_strategy_requires_auth_when_enabled() {
+        let state = auth_test_state().await;
+        let router = app(state.clone());
+        let req = with_connect_info(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/strategies")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"title":"T","description":"D","raw_text":"Lend 1 USDC on Aave","agent_id":"agent-1","risk_profile":"Conservative"}"#))
+                .unwrap(),
+        );
+        let response = router.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn create_strategy_persists_and_returns_id() {
+        let state = test_state().await;
+        let router = app(state.clone());
+        let req = with_connect_info(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/strategies")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"title":"T","description":"D","raw_text":"Lend 1 USDC on Aave","agent_id":"agent-1","risk_profile":"Conservative"}"#))
+                .unwrap(),
+        );
+        let response = router.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(json["id"].as_str().unwrap().starts_with("strategy-"));
+    }
+
+    #[tokio::test]
+    async fn fork_strategy_increments_copies() {
+        let state = test_state().await;
+        let id = seed_strategy(&state).await;
+        let router = app(state.clone());
+        let req = with_connect_info(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/v1/strategies/{}/fork", id))
+                .body(Body::empty())
+                .unwrap(),
+        );
+        let response = router.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let record = state.storage.get_strategy(&id).await.unwrap().unwrap();
+        assert_eq!(record.copies, 1);
+    }
+
+    async fn seed_strategy(state: &Arc<AppState>) -> String {
+        let record = domain::ports::storage_port::StrategyRecord {
+            id: "strategy-test".to_string(),
+            title: "Test".to_string(),
+            description: "D".to_string(),
+            raw_text: "Lend 1 USDC".to_string(),
+            intent_json: serde_json::to_string(&domain::models::intent::ConditionalIntent {
+                intent: domain::models::intent::Intent::Lend {
+                    asset: domain::models::intent::Asset::Usdc,
+                    amount: 1_000_000,
+                    protocol: domain::models::intent::LendingType::Aave,
+                },
+                condition: None,
+            }).unwrap(),
+            creator_address: None,
+            agent_id: "agent-1".to_string(),
+            risk_profile: "Conservative".to_string(),
+            copies: 0,
+            total_volume: 0,
+            apy: 0.0,
+            created_at: 0,
+            updated_at: 0,
+        };
+        state.storage.save_strategy(&record).await.unwrap();
+        record.id
     }
 
     #[tokio::test]
