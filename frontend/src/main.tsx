@@ -39,6 +39,9 @@ const AgentDetailPage = lazy(() =>
 const StrategiesPage = lazy(() =>
   import("./pages/app/StrategiesPage").then((m) => ({ default: m.StrategiesPage }))
 );
+const CreateStrategyPage = lazy(() =>
+  import("./pages/app/CreateStrategyPage").then((m) => ({ default: m.CreateStrategyPage }))
+);
 const ProofsPage = lazy(() =>
   import("./pages/app/ProofsPage").then((m) => ({ default: m.ProofsPage }))
 );
@@ -72,6 +75,8 @@ export function AppRoutes() {
           <Route path="agents" element={<AgentsPage />} />
           <Route path="agents/:agentId" element={<AgentDetailPage />} />
           <Route path="strategies" element={<StrategiesPage />} />
+          <Route path="strategies/new" element={<CreateStrategyPage />} />
+          <Route path="strategies/:strategyId" element={<StrategiesPage />} />
           <Route path="proofs" element={<ProofsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="marketplace" element={<Navigate to="/app/agents" replace />} />
