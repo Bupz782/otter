@@ -1,17 +1,7 @@
 import { motion } from "framer-motion";
-import { Search, CheckCircle2, Loader2, Clock, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ExecutionStatus, IntentStatus } from "@/types/app";
-
-const stepIcons: Record<IntentStatus, React.ReactNode> = {
-  monitoring: <Search className="h-5 w-5" />,
-  condition_met: <CheckCircle2 className="h-5 w-5" />,
-  proving: <Loader2 className="h-5 w-5 animate-spin" />,
-  submitted: <Clock className="h-5 w-5" />,
-  confirmed: <CheckCircle2 className="h-5 w-5" />,
-  failed: <XCircle className="h-5 w-5" />,
-  revoked: <XCircle className="h-5 w-5" />,
-};
+import { STATUS_PRESENTATION } from "@/lib/status";
+import type { ExecutionStatus } from "@/types/app";
 
 export function KineticTimeline({
   status,
@@ -36,13 +26,19 @@ export function KineticTimeline({
     );
   }
 
+  // The API tells us which step is current; fall back to the last step.
+  const currentIndex = status.steps.findIndex((step) => step.status === status.currentStep);
+  const activeIndex = currentIndex === -1 ? status.steps.length - 1 : currentIndex;
+
   return (
-    <div className="relative space-y-6 py-4 pl-4">
-      <div className="absolute bottom-4 left-[27px] top-4 w-px bg-border" />
+    <div role="list" className="relative space-y-6 py-4 pl-4">
+      <div aria-hidden="true" className="absolute bottom-4 left-[27px] top-4 w-px bg-border" />
       {status.steps.map((step, index) => {
-        const isActive = index === status.steps.length - 1;
+        const isActive = index === activeIndex;
+        const Icon = STATUS_PRESENTATION[step.status].icon;
         return (
           <motion.div
+            role="listitem"
             key={step.status}
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
@@ -57,7 +53,7 @@ export function KineticTimeline({
                   : "border-border bg-secondary text-muted-foreground"
               )}
             >
-              {stepIcons[step.status]}
+              <Icon className="h-5 w-5" />
             </div>
             <div className="flex-1">
               <p className={cn("font-medium", isActive && "text-foreground")}>{step.label}</p>

@@ -4,12 +4,13 @@ import {
   Lightbulb,
   FileSignature,
   Bot,
-  BookOpen,
   ShieldCheck,
   Settings,
   Plus,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useAccount } from "wagmi";
+import { cn, truncateHash } from "@/lib/utils";
+import { useAuthToken } from "@/hooks/useAuthToken";
 
 interface NavItem {
   to: string;
@@ -27,17 +28,17 @@ const navGroups: NavGroup[] = [
   {
     label: "Manage",
     items: [
-      { to: "/app/dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
+      { to: "/app/dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
       {
         to: "/app/intents",
         label: "Intents",
-        icon: <Lightbulb className="h-5 w-5" />,
+        icon: <Lightbulb className="h-4 w-4" />,
         children: [{ to: "/app/intents/new", label: "Create", icon: <Plus className="h-4 w-4" /> }],
       },
       {
         to: "/app/delegations",
         label: "Delegations",
-        icon: <FileSignature className="h-5 w-5" />,
+        icon: <FileSignature className="h-4 w-4" />,
         children: [
           { to: "/app/delegations/new", label: "New", icon: <Plus className="h-4 w-4" /> },
         ],
@@ -46,18 +47,15 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "Discover",
-    items: [
-      { to: "/app/agents", label: "Otter Agents", icon: <Bot className="h-5 w-5" /> },
-      { to: "/app/strategies", label: "Strategies", icon: <BookOpen className="h-5 w-5" /> },
-    ],
+    items: [{ to: "/app/agents", label: "Otter Agents", icon: <Bot className="h-4 w-4" /> }],
   },
   {
     label: "Verify",
-    items: [{ to: "/app/proofs", label: "Proofs", icon: <ShieldCheck className="h-5 w-5" /> }],
+    items: [{ to: "/app/proofs", label: "Proofs", icon: <ShieldCheck className="h-4 w-4" /> }],
   },
   {
     label: "System",
-    items: [{ to: "/app/settings", label: "Settings", icon: <Settings className="h-5 w-5" /> }],
+    items: [{ to: "/app/settings", label: "Settings", icon: <Settings className="h-4 w-4" /> }],
   },
 ];
 
@@ -68,13 +66,12 @@ function SidebarNavItem({ item }: { item: NavItem }) {
   return (
     <div key={item.to}>
       <NavLink
-        id={`onboarding-${item.to.replace("/app/", "").replace("/", "-")}`}
         to={item.to}
         className={cn(
-          "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
           active
-            ? "bg-accent-subtle text-accent"
-            : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            ? "bg-accent-subtle text-accent shadow-[inset_2px_0_0_0_var(--color-accent)]"
+            : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
         )}
       >
         {item.icon}
@@ -103,6 +100,41 @@ function SidebarNavItem({ item }: { item: NavItem }) {
   );
 }
 
+function WalletStatusRow() {
+  const { address, isConnected } = useAccount();
+  const { isAuthenticated } = useAuthToken();
+
+  const { dotClass, label, hint } = !isConnected
+    ? {
+        dotClass: "bg-muted-foreground",
+        label: "Not connected",
+        hint: "Connect a wallet to go live.",
+      }
+    : isAuthenticated
+      ? {
+          dotClass: "bg-emerald-400",
+          label: address ? truncateHash(address) : "Connected",
+          hint: "Wallet connected and signed in.",
+        }
+      : {
+          dotClass: "bg-amber-400",
+          label: address ? truncateHash(address) : "Connected",
+          hint: "Wallet connected. Sign in from the header to go live.",
+        };
+
+  return (
+    <div className="border-t border-border/50 px-3 py-4">
+      <div
+        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs text-muted-foreground"
+        title={hint}
+      >
+        <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotClass)} aria-hidden="true" />
+        <span className="truncate font-medium">{label}</span>
+      </div>
+    </div>
+  );
+}
+
 export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
   return (
     <aside
@@ -111,19 +143,20 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
         mobile ? "h-full" : "fixed left-0 top-0 hidden h-screen w-64 md:flex"
       )}
     >
-      <div className="flex h-16 items-center border-b border-border/50 px-6">
+      <div className="flex h-14 items-center border-b border-border/50 px-6">
         <NavLink
           to="/app/dashboard"
-          className="font-heading text-xl font-bold tracking-tight text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent rounded"
+          className="flex items-center gap-1 rounded font-heading text-xl font-bold tracking-tight text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
         >
           otter
+          <span className="mt-2 h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" />
         </NavLink>
       </div>
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5" aria-label="App navigation">
         {navGroups.map((group) => (
           <div key={group.label}>
-            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+            <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
               {group.label}
             </p>
             <div className="space-y-1">
@@ -135,9 +168,7 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
         ))}
       </nav>
 
-      <div className="border-t border-border/50 p-4">
-        <p className="text-xs text-muted-foreground">Mock mode — no real transactions.</p>
-      </div>
+      <WalletStatusRow />
     </aside>
   );
 }

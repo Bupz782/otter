@@ -40,7 +40,7 @@ export function FlowSchema() {
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
           className="font-heading text-3xl font-bold tracking-tight text-foreground sm:text-4xl md:text-5xl"
         >
-          Trustless execution pipeline
+          Five moves. Zero blind trust.
         </motion.h2>
         <motion.p
           initial={{ opacity: 0, y: 20 }}
@@ -49,7 +49,7 @@ export function FlowSchema() {
           transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
           className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground"
         >
-          From intent to on-chain execution. No custody, no blind trust.
+          From plain-text intent to on-chain execution. Every step verifiable.
         </motion.p>
       </div>
 
@@ -70,7 +70,7 @@ export function FlowSchema() {
               }}
               className="group relative"
             >
-              <div className="relative z-10 flex flex-col gap-4 rounded-xl border border-border/50 bg-card/60 p-5 backdrop-blur-sm transition-colors hover:bg-card">
+              <div className="relative z-10 flex flex-col gap-4 rounded-xl border border-border/50 bg-card/60 p-5 backdrop-blur-sm transition-all duration-300 hover:border-accent/40 hover:bg-card hover:shadow-[0_0_45px_-12px_rgba(200,164,108,0.35)]">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-secondary">
                   <step.icon className="h-5 w-5 text-foreground" aria-hidden="true" />
                 </div>

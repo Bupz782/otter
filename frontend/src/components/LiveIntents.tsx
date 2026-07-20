@@ -1,12 +1,30 @@
 import { motion } from "framer-motion";
-import { Activity, CheckCircle2, Clock } from "lucide-react";
+import { CheckCircle2, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 const activeIntents = [
-  { id: "1", text: "Buy 1 ETH if < 1,800 USDC", chain: "Ethereum", status: "monitoring" },
-  { id: "2", text: "Lend 1,000 USDC if APY > 5%", chain: "Base", status: "monitoring" },
-  { id: "3", text: "Swap ARB to USDC if > $1.20", chain: "Arbitrum", status: "pending" },
+  {
+    id: "1",
+    text: "Buy 1 ETH if < 1,800 USDC",
+    chain: "Ethereum",
+    status: "monitoring",
+    condition: "ETH < 1,800",
+  },
+  {
+    id: "2",
+    text: "Lend 1,000 USDC if APY > 5%",
+    chain: "Base",
+    status: "monitoring",
+    condition: "APY > 5%",
+  },
+  {
+    id: "3",
+    text: "Swap ARB to USDC if > $1.20",
+    chain: "Arbitrum",
+    status: "pending",
+    condition: "ARB > $1.20",
+  },
 ];
 
 const activityLog = [
@@ -31,7 +49,6 @@ function StatusIndicator({ status }: { status: string }) {
         />
       </span>
       <span className="text-xs font-medium text-muted-foreground capitalize">{status}</span>
-      <span className="sr-only">{isMonitoring ? "Monitoring" : "Pending"}</span>
     </div>
   );
 }
@@ -46,15 +63,11 @@ export function LiveIntents() {
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         className="mb-12 max-w-2xl"
       >
-        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-border/60 bg-secondary/50 px-3 py-1 text-xs text-muted-foreground">
-          <Activity className="h-3 w-3 text-accent" />
-          Simulated activity
-        </div>
         <h2 className="font-heading text-3xl font-bold tracking-tight text-foreground sm:text-4xl md:text-5xl">
-          Live intents
+          Example intents
         </h2>
         <p className="mt-4 text-lg text-muted-foreground">
-          Conditions Otter is watching and executing right now.
+          The kinds of conditions Otter watches and executes.
         </p>
       </motion.div>
 
@@ -95,9 +108,9 @@ export function LiveIntents() {
                     <div className="flex items-center gap-3">
                       <Badge
                         variant="secondary"
-                        className="rounded-full bg-accent-subtle text-accent hover:bg-accent/20"
+                        className="rounded-full bg-accent-subtle text-accent"
                       >
-                        condition
+                        {intent.condition}
                       </Badge>
                       <StatusIndicator status={intent.status} />
                     </div>

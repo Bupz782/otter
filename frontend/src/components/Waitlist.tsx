@@ -1,31 +1,50 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, ArrowRight, CheckCircle2, Sparkles, Loader2 } from "lucide-react";
+import { Mail, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const waitlistEndpoint: string | undefined = import.meta.env.VITE_WAITLIST_ENDPOINT || undefined;
 
 export function Waitlist() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState("Please enter a valid email address.");
   const errorId = "waitlist-error";
   const successId = "waitlist-success";
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!emailRegex.test(email)) {
+      setErrorMessage("Please enter a valid email address.");
       setStatus("error");
       return;
     }
     setStatus("loading");
-    // Simulated async submission.
-    setTimeout(() => {
+    // Simulated async submission when no endpoint is configured.
+    if (!waitlistEndpoint) {
+      setTimeout(() => {
+        setStatus("success");
+        setEmail("");
+      }, 1200);
+      return;
+    }
+    try {
+      const res = await fetch(waitlistEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) throw new Error(`Waitlist request failed: ${res.status}`);
       setStatus("success");
       setEmail("");
-    }, 1200);
+    } catch {
+      setErrorMessage("Something went wrong. Please try again.");
+      setStatus("error");
+    }
   };
 
   return (
@@ -42,15 +61,12 @@ export function Waitlist() {
             <div className="pointer-events-none absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-accent/5 blur-3xl" />
 
             <div className="relative mx-auto max-w-2xl text-center">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-border/60 bg-secondary/50 px-3 py-1 text-xs text-muted-foreground">
-                <Sparkles className="h-3 w-3 text-accent" aria-hidden="true" />
-                Early access
-              </div>
               <h2 className="font-heading text-3xl font-bold tracking-tight text-foreground sm:text-4xl md:text-5xl">
-                Get early access
+                Dive in early.
               </h2>
               <p className="mt-4 text-lg text-muted-foreground">
-                Join the waitlist to be among the first to delegate intents on mainnet.
+                Join the waitlist for early mainnet access. First divers get priority onboarding
+                and a say in what Otter executes next.
               </p>
 
               <AnimatePresence mode="wait">
@@ -134,12 +150,12 @@ export function Waitlist() {
 
               {status === "error" && (
                 <p id={errorId} className="mt-3 text-sm text-rose-500" role="alert">
-                  Please enter a valid email address.
+                  {errorMessage}
                 </p>
               )}
 
               <p className="mt-4 text-xs text-muted-foreground">
-                No spam. Unsubscribe at any time.
+                No spam. No token. Just intents.
               </p>
             </div>
           </CardContent>

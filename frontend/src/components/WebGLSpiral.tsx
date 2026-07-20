@@ -82,12 +82,15 @@ export function WebGLSpiral({ className }: { className?: string }) {
       sizes[i] = 0.9 + Math.random() * 1.8;
     }
 
+    const width = canvas.clientWidth || window.innerWidth;
+    const height = canvas.clientHeight || window.innerHeight;
+
     const scene = new Scene();
-    const camera = new PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+    const camera = new PerspectiveCamera(60, width / height, 0.1, 100);
     camera.position.set(0, 0, 3.6);
 
     const renderer = new WebGLRenderer({ canvas, alpha: true, antialias: false });
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
     const geometry = new BufferGeometry();
@@ -120,15 +123,24 @@ export function WebGLSpiral({ className }: { className?: string }) {
     animate();
 
     const onResize = () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
+      const w = canvas.clientWidth || window.innerWidth;
+      const h = canvas.clientHeight || window.innerHeight;
+      camera.aspect = w / h;
       camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setSize(w, h);
     };
     window.addEventListener("resize", onResize);
+
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
+      cancelAnimationFrame(animId);
+    };
+    canvas.addEventListener("webglcontextlost", onContextLost);
 
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener("resize", onResize);
+      canvas.removeEventListener("webglcontextlost", onContextLost);
       geometry.dispose();
       material.dispose();
       renderer.dispose();

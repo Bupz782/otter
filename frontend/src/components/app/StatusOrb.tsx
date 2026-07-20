@@ -1,15 +1,6 @@
 import { cn } from "@/lib/utils";
+import { getStatusPresentation } from "@/lib/status";
 import type { IntentStatus } from "@/types/app";
-
-const statusConfig: Record<IntentStatus, { color: string; pulse: boolean; spin: boolean }> = {
-  monitoring: { color: "bg-amber-400", pulse: true, spin: false },
-  condition_met: { color: "bg-amber-300", pulse: true, spin: false },
-  proving: { color: "bg-accent", pulse: true, spin: true },
-  submitted: { color: "bg-blue-400", pulse: true, spin: false },
-  confirmed: { color: "bg-emerald-400", pulse: false, spin: false },
-  failed: { color: "bg-rose-400", pulse: false, spin: false },
-  revoked: { color: "bg-muted-foreground", pulse: false, spin: false },
-};
 
 export function StatusOrb({
   status,
@@ -20,7 +11,7 @@ export function StatusOrb({
   size?: "sm" | "md" | "lg";
   className?: string;
 }) {
-  const config = statusConfig[status];
+  const config = getStatusPresentation(status);
   const sizeClass = {
     sm: "h-2 w-2",
     md: "h-3 w-3",
@@ -33,18 +24,16 @@ export function StatusOrb({
         className={cn(
           "inline-flex rounded-full",
           sizeClass,
-          config.color,
-          config.spin && "animate-spin",
-          config.pulse && "opacity-90"
+          config.dotClass,
+          config.active && "opacity-90"
         )}
       />
-      {config.pulse && (
+      {config.active && (
         <span
           className={cn(
-            "absolute inline-flex rounded-full opacity-60",
+            "absolute inline-flex animate-ping rounded-full opacity-60",
             sizeClass,
-            config.color,
-            "animate-ping"
+            config.dotClass
           )}
         />
       )}

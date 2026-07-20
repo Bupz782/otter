@@ -47,7 +47,7 @@ export function UseCases() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-          className="mt-4 text-lg text-muted-foreground"
+          className="mx-auto mt-4 max-w-xl text-lg text-muted-foreground"
         >
           Concrete intents you can delegate and verify.
         </motion.p>
@@ -69,7 +69,7 @@ export function UseCases() {
             <Card className="h-full border-border/50 bg-card/60 backdrop-blur-sm transition-colors hover:bg-card">
               <CardHeader>
                 <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-secondary">
-                  <item.icon className="h-5 w-5 text-foreground" />
+                  <item.icon className="h-5 w-5 text-foreground" aria-hidden="true" />
                 </div>
                 <CardTitle className="text-lg">{item.title}</CardTitle>
               </CardHeader>

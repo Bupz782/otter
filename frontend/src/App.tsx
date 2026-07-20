@@ -5,11 +5,13 @@ import { Navigation } from "@/components/Navigation";
 import { HeroSection } from "@/components/HeroSection";
 import { DemoPreview } from "@/components/DemoPreview";
 import { FlowSchema } from "@/components/FlowSchema";
+import { DelegationCard } from "@/components/DelegationCard";
 import { UseCases } from "@/components/UseCases";
 import { LiveIntents } from "@/components/LiveIntents";
 import { TrustSection } from "@/components/TrustSection";
 import { ProtocolStack } from "@/components/ProtocolStack";
-import { Community } from "@/components/Community";
+import { PoweredBy } from "@/components/PoweredBy";
+import { Faq } from "@/components/Faq";
 import { Waitlist } from "@/components/Waitlist";
 import { Footer } from "@/components/Footer";
 import { AmbientBackground } from "@/components/AmbientBackground";
@@ -26,6 +28,12 @@ export function App() {
       main.focus({ preventScroll: true });
     }
   }, [location.pathname]);
+
+  // Client-side navigation does not scroll to anchors on its own.
+  useEffect(() => {
+    if (!location.hash) return;
+    document.getElementById(location.hash.slice(1))?.scrollIntoView();
+  }, [location.hash]);
 
   return (
     <div className="relative min-h-screen bg-background text-foreground">
@@ -45,11 +53,13 @@ export function App() {
             <HeroSection />
             <DemoPreview />
             <FlowSchema />
+            <DelegationCard />
             <UseCases />
             <LiveIntents />
             <TrustSection />
             <ProtocolStack />
-            <Community />
+            <PoweredBy />
+            <Faq />
             <Waitlist />
           </main>
           <Footer />

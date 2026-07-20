@@ -37,12 +37,12 @@ export function HeroSection() {
         className="relative z-10 flex max-w-4xl flex-col items-center text-center"
       >
         <h1 className="font-heading text-balance text-5xl font-bold leading-[1.05] tracking-tight text-foreground sm:text-6xl md:text-7xl lg:text-8xl">
-          Conditional DeFi, executed trustlessly.
+          Set the terms. Otter dives.
         </h1>
 
         <p className="mt-6 max-w-2xl text-balance text-lg text-muted-foreground md:text-xl">
-          Set a condition, sign a limited delegation, and let Otter execute on-chain with
-          zero-knowledge proofs. You keep custody.
+          Describe a condition, sign a limited delegation, and Otter executes the moment it's
+          met, with zero-knowledge proofs. Your keys never leave your hands.
         </p>
 
         <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row">
@@ -53,7 +53,7 @@ export function HeroSection() {
             </Link>
           </Button>
           <Button asChild variant="outline" size="lg" className="rounded-full px-8">
-            <Link to="/demo">Try an intent</Link>
+            <a href="#demo">Try an intent</a>
           </Button>
         </div>
       </motion.div>

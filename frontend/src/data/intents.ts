@@ -86,6 +86,36 @@ export const mockIntents: MockIntent[] = [
   },
 ];
 
+// Candidate tokens per intent: its traded asset plus the tickers in its condition pair.
+function intentTokens(intent: MockIntent): string[] {
+  const tokens = new Set<string>([intent.parsed.asset.toLowerCase()]);
+  for (const token of intent.parsed.condition.match(/[A-Za-z]{2,}/g) ?? []) {
+    tokens.add(token.toLowerCase());
+  }
+  return [...tokens];
+}
+
+// Score every intent by how many of its tokens appear in the prompt (word-boundary
+// match, so "ARB" does not fire inside "barbell"). Most tokens wins, then longest
+// total match, then array order, so the demo stays deterministic. Falls back to the
+// first intent when nothing matches.
+export function matchMockIntent(prompt: string): MockIntent {
+  const scored = mockIntents.map((intent, index) => {
+    const matched = intentTokens(intent).filter((token) =>
+      new RegExp(`\\b${token}\\b`, "i").test(prompt)
+    );
+    return {
+      intent,
+      index,
+      count: matched.length,
+      length: matched.reduce((sum, token) => sum + token.length, 0),
+    };
+  });
+  scored.sort((a, b) => b.count - a.count || b.length - a.length || a.index - b.index);
+  const best = scored[0];
+  return best.count > 0 ? best.intent : mockIntents[0];
+}
+
 export const reasoningSteps = [
   "Parsing natural language intent into structured condition",
   "Resolving target asset, protocol, and chain",

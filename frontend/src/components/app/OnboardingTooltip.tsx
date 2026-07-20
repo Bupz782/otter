@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ArrowRight, ArrowLeft, SkipForward } from "lucide-react";
+import { ArrowRight, ArrowLeft, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface OnboardingTooltipProps {
@@ -98,58 +98,44 @@ export function OnboardingTooltip({
   }
 
   return createPortal(
-    <>
-      <div className="pointer-events-none fixed inset-0 z-[120] bg-black/5" />
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={targetId}
-          initial={{ opacity: 0, scale: 0.95, y: 8 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 8 }}
-          transition={{ duration: 0.2 }}
-          style={style}
-          role="dialog"
-          aria-modal="true"
-          aria-live="polite"
-          className="z-[130] overflow-hidden rounded-2xl border border-white/30 bg-white/[0.13] p-5 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] backdrop-blur-3xl saturate-150"
-        >
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/[0.18] via-white/[0.08] to-transparent pointer-events-none" />
-          <div className="absolute inset-0 rounded-2xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.25)] pointer-events-none" />
-          <div className="relative flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-accent drop-shadow-sm">
-                Step {stepNumber} of {totalSteps}
-              </p>
-              <h3 className="font-heading text-base font-bold text-foreground drop-shadow-sm">{title}</h3>
-              <p className="mt-1 text-sm text-white/90 drop-shadow-sm">{description}</p>
-            </div>
-            <button
-              onClick={onDismiss}
-              className="rounded-full p-1 text-white/80 hover:bg-white/15 hover:text-foreground"
-              aria-label="Dismiss"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <div className="relative mt-5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={onBack} disabled={isFirst} className="text-white/90 hover:bg-white/15 hover:text-foreground">
-                <ArrowLeft className="mr-1 h-3 w-3" />
-                Back
-              </Button>
-              <Button variant="ghost" size="sm" onClick={onSkip} className="text-white/80 hover:bg-white/15 hover:text-foreground">
-                <SkipForward className="mr-2 h-3 w-3" />
-                Skip tour
-              </Button>
-            </div>
-            <Button size="sm" onClick={onNext} className="rounded-full bg-white/90 text-accent-foreground shadow hover:bg-white hover:shadow-lg">
-              {isLast ? "Finish" : "Next"}
-              <ArrowRight className="ml-2 h-3 w-3" />
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={targetId}
+        initial={{ opacity: 0, scale: 0.95, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 8 }}
+        transition={{ duration: 0.2 }}
+        style={style}
+        role="dialog"
+        aria-label={title}
+        aria-live="polite"
+        className="z-[130] rounded-xl border border-border/60 bg-card p-5 backdrop-blur-md"
+      >
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-accent">
+            Step {stepNumber} of {totalSteps}
+          </p>
+          <h3 className="font-heading text-base font-bold text-foreground">{title}</h3>
+          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        </div>
+        <div className="mt-5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={onBack} disabled={isFirst}>
+              <ArrowLeft className="mr-1 h-3 w-3" />
+              Back
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onSkip}>
+              <SkipForward className="mr-2 h-3 w-3" />
+              Skip tour
             </Button>
           </div>
-        </motion.div>
-      </AnimatePresence>
-    </>,
+          <Button size="sm" onClick={onNext} autoFocus className="rounded-full">
+            {isLast ? "Finish" : "Next"}
+            <ArrowRight className="ml-2 h-3 w-3" />
+          </Button>
+        </div>
+      </motion.div>
+    </AnimatePresence>,
     document.body
   );
 }

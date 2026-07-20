@@ -1,20 +1,49 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Filter, Lightbulb } from "lucide-react";
+import { Plus, Lightbulb, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useIntents } from "@/hooks/useIntents";
+import { PageHeader } from "@/components/app/PageHeader";
+import { SectionCard } from "@/components/app/SectionCard";
+import { DataRow } from "@/components/app/DataRow";
 import { IntentStatusBadge } from "@/components/app/IntentStatusBadge";
 import { EmptyState } from "@/components/app/EmptyState";
+import { ErrorState } from "@/components/app/ErrorState";
 import { StatusOrb } from "@/components/app/StatusOrb";
+import { useIntents } from "@/hooks/useIntents";
+import { cn } from "@/lib/utils";
 import type { IntentStatus } from "@/types/app";
+
+const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
+/** Mount-only fade/slide used to stagger the page blocks. */
+function FadeIn({
+  children,
+  delay = 0,
+  className,
+}: {
+  children: ReactNode;
+  delay?: number;
+  className?: string;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: EASE, delay }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 const filters: { label: string; value: IntentStatus | "all" }[] = [
   { label: "All", value: "all" },
   { label: "Monitoring", value: "monitoring" },
+  { label: "Condition met", value: "condition_met" },
   { label: "Proving", value: "proving" },
   { label: "Confirmed", value: "confirmed" },
   { label: "Failed", value: "failed" },
@@ -22,64 +51,70 @@ const filters: { label: string; value: IntentStatus | "all" }[] = [
 
 export function IntentsPage() {
   const [statusFilter, setStatusFilter] = useState<IntentStatus | undefined>(undefined);
-  const { data: intents, isLoading } = useIntents(
-    statusFilter ? { status: statusFilter } : undefined
-  );
+  const {
+    data: intents,
+    isLoading,
+    error,
+    refetch,
+  } = useIntents(statusFilter ? { status: statusFilter } : undefined);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-      >
-        <div>
-          <h1 className="font-heading text-3xl font-bold tracking-tight">Intents</h1>
-          <p className="text-muted-foreground">Manage your conditional DeFi intents.</p>
+      <FadeIn>
+        <PageHeader
+          title="Intents"
+          subtitle="The rules Otter watches for you."
+          action={
+            <Button asChild className="rounded-full">
+              <Link to="/app/intents/new">
+                <Plus className="mr-2 h-4 w-4" />
+                Create intent
+              </Link>
+            </Button>
+          }
+        />
+      </FadeIn>
+
+      <FadeIn delay={0.05}>
+        <div className="flex flex-wrap items-center gap-2">
+          {filters.map((f) => {
+            const isActive = statusFilter === (f.value === "all" ? undefined : f.value);
+            return (
+              <button
+                key={f.value}
+                type="button"
+                aria-pressed={isActive}
+                onClick={() => setStatusFilter(f.value === "all" ? undefined : f.value)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors",
+                  isActive
+                    ? "border-accent/40 bg-accent-subtle text-accent"
+                    : "border-border/60 text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {f.value !== "all" && <StatusOrb status={f.value} size="sm" />}
+                {f.label}
+              </button>
+            );
+          })}
         </div>
-        <Button asChild id="onboarding-intents-create" className="rounded-full">
-          <Link to="/app/intents/new">
-            <Plus className="mr-2 h-4 w-4" />
-            Create intent
-          </Link>
-        </Button>
-      </motion.div>
+      </FadeIn>
 
-      <div id="onboarding-intents-filters" className="flex flex-wrap items-center gap-2">
-        <Filter className="h-4 w-4 text-muted-foreground" />
-        {filters.map((f) => (
-          <Button
-            key={f.value}
-            variant={
-              statusFilter === (f.value === "all" ? undefined : f.value) ? "default" : "outline"
-            }
-            size="sm"
-            onClick={() => setStatusFilter(f.value === "all" ? undefined : f.value)}
-          >
-            {f.value !== "all" && <StatusOrb status={f.value} size="sm" />}
-            {f.label}
-          </Button>
-        ))}
-      </div>
-
-      <Card id="onboarding-intents-list">
-        <CardHeader>
-          <CardTitle>Your intents</CardTitle>
-          <CardDescription>Click an intent to view execution details.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <FadeIn delay={0.1}>
+        <SectionCard title="Your intents" subtitle="Open one to follow its execution.">
           {isLoading ? (
             <div className="space-y-3">
-              <Skeleton className="h-24 w-full" />
-              <Skeleton className="h-24 w-full" />
-              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
             </div>
+          ) : error ? (
+            <ErrorState subject="intents" onRetry={refetch} />
           ) : intents.length === 0 ? (
             <EmptyState
               icon={<Lightbulb className="h-6 w-6" />}
-              title="No intents match this filter"
-              description="Try a different filter or create a new intent."
+              title="No intents to show"
+              description="Try another filter, or set a new intent and Otter starts watching."
               action={
                 <Button asChild variant="outline" className="rounded-full">
                   <Link to="/app/intents/new">Create intent</Link>
@@ -87,38 +122,26 @@ export function IntentsPage() {
               }
             />
           ) : (
-            intents.map((intent) => (
-              <Link
-                key={intent.id}
-                to={`/app/intents/${intent.id}`}
-                className="group flex flex-col gap-3 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-accent/40 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="space-y-1">
-                  <p className="font-medium transition-colors group-hover:text-accent">
-                    {intent.rawText}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <Badge variant="outline">{intent.parsed.type}</Badge>
-                    <span>
-                      {intent.parsed.amount} {intent.parsed.asset}
-                    </span>
-                    <span>·</span>
-                    <span>{intent.parsed.protocol}</span>
-                    <span>·</span>
-                    <span>{intent.parsed.chain}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <IntentStatusBadge status={intent.status} />
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(intent.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-              </Link>
-            ))
+            <div className="space-y-3">
+              {intents.map((intent) => (
+                <Link key={intent.id} to={`/app/intents/${intent.id}`} className="block">
+                  <DataRow>
+                    <IntentStatusBadge status={intent.status} className="shrink-0" />
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium">{intent.rawText}</p>
+                    <div className="hidden shrink-0 items-center gap-3 sm:flex">
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {intent.parsed.condition ?? "Not specified"}
+                      </span>
+                      <Badge variant="outline">{intent.parsed.chain ?? "Any chain"}</Badge>
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </DataRow>
+                </Link>
+              ))}
+            </div>
           )}
-        </CardContent>
-      </Card>
+        </SectionCard>
+      </FadeIn>
     </div>
   );
 }

@@ -1,69 +1,36 @@
-import { useEffect, useRef, useState } from "react";
-import { motion, useInView } from "framer-motion";
-import { ShieldCheck, Lock, Clock, Award, Activity } from "lucide-react";
+import { motion } from "framer-motion";
+import { ShieldCheck, Lock, Clock, Award, Wallet, ListChecks, Network } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
-const metrics = [
-  { label: "Intents parsed", value: 24800, suffix: "+" },
-  { label: "Proofs generated", value: 12400, suffix: "+" },
-  { label: "Vault executions", value: 8900, suffix: "+" },
-  { label: "Active delegations", value: 3400, suffix: "+" },
+const facts = [
+  {
+    icon: Wallet,
+    title: "0 custody",
+    description: "The agent never holds your funds. Assets stay in your wallet until execution.",
+  },
+  {
+    icon: ListChecks,
+    title: "5-step pipeline",
+    description: "Intent, delegation, monitoring, execution, verification. Every step is checkable.",
+  },
+  {
+    icon: Network,
+    title: "3 networks",
+    description: "Ethereum, Base, and Arbitrum supported from day one.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "ZK-verified execution",
+    description: "Noir circuits prove every action respects your delegation limits.",
+  },
 ];
 
 const badges = [
   { icon: ShieldCheck, label: "Auditable circuits" },
   { icon: Lock, label: "Non-custodial" },
   { icon: Clock, label: "24/7 monitoring" },
-  { icon: Award, label: "Open-source verifier" },
+  { icon: Award, label: "On-chain verifier" },
 ];
-
-function AnimatedCounter({
-  value,
-  suffix,
-  label,
-}: {
-  value: number;
-  suffix: string;
-  label: string;
-}) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const isInView = useInView(ref, { once: true, margin: "-100px" });
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    if (!isInView) return;
-    let start = 0;
-    const duration = 1500;
-    const startTime = performance.now();
-
-    const animate = (now: number) => {
-      const progress = Math.min((now - startTime) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      start = Math.floor(eased * value);
-      setCount(start);
-      if (progress < 1) requestAnimationFrame(animate);
-    };
-
-    requestAnimationFrame(animate);
-  }, [isInView, value]);
-
-  return (
-    <>
-      <span
-        ref={ref}
-        aria-hidden="true"
-        className="font-heading text-3xl font-bold text-foreground sm:text-4xl"
-      >
-        {count.toLocaleString()}
-        {suffix}
-      </span>
-      <span className="sr-only">
-        {value.toLocaleString()}
-        {suffix} {label}
-      </span>
-    </>
-  );
-}
 
 export function TrustSection() {
   return (
@@ -89,15 +56,10 @@ export function TrustSection() {
         </motion.p>
       </div>
 
-      <div className="mb-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-        <Activity className="h-3 w-3" aria-hidden="true" />
-        Simulated metrics
-      </div>
-
       <div className="mb-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {metrics.map((metric, index) => (
+        {facts.map((fact, index) => (
           <motion.div
-            key={metric.label}
+            key={fact.title}
             initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
@@ -107,10 +69,15 @@ export function TrustSection() {
               ease: [0.22, 1, 0.36, 1],
             }}
           >
-            <Card className="border-border/50 bg-card/60 text-center backdrop-blur-sm">
+            <Card className="h-full border-border/50 bg-card/60 backdrop-blur-sm transition-colors hover:bg-card">
               <CardContent className="p-6">
-                <AnimatedCounter {...metric} />
-                <p className="mt-2 text-sm text-muted-foreground">{metric.label}</p>
+                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-secondary">
+                  <fact.icon className="h-5 w-5 text-foreground" aria-hidden="true" />
+                </div>
+                <p className="font-heading text-lg font-bold text-foreground">{fact.title}</p>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  {fact.description}
+                </p>
               </CardContent>
             </Card>
           </motion.div>

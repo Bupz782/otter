@@ -13,6 +13,12 @@ export const INTENT_TYPE_INDICES: Record<string, number> = {
   claim: 9,
 };
 
+// Protocol ids are field VALUES, not array slots. They mirror the backend
+// mapping used when the agent proposes an intent
+// (crates/application/src/use_cases/execute_intent.rs `dex_protocol_id` /
+// `lending_protocol_id`), and the circuit checks that the proposed id appears
+// somewhere in the delegation's allowed_protocols array
+// (delegation_circuit/src/main.nr `contains`).
 export const PROTOCOL_INDICES: Record<string, number> = {
   Uniswap: 1,
   Sushiswap: 2,
@@ -105,20 +111,25 @@ export function buildDelegationMessage(
     }
   }
 
+  // Pack the selected protocol ids into consecutive slots; unused slots stay
+  // zero. (The old code used the id as the array index, which put Compound
+  // (5) out of bounds for this fixed 5-slot array.)
   const allowedProtocolsArray: string[] = Array(ALLOWED_PROTOCOL_COUNT).fill(fieldFromU256(0n));
+  let slot = 0;
   for (const protocol of allowedProtocols) {
-    const index = PROTOCOL_INDICES[protocol];
-    if (index !== undefined) {
-      allowedProtocolsArray[index] = padHex32(
-        "0x000000000000000000000000" + protocol.toLowerCase().padEnd(8, "0")
-      );
+    const value = PROTOCOL_INDICES[protocol];
+    if (value !== undefined && slot < ALLOWED_PROTOCOL_COUNT) {
+      allowedProtocolsArray[slot] = fieldFromU32(value);
+      slot += 1;
     }
   }
 
   return {
     pubkey_x: padHex32(pubkeyX),
     pubkey_y: padHex32(pubkeyY),
-    allowed_intents: fieldFromU8(allowedIntentsBitmap),
+    // The bitmap can exceed one byte (withdraw/claim use reserved bits 8/9),
+    // and the backend encodes it as a u32 field, so do the same here.
+    allowed_intents: fieldFromU32(allowedIntentsBitmap),
     max_amounts: maxAmounts,
     allowed_protocols: allowedProtocolsArray,
     expiry: fieldFromU64(BigInt(expirySeconds)),

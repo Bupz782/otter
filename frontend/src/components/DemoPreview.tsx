@@ -1,13 +1,11 @@
 import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, Bot } from "lucide-react";
-import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import { Bot } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PromptInput } from "@/components/demo/PromptInput";
 import { ReasoningSteps } from "@/components/demo/ReasoningSteps";
 import { IntentResults } from "@/components/demo/IntentResults";
-import { mockIntents } from "@/data/intents";
+import { mockIntents, matchMockIntent } from "@/data/intents";
 
 export function DemoPreview() {
   const [isLoading, setIsLoading] = useState(false);
@@ -22,10 +20,7 @@ export function DemoPreview() {
     setShowReasoning(true);
     setShowResults(false);
 
-    const lower = prompt.toLowerCase();
-    const matched =
-      mockIntents.find((i) => lower.includes(i.parsed.asset.toLowerCase())) || mockIntents[0];
-    setSelectedIntent(matched);
+    setSelectedIntent(matchMockIntent(prompt));
   }, []);
 
   const handleReasoningComplete = useCallback(() => {
@@ -35,7 +30,7 @@ export function DemoPreview() {
   }, []);
 
   return (
-    <section className="relative z-10 mx-auto max-w-5xl px-6 py-28">
+    <section id="demo" className="relative z-10 mx-auto max-w-5xl scroll-mt-20 px-6 py-28">
       <div className="mb-12 text-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -100,21 +95,6 @@ export function DemoPreview() {
             <IntentResults intent={selectedIntent} />
           </motion.div>
         )}
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6, delay: 0.3 }}
-        className="mt-10 text-center"
-      >
-        <Button asChild variant="outline" className="rounded-full">
-          <Link to="/demo">
-            Open full demo
-            <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-          </Link>
-        </Button>
       </motion.div>
     </section>
   );

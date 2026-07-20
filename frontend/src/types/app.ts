@@ -9,7 +9,7 @@ export interface ParsedIntent {
   asset: string;
   protocol: string;
   condition?: string;
-  chain: string;
+  chain?: string;
 }
 
 export interface Intent {
@@ -25,17 +25,19 @@ export interface Intent {
   mevRebate?: number;
 }
 
+// The backend only returns the delegation hash and creation time; every
+// other field is optional and rendered as a fallback when absent.
 export interface Delegation {
   id: string;
-  userAddress: string;
-  agentId: string;
-  agentName: string;
-  maxAmounts: Record<IntentType, number>;
-  allowedProtocols: string[];
-  allowedChains: string[];
-  expiry: string;
   createdAt: string;
-  status: "active" | "revoked" | "expired";
+  userAddress?: string;
+  agentId?: string;
+  agentName?: string;
+  maxAmounts?: Record<IntentType, number>;
+  allowedProtocols?: string[];
+  allowedChains?: string[];
+  expiry?: string;
+  status?: "active" | "revoked" | "expired";
 }
 
 export interface Agent {
@@ -67,14 +69,6 @@ export interface Strategy {
   totalVolume: number;
   apy: number;
   createdAt: string;
-}
-
-export interface ComparisonPoint {
-  id: string;
-  title: string;
-  icon: string;
-  comparison: string;
-  description: string;
 }
 
 export interface Portfolio {

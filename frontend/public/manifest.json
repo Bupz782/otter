@@ -1,6 +1,6 @@
 {
   "short_name": "Otter",
-  "name": "Otter — Trustless DeFi intents",
+  "name": "Otter · Trustless DeFi intents",
   "description": "Conditional DeFi execution with zero-knowledge proofs.",
   "start_url": "/",
   "display": "standalone",

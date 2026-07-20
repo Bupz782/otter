@@ -24,6 +24,7 @@ export function PromptInput({ onSubmit, isLoading }: PromptInputProps) {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="Describe your intent. Example: buy 1 ETH if it drops under 1,800 USDC..."
+          aria-label="Describe your intent"
           className="min-h-[120px] resize-none rounded-2xl border-border/60 bg-card/80 py-4 pl-5 pr-14 text-base backdrop-blur-md"
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -37,6 +38,7 @@ export function PromptInput({ onSubmit, isLoading }: PromptInputProps) {
           className="absolute bottom-3 right-3 h-10 w-10 rounded-xl"
           onClick={handleSubmit}
           disabled={isLoading || !prompt.trim()}
+          aria-label="Submit intent"
         >
           <ArrowRight className="h-4 w-4" />
         </Button>

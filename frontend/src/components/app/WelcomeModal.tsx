@@ -58,7 +58,9 @@ export function WelcomeModal({ onStart, onSkip }: { onStart: () => void; onSkip:
           <h2 id="welcome-title" className="font-heading text-3xl font-bold">
             Welcome to Otter
           </h2>
-          <p className="mt-2 text-muted-foreground">Three things to know before you start.</p>
+          <p className="mt-2 text-muted-foreground">
+            Set the terms. Otter dives. Three things to know before you start.
+          </p>
         </div>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
@@ -81,7 +83,7 @@ export function WelcomeModal({ onStart, onSkip }: { onStart: () => void; onSkip:
 
         <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <Button variant="ghost" onClick={onSkip}>
-            Skip for now
+            Skip tour
           </Button>
           <Button onClick={onStart} className="rounded-full">
             Start the tour

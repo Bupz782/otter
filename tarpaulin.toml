@@ -1,0 +1,10 @@
+# Configuration cargo-tarpaulin — mesure de couverture du workspace Rust.
+# Usage : cargo tarpaulin   (produit coverage/tarpaulin-report.html + résumé console)
+# Voir docs/CAHIER_DE_RECETTES.md et docs/PLAN_CORRECTION_BOGUES.md (§3.1).
+
+[all]
+workspace = true
+lib = true
+out = ["Html", "Stdout"]
+output-dir = "coverage"
+timeout = 300

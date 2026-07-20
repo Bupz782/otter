@@ -36,7 +36,6 @@ export function Navigation() {
     { label: "Intents", href: "#intents" },
     { label: "Trust", href: "#trust" },
     { label: "Protocol", href: "#protocol" },
-    { label: "Community", href: "#community" },
   ];
 
   return (

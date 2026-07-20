@@ -60,35 +60,27 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem("otter-onboarding-step");
       restart();
       params.delete("onboarding");
-      navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
+      // Land on the dashboard (where every tour step lives) with the param stripped.
+      navigate({ pathname: "/app/dashboard", search: params.toString() }, { replace: true });
     }
   }, [location.search, location.pathname, navigate, restart]);
 
-  // Navigate automatically when the current step is on another page.
-  useEffect(() => {
-    if (!isOpen || !stepMeta || !hasHydrated) return;
-    if (location.pathname !== stepMeta.page) {
-      navigate(stepMeta.page);
-    }
-  }, [isOpen, stepMeta, location.pathname, navigate, hasHydrated]);
-
-  // Resolve target id once we are on the right page.
+  // Resolve the target id for the current step. The tour never navigates
+  // by itself: all steps live on the dashboard, and entry points
+  // (restart, startTour, ?onboarding=) already land there.
   useEffect(() => {
     if (!isOpen || !stepMeta || !hasHydrated) {
       setTargetId(null);
       setTargetReady(false);
       return;
     }
-    if (location.pathname === stepMeta.page) {
-      setTargetId(`onboarding-${stepMeta.id}`);
-    } else {
-      // Don't show the tooltip/spotlight while auto-navigating to another page.
-      setTargetId(null);
-      setTargetReady(false);
-    }
-  }, [isOpen, stepMeta, location.pathname, hasHydrated]);
+    setTargetId(`onboarding-${stepMeta.id}`);
+    setTargetReady(false);
+  }, [isOpen, stepMeta, hasHydrated]);
 
-  // Wait for the target element to appear in the DOM.
+  // Wait for the target element to appear in the DOM. If it never does,
+  // auto-advance to the next step instead of freezing; once the last step
+  // is skipped this way, advance() completes the tour gracefully.
   useEffect(() => {
     if (!targetId) {
       setTargetReady(false);
@@ -110,8 +102,8 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (attempts > 120) {
-        // ~2 seconds; give up and show floating tooltip anyway.
-        setTargetReady(true);
+        // ~2 seconds: target is missing, skip to the next step.
+        advance();
         return;
       }
       raf.current = requestAnimationFrame(check);
@@ -121,7 +113,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       clearTimeout(timeout);
       cancelAnimationFrame(raf.current);
     };
-  }, [targetId]);
+  }, [targetId, advance]);
 
   const currentStepIndex = step
     ? Math.max(
@@ -162,7 +154,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
             onBack={back}
             onSkip={skip}
             onDismiss={dismiss}
-            isLast={step === "proofs-list"}
+            isLast={step === ONBOARDING_STEPS[ONBOARDING_STEPS.length - 1].id}
             isFirst={currentStepIndex === 1}
             stepNumber={currentStepIndex}
             totalSteps={totalSteps}

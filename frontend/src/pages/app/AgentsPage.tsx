@@ -1,12 +1,43 @@
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Bot, Star, Lock } from "lucide-react";
+import { Bot, Lock, ArrowRight, BookOpen, Trophy } from "lucide-react";
 import { motion } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAgents } from "@/hooks/useAgents";
+import { PageHeader } from "@/components/app/PageHeader";
+import { SectionCard } from "@/components/app/SectionCard";
+import { DataRow } from "@/components/app/DataRow";
 import { EmptyState } from "@/components/app/EmptyState";
+import { ErrorState } from "@/components/app/ErrorState";
+import { useAgents } from "@/hooks/useAgents";
+import { useStrategies } from "@/hooks/useStrategies";
+import { useLeaderboard } from "@/hooks/useLeaderboard";
+import type { Agent } from "@/types/app";
+
+const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
+/** Mount-only fade/slide used to stagger the page blocks. */
+function FadeIn({
+  children,
+  delay = 0,
+  className,
+}: {
+  children: ReactNode;
+  delay?: number;
+  className?: string;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: EASE, delay }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 const riskVariant: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   Conservative: "default",
@@ -14,129 +45,197 @@ const riskVariant: Record<string, "default" | "secondary" | "outline" | "destruc
   Advanced: "outline",
 };
 
+function agentStats(agent: Agent): { label: string; value: string }[] {
+  return [
+    { label: "Yield routed", value: `$${(agent.yieldGenerated / 1_000_000).toFixed(1)}M` },
+    { label: "Proofs", value: agent.proofsSubmitted.toLocaleString() },
+    { label: "Uptime", value: `${agent.uptime}%` },
+    { label: "Rebates", value: `$${agent.mevCaptured.toLocaleString()}` },
+  ];
+}
+
 export function AgentsPage() {
-  const { data: agents, isLoading } = useAgents();
+  const { data: agents, isLoading, error, refetch } = useAgents();
+  const {
+    data: strategies,
+    isLoading: strategiesLoading,
+    error: strategiesError,
+    refetch: refetchStrategies,
+  } = useStrategies();
+  const {
+    data: leaderboard,
+    isLoading: leaderboardLoading,
+    error: leaderboardError,
+    refetch: refetchLeaderboard,
+  } = useLeaderboard();
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="space-y-2"
-      >
-        <div>
-          <h1 className="font-heading text-3xl font-bold tracking-tight">Otter Agents</h1>
-          <p className="text-muted-foreground">
-            Protocol-operated execution agents you can delegate to within your own limits.
-          </p>
-        </div>
-      </motion.div>
+      <FadeIn>
+        <PageHeader
+          title="Otter Agents"
+          subtitle="Vetted agents that execute inside your signed limits."
+        />
+      </FadeIn>
 
-      <Card className="border-accent/20 bg-accent-subtle/30">
-        <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-accent">
-              <Lock className="h-5 w-5" />
+      <FadeIn delay={0.05}>
+        <SectionCard className="py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-secondary">
+              <Lock className="h-4 w-4 text-accent" />
             </div>
-            <div>
-              <p className="font-heading text-base font-bold">Otter-curated agents only</p>
-              <p className="text-sm text-muted-foreground">
-                These agents are protocol-operated, bonded, and audited. You cannot upload or run
-                your own agent.
-              </p>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">Vetted agents only.</span> Every agent
+              is protocol-operated, bonded, and audited. Signed limits, not API keys.
+            </p>
           </div>
-          <div className="shrink-0 text-xs text-muted-foreground">
-            vs. user-run bots: signed limits, not API keys.
-          </div>
-        </CardContent>
-      </Card>
+        </SectionCard>
+      </FadeIn>
 
-      <Card id="onboarding-agents-list">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bot className="h-5 w-5 text-accent" />
-            Curated agents
-          </CardTitle>
-          <CardDescription>
-            Each agent is bonded, audited, and can only act within the delegation limits you sign.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <FadeIn delay={0.1}>
+        <div className="grid gap-6 sm:grid-cols-2">
           {isLoading ? (
             <>
               <Skeleton className="h-56 w-full" />
               <Skeleton className="h-56 w-full" />
-              <Skeleton className="h-56 w-full" />
             </>
-          ) : agents?.length === 0 ? (
-            <EmptyState
-              icon={<Bot className="h-6 w-6" />}
-              title="No agents available"
-              description="Otter agents are protocol-curated. Check back soon."
-            />
+          ) : error ? (
+            <div className="sm:col-span-2">
+              <ErrorState subject="agents" onRetry={refetch} />
+            </div>
+          ) : agents.length === 0 ? (
+            <div className="sm:col-span-2">
+              <EmptyState
+                icon={<Bot className="h-6 w-6" />}
+                title="No agents available"
+                description="Every Otter agent is bonded and audited. Check back soon."
+              />
+            </div>
           ) : (
-            agents?.map((agent, index) => (
-              <Link
-                key={agent.id}
-                to={`/app/agents/${agent.id}`}
-                className="group flex flex-col rounded-xl border border-border/60 bg-card p-5 transition-colors hover:border-accent/40"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-subtle text-accent">
-                      <span className="font-heading text-lg font-bold">{agent.name.charAt(0)}</span>
-                    </div>
-                    <div>
-                      <p className="font-heading text-lg font-bold transition-colors group-hover:text-accent">
-                        {agent.name}
-                      </p>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Star className="h-3 w-3 text-accent" />
-                        {agent.reputation}
-                      </div>
-                    </div>
-                  </div>
-                  <span id={index === 0 ? "onboarding-agents-risk" : undefined}>
-                    <Badge variant={riskVariant[agent.riskProfile]} className="text-[10px]">
+            agents.map((agent) => (
+              <Link key={agent.id} to={`/app/agents/${agent.id}`} className="group block h-full">
+                <SectionCard className="flex h-full flex-col transition-colors hover:border-accent/40">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="font-heading text-lg font-bold transition-colors group-hover:text-accent">
+                      {agent.name}
+                    </p>
+                    <Badge
+                      variant={riskVariant[agent.riskProfile]}
+                      className="shrink-0 text-[10px]"
+                    >
                       {agent.riskProfile}
                     </Badge>
+                  </div>
+                  <p className="mt-1 truncate text-sm text-muted-foreground">{agent.description}</p>
+                  <div className="mt-4 grid flex-1 grid-cols-2 content-start gap-3 sm:grid-cols-4">
+                    {agentStats(agent).map((stat) => (
+                      <div key={stat.label}>
+                        <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                          {stat.label}
+                        </p>
+                        <p className="mt-0.5 text-sm font-medium tabular-nums">{stat.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-accent">
+                    View agent
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                   </span>
-                </div>
-
-                <p className="mt-4 flex-1 text-sm text-muted-foreground">{agent.description}</p>
-
-                <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-                  <div className="rounded-lg bg-secondary p-2">
-                    <p className="text-xs text-muted-foreground">Proofs</p>
-                    <p className="font-medium">{agent.proofsSubmitted.toLocaleString()}</p>
-                  </div>
-                  <div className="rounded-lg bg-secondary p-2">
-                    <p className="text-xs text-muted-foreground">Yield</p>
-                    <p className="font-medium">${(agent.yieldGenerated / 1_000_000).toFixed(1)}M</p>
-                  </div>
-                  <div className="rounded-lg bg-secondary p-2">
-                    <p className="text-xs text-muted-foreground">MEV</p>
-                    <p className="font-medium">${agent.mevCaptured.toLocaleString()}</p>
-                  </div>
-                  <div className="rounded-lg bg-secondary p-2">
-                    <p className="text-xs text-muted-foreground">Uptime</p>
-                    <p className="font-medium">{agent.uptime}%</p>
-                  </div>
-                </div>
-
-                <Button
-                  id={index === 0 ? "onboarding-agents-delegate" : undefined}
-                  className="mt-4 w-full rounded-full opacity-90 transition-opacity group-hover:opacity-100"
-                >
-                  View agent
-                </Button>
+                </SectionCard>
               </Link>
             ))
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </FadeIn>
+
+      <FadeIn delay={0.15}>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <SectionCard
+            title="Official strategies"
+            subtitle="Curated, audited strategies from Otter agents."
+            className="lg:col-span-2"
+          >
+            {strategiesLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-16 w-full" />
+              </div>
+            ) : strategiesError ? (
+              <ErrorState subject="strategies" onRetry={refetchStrategies} />
+            ) : strategies.length === 0 ? (
+              <EmptyState
+                icon={<BookOpen className="h-6 w-6" />}
+                title="No strategies yet"
+                description="Otter will publish new strategies as agents are added."
+              />
+            ) : (
+              <div className="space-y-3">
+                {strategies.map((strategy) => (
+                  <DataRow key={strategy.id}>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-medium">{strategy.title}</p>
+                        <Badge variant="secondary" className="shrink-0">
+                          {strategy.agentName}
+                        </Badge>
+                      </div>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {strategy.description}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+                        {strategy.copies.toLocaleString()} users · $
+                        {strategy.totalVolume.toLocaleString()} volume
+                        {strategy.apy > 0 && (
+                          <span className="text-emerald-400"> · +{strategy.apy}% APY</span>
+                        )}
+                      </p>
+                    </div>
+                    <Button asChild variant="ghost" size="sm" className="shrink-0">
+                      <Link to={`/app/intents/new?strategy=${strategy.id}`}>Use strategy</Link>
+                    </Button>
+                  </DataRow>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+
+          <SectionCard title="Agent Leaderboard" subtitle="Ranked by proof count.">
+            {leaderboardLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ) : leaderboardError ? (
+              <ErrorState subject="the leaderboard" onRetry={refetchLeaderboard} />
+            ) : leaderboard.length === 0 ? (
+              <EmptyState
+                icon={<Trophy className="h-6 w-6" />}
+                title="No rankings yet"
+                description="Agents climb the board as they submit proofs."
+              />
+            ) : (
+              <div className="space-y-3">
+                {leaderboard.slice(0, 5).map((entry) => (
+                  <Link key={entry.agentId} to={`/app/agents/${entry.agentId}`} className="block">
+                    <DataRow>
+                      <span className="w-5 shrink-0 font-heading text-lg font-bold text-accent tabular-nums">
+                        {entry.rank}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                        {entry.agentName}
+                      </span>
+                      <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                        {entry.proofsSubmitted.toLocaleString()} proofs
+                      </span>
+                    </DataRow>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+        </div>
+      </FadeIn>
     </div>
   );
 }

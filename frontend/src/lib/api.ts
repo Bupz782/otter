@@ -4,12 +4,19 @@ const API_BASE = import.meta.env.VITE_API_URL || "";
 
 let authToken: string | null = null;
 
+// Fired on window after setAuthToken so hooks and components in this tab
+// react to sign-in/sign-out. Cross-tab sync uses the native storage event.
+export const AUTH_TOKEN_CHANGED_EVENT = "otter-auth-changed";
+
 export function setAuthToken(token: string | null) {
   authToken = token;
   if (token) {
     localStorage.setItem("otter_token", token);
   } else {
     localStorage.removeItem("otter_token");
+  }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_TOKEN_CHANGED_EVENT));
   }
 }
 
@@ -265,6 +272,7 @@ export function mapBackendConditionalIntent(conditional: BackendConditionalInten
   const condition = formatCondition(conditional.condition);
   const inner = conditional.intent;
 
+  // The backend payload carries no chain; leave it undefined instead of guessing.
   if ("Lend" in inner) {
     return {
       type: "lend",
@@ -272,7 +280,6 @@ export function mapBackendConditionalIntent(conditional: BackendConditionalInten
       asset: assetSymbol(inner.Lend.asset),
       protocol: lendingProtocolName(inner.Lend.protocol),
       condition,
-      chain: "Ethereum",
     };
   }
 
@@ -283,7 +290,6 @@ export function mapBackendConditionalIntent(conditional: BackendConditionalInten
       asset: assetSymbol(inner.Stake.asset),
       protocol: lendingProtocolName(inner.Stake.protocol),
       condition,
-      chain: "Ethereum",
     };
   }
 
@@ -294,7 +300,6 @@ export function mapBackendConditionalIntent(conditional: BackendConditionalInten
       asset: assetSymbol(inner.Borrow.asset),
       protocol: lendingProtocolName(inner.Borrow.protocol),
       condition,
-      chain: "Ethereum",
     };
   }
 
@@ -305,7 +310,6 @@ export function mapBackendConditionalIntent(conditional: BackendConditionalInten
       asset: assetSymbol(inner.Swap.from_asset),
       protocol: dexProtocolName(inner.Swap.protocol),
       condition,
-      chain: "Ethereum",
     };
   }
 
@@ -316,7 +320,6 @@ export function mapBackendConditionalIntent(conditional: BackendConditionalInten
     asset: "USDC",
     protocol: protocolName(inner),
     condition,
-    chain: "Ethereum",
   };
 }
 
@@ -354,15 +357,7 @@ export function mapBackendIntent(record: BackendIntentRecord): Intent {
 export function mapBackendDelegation(record: BackendDelegationRecord): Delegation {
   return {
     id: record.hash,
-    userAddress: "",
-    agentId: "agent-1",
-    agentName: "Aave Ace",
-    maxAmounts: { lend: 5000, swap: 2000, withdraw: 3000, claim: 1000 },
-    allowedProtocols: ["Aave"],
-    allowedChains: ["Ethereum"],
-    expiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
     createdAt: new Date(record.created_at * 1000).toISOString(),
-    status: "active",
   };
 }
 
@@ -511,6 +506,9 @@ export const api = {
   agents: {
     list: () => request<{ agents: BackendAgentSummary[] }>("/api/v1/agents"),
     get: (id: string) => request<BackendAgentSummary>(`/api/v1/agents/${id}`),
+    // The backend serves a single configured agent key and ignores the id in
+    // this path (get_agent_pubkey in crates/interfaces/src/bin/metis_api.rs
+    // has no path extractor). Per-agent pubkeys are a backend follow-up.
     pubkey: () => request<BackendAgentPubkeyResponse>("/api/v1/agents/otter-agent/pubkey"),
   },
   strategies: {

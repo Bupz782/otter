@@ -34,10 +34,7 @@ export function Spotlight({ targetId }: { targetId: string }) {
   };
 
   return createPortal(
-    <div
-      style={style}
-      className="rounded-2xl ring-2 ring-accent ring-offset-0 shadow-[0_0_24px_rgba(200,164,108,0.25)]"
-    />,
+    <div style={style} className="rounded-2xl ring-2 ring-accent/60 ring-offset-0" />,
     document.body
   );
 }

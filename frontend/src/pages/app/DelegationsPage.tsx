@@ -1,102 +1,156 @@
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Plus, FileSignature, ShieldCheck } from "lucide-react";
+import { Plus, FileSignature } from "lucide-react";
 import { motion } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/app/PageHeader";
+import { SectionCard } from "@/components/app/SectionCard";
+import { DataRow } from "@/components/app/DataRow";
+import { EmptyState } from "@/components/app/EmptyState";
+import { ErrorState } from "@/components/app/ErrorState";
 import { useDelegations } from "@/hooks/useDelegations";
+import { getStatusPresentation, type StatusPresentation } from "@/lib/status";
+import { truncateHash, cn } from "@/lib/utils";
+import type { Delegation } from "@/types/app";
+
+const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
+/** Mount-only fade/slide used to stagger the page blocks. */
+function FadeIn({
+  children,
+  delay = 0,
+  className,
+}: {
+  children: ReactNode;
+  delay?: number;
+  className?: string;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: EASE, delay }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+/**
+ * Delegation records only carry a status on demo fixtures; real backend
+ * records are just hash + createdAt, and a returned delegation is active by
+ * definition (no revoke endpoint exists), so it shows a muted "Active".
+ */
+function delegationStatus(delegation: Delegation): StatusPresentation {
+  switch (delegation.status) {
+    case "revoked":
+      return getStatusPresentation("revoked");
+    case "expired":
+      return { ...getStatusPresentation("revoked"), label: "Expired" };
+    case "active":
+      return { ...getStatusPresentation("confirmed"), label: "Active" };
+    default:
+      return { ...getStatusPresentation("revoked"), label: "Active" };
+  }
+}
 
 export function DelegationsPage() {
-  const { data: delegations, isLoading } = useDelegations();
+  const { data: delegations, isLoading, error, refetch } = useDelegations();
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-      >
-        <div>
-          <h1 className="font-heading text-3xl font-bold tracking-tight">Delegations</h1>
-          <p className="text-muted-foreground">
-            Agents you have authorized to execute intents on your behalf.
-          </p>
-        </div>
-        <Button asChild className="rounded-full">
-          <Link to="/app/delegations/new">
-            <Plus className="mr-2 h-4 w-4" />
-            New delegation
-          </Link>
-        </Button>
-      </motion.div>
+      <FadeIn>
+        <PageHeader
+          title="Delegations"
+          subtitle="Your agents, on a leash."
+          action={
+            <Button asChild className="rounded-full">
+              <Link to="/app/delegations/new">
+                <Plus className="mr-2 h-4 w-4" />
+                New delegation
+              </Link>
+            </Button>
+          }
+        />
+      </FadeIn>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-accent" />
-            Active delegations
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <FadeIn delay={0.05}>
+        <SectionCard
+          title="Signed delegations"
+          subtitle="An agent executes only inside the limits you sign."
+        >
           {isLoading ? (
             <div className="space-y-3">
-              <Skeleton className="h-32 w-full" />
-              <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
             </div>
-          ) : delegations?.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border py-16 text-center">
-              <FileSignature className="mx-auto h-10 w-10 text-muted-foreground" />
-              <p className="mt-4 text-muted-foreground">No delegations yet.</p>
-              <Button asChild className="mt-4 rounded-full">
-                <Link to="/app/delegations/new">Create your first delegation</Link>
-              </Button>
-            </div>
+          ) : error ? (
+            <ErrorState subject="delegations" onRetry={refetch} />
+          ) : delegations.length === 0 ? (
+            <EmptyState
+              icon={<FileSignature className="h-6 w-6" />}
+              title="No delegations yet"
+              description="Sign a delegation and an Otter agent starts working inside your limits."
+              action={
+                <Button asChild className="rounded-full">
+                  <Link to="/app/delegations/new">Create your first delegation</Link>
+                </Button>
+              }
+            />
           ) : (
-            delegations?.map((delegation) => (
-              <div
-                key={delegation.id}
-                className="rounded-xl border border-border/60 bg-card p-5 transition-colors hover:border-accent/40"
-              >
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <p className="font-heading text-lg font-bold">{delegation.agentName}</p>
-                      <Badge variant={delegation.status === "active" ? "default" : "outline"}>
-                        {delegation.status}
-                      </Badge>
+            <div className="space-y-3">
+              {delegations.map((delegation) => {
+                const status = delegationStatus(delegation);
+                return (
+                  <DataRow key={delegation.id}>
+                    <div className="w-32 shrink-0">
+                      <p className="truncate font-mono text-sm">{truncateHash(delegation.id)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Signed {new Date(delegation.createdAt).toLocaleDateString()}
+                      </p>
                     </div>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Expires {new Date(delegation.expiry).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <Button variant="outline" size="sm" disabled={delegation.status !== "active"}>
-                    Revoke
-                  </Button>
-                </div>
-
-                <div className="mt-4 grid gap-3 border-t border-border/50 pt-4 sm:grid-cols-3">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Allowed protocols</p>
-                    <p className="text-sm font-medium">{delegation.allowedProtocols.join(", ")}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Allowed chains</p>
-                    <p className="text-sm font-medium">{delegation.allowedChains.join(", ")}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Max amounts</p>
-                    <p className="text-sm font-medium">
-                      Lend ${delegation.maxAmounts.lend.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">
+                        {delegation.agentName ?? "Agent not on record"}
+                      </p>
+                      {(delegation.allowedProtocols || delegation.allowedChains) && (
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {delegation.allowedProtocols?.map((protocol) => (
+                            <Badge key={protocol} variant="outline">
+                              {protocol}
+                            </Badge>
+                          ))}
+                          {delegation.allowedChains?.map((chain) => (
+                            <Badge key={chain} variant="outline">
+                              {chain}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <span
+                      className={cn(
+                        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs",
+                        status.badgeClass
+                      )}
+                    >
+                      <span className={cn("h-1.5 w-1.5 rounded-full", status.dotClass)} />
+                      {status.label}
+                    </span>
+                    {/* No Revoke button: the backend has no revoke/delete
+                        delegation endpoint (only GET/POST /api/v1/delegation in
+                        crates/interfaces/src/bin/metis_api.rs). Backend follow-up. */}
+                  </DataRow>
+                );
+              })}
+            </div>
           )}
-        </CardContent>
-      </Card>
+        </SectionCard>
+      </FadeIn>
     </div>
   );
 }

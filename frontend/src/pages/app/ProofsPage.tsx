@@ -1,16 +1,160 @@
-import { useState } from "react";
-import { ShieldCheck, CheckCircle2, Clock, XCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
+import { ShieldCheck, CheckCircle2, XCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { useProofs } from "@/hooks/useProofs";
+import { PageHeader } from "@/components/app/PageHeader";
+import { SectionCard } from "@/components/app/SectionCard";
+import { DataRow } from "@/components/app/DataRow";
 import { EmptyState } from "@/components/app/EmptyState";
+import { ErrorState } from "@/components/app/ErrorState";
+import { useProofs } from "@/hooks/useProofs";
+import { cn } from "@/lib/utils";
+import type { Proof } from "@/types/app";
+
+const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
+/** Mount-only fade/slide used to stagger the page blocks. */
+function FadeIn({
+  children,
+  delay = 0,
+  className,
+}: {
+  children: ReactNode;
+  delay?: number;
+  className?: string;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: EASE, delay }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+const VERIFIED_CLASSES = "border-emerald-400/30 bg-emerald-400/10 text-emerald-400";
+const INVALID_CLASSES = "border-rose-400/30 bg-rose-400/10 text-rose-400";
+
+function VerifiedBadge({ verified }: { verified: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs",
+        verified ? VERIFIED_CLASSES : INVALID_CLASSES
+      )}
+    >
+      {verified ? "Verified" : "Invalid"}
+    </span>
+  );
+}
+
+function ProofRow({
+  proof,
+  isExpanded,
+  onToggle,
+}: {
+  proof: Proof;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <DataRow className="flex-wrap">
+      <div
+        className={cn(
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border",
+          proof.verified ? VERIFIED_CLASSES : INVALID_CLASSES
+        )}
+      >
+        {proof.verified ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium capitalize">{proof.type} proof</p>
+        <p className="truncate text-xs text-muted-foreground">
+          {proof.verifier} · {proof.constraints.toLocaleString()} constraints · {proof.proofTime}s
+        </p>
+      </div>
+      <VerifiedBadge verified={proof.verified} />
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onToggle}
+        aria-expanded={isExpanded}
+        aria-label={isExpanded ? "Hide proof details" : "Show proof details"}
+      >
+        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </Button>
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="w-full overflow-hidden"
+          >
+            <dl className="mt-1 grid gap-3 border-t border-border/40 pt-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-border/60 bg-secondary p-3">
+                <dt className="text-xs text-muted-foreground">Type</dt>
+                <dd className="mt-1 font-mono text-sm capitalize">{proof.type}</dd>
+              </div>
+              <div className="rounded-lg border border-border/60 bg-secondary p-3">
+                <dt className="text-xs text-muted-foreground">Circuit</dt>
+                <dd className="mt-1 font-mono text-sm">{proof.verifier}</dd>
+              </div>
+              <div className="rounded-lg border border-border/60 bg-secondary p-3">
+                <dt className="text-xs text-muted-foreground">Constraints</dt>
+                <dd className="mt-1 font-mono text-sm tabular-nums">
+                  {proof.constraints.toLocaleString()}
+                </dd>
+              </div>
+              <div className="rounded-lg border border-border/60 bg-secondary p-3">
+                <dt className="text-xs text-muted-foreground">Generation time</dt>
+                <dd className="mt-1 font-mono text-sm tabular-nums">{proof.proofTime}s</dd>
+              </div>
+              <div className="rounded-lg border border-border/60 bg-secondary p-3 sm:col-span-2">
+                <dt className="text-xs text-muted-foreground">Timestamp</dt>
+                <dd className="mt-1 font-mono text-sm">
+                  {new Date(proof.timestamp).toLocaleString()}
+                </dd>
+              </div>
+              {proof.intentId && (
+                <div className="rounded-lg border border-border/60 bg-secondary p-3 sm:col-span-2">
+                  <dt className="text-xs text-muted-foreground">Intent</dt>
+                  <dd className="mt-1 text-sm">
+                    <Link
+                      to={`/app/intents/${proof.intentId}`}
+                      className="text-accent hover:underline"
+                    >
+                      View intent
+                    </Link>
+                  </dd>
+                </div>
+              )}
+              {proof.txHash && (
+                <div className="rounded-lg border border-border/60 bg-secondary p-3 sm:col-span-2">
+                  <dt className="text-xs text-muted-foreground">Tx hash</dt>
+                  <dd className="mt-1 break-all font-mono text-xs">{proof.txHash}</dd>
+                </div>
+              )}
+            </dl>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </DataRow>
+  );
+}
 
 export function ProofsPage() {
-  const { data: proofs, isLoading } = useProofs();
+  const { data: proofs, isLoading, error, refetch } = useProofs();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const latestSolvency = proofs
+    .filter((proof) => proof.type === "solvency")
+    .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp))[0];
 
   const toggle = (id: string) => {
     setExpanded((prev) => {
@@ -23,153 +167,73 @@ export function ProofsPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="space-y-2"
-      >
-        <div>
-          <h1 className="font-heading text-3xl font-bold tracking-tight">Proof Explorer</h1>
-          <p className="text-muted-foreground">
-            Verify zero-knowledge proofs generated by the protocol.
-          </p>
-        </div>
-      </motion.div>
+      <FadeIn>
+        <PageHeader title="Proofs" subtitle="Every execution, proven." />
+      </FadeIn>
 
-      <Card id="onboarding-proofs-solvency" className="border-emerald-500/20 bg-emerald-500/5">
-        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 200 }}
-              >
-                <CheckCircle2 className="h-5 w-5" />
-              </motion.div>
-            </div>
-            <div>
-              <CardTitle>Vault solvency verified</CardTitle>
-              <CardDescription>Last attestation 2 hours ago.</CardDescription>
-            </div>
-          </div>
-          <Badge variant="default" className="w-fit">
-            Verified
-          </Badge>
-        </CardHeader>
-      </Card>
+      <FadeIn delay={0.05}>
+        {isLoading ? (
+          <Skeleton className="h-24 w-full" />
+        ) : (
+          latestSolvency && (
+            <SectionCard className="py-4">
+              <div className="flex items-center gap-4">
+                <div
+                  className={cn(
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border",
+                    latestSolvency.verified ? VERIFIED_CLASSES : INVALID_CLASSES
+                  )}
+                >
+                  {latestSolvency.verified ? (
+                    <CheckCircle2 className="h-4 w-4" />
+                  ) : (
+                    <XCircle className="h-4 w-4" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-heading text-base font-bold">Vault solvency</p>
+                  <p className="text-sm text-muted-foreground">
+                    Latest proof {latestSolvency.verified ? "passed" : "failed"}{" "}
+                    {new Date(latestSolvency.timestamp).toLocaleString()}.
+                  </p>
+                </div>
+                <VerifiedBadge verified={latestSolvency.verified} />
+              </div>
+            </SectionCard>
+          )
+        )}
+      </FadeIn>
 
-      <p id="onboarding-proofs-explanation" className="text-sm text-muted-foreground">
-        Each proof is verified on-chain without revealing individual balances.
-      </p>
-
-      <Card id="onboarding-proofs-list">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-accent" />
-            Recent proofs
-          </CardTitle>
-          <CardDescription>Delegation, execution, and solvency proofs.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <FadeIn delay={0.1}>
+        <SectionCard title="Recent proofs" subtitle="Delegation, execution, and solvency proofs.">
           {isLoading ? (
             <div className="space-y-3">
-              <Skeleton className="h-28 w-full" />
-              <Skeleton className="h-28 w-full" />
-              <Skeleton className="h-28 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
             </div>
-          ) : proofs?.length === 0 ? (
+          ) : error ? (
+            <ErrorState subject="proofs" onRetry={refetch} />
+          ) : proofs.length === 0 ? (
             <EmptyState
               icon={<ShieldCheck className="h-6 w-6" />}
               title="No proofs yet"
-              description="Proofs appear here once intents are executed."
+              description="When an intent executes, its proof lands here."
             />
           ) : (
-            proofs?.map((proof) => {
-              const isExpanded = expanded.has(proof.id);
-              return (
-                <div key={proof.id} className="rounded-xl border border-border/60 bg-card p-5">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-subtle text-accent">
-                        <AnimatePresence mode="wait">
-                          {proof.verified ? (
-                            <motion.div
-                              key="verified"
-                              initial={{ pathLength: 0, opacity: 0 }}
-                              animate={{ pathLength: 1, opacity: 1 }}
-                              transition={{ duration: 0.4 }}
-                            >
-                              <CheckCircle2 className="h-5 w-5" />
-                            </motion.div>
-                          ) : (
-                            <motion.div key="invalid" initial={{ scale: 0 }} animate={{ scale: 1 }}>
-                              <XCircle className="h-5 w-5" />
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                      <div>
-                        <p className="font-heading text-lg font-bold capitalize">
-                          {proof.type} Proof
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {proof.verifier} · {proof.constraints} constraints · {proof.proofTime}s
-                          generation
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={proof.verified ? "default" : "destructive"}>
-                        {proof.verified ? "Verified" : "Invalid"}
-                      </Badge>
-                      <Button variant="ghost" size="sm" onClick={() => toggle(proof.id)}>
-                        {isExpanded ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                  <AnimatePresence>
-                    {isExpanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="mt-4 rounded-lg border border-border/60 bg-secondary p-4 text-xs text-muted-foreground">
-                          <p>
-                            <strong>Verifier:</strong> {proof.verifier}
-                          </p>
-                          <p className="mt-1">
-                            <strong>Constraints:</strong> {proof.constraints.toLocaleString()}
-                          </p>
-                          <p className="mt-1">
-                            <strong>Proof generation time:</strong> {proof.proofTime}s
-                          </p>
-                          {proof.txHash && (
-                            <p className="mt-1">
-                              <strong>Tx hash:</strong> {proof.txHash}
-                            </p>
-                          )}
-                          <p className="mt-1 flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {new Date(proof.timestamp).toLocaleString()}
-                          </p>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              );
-            })
+            <div className="space-y-3">
+              {proofs.map((proof) => (
+                <ProofRow
+                  key={proof.id}
+                  proof={proof}
+                  isExpanded={expanded.has(proof.id)}
+                  onToggle={() => toggle(proof.id)}
+                />
+              ))}
+            </div>
           )}
-        </CardContent>
-      </Card>
+        </SectionCard>
+      </FadeIn>
     </div>
   );
 }

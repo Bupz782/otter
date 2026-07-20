@@ -10,15 +10,18 @@ export function Stepper({
 }) {
   return (
     <div className="w-full">
-      <div className="flex items-center justify-between">
+      <div role="list" aria-label="Progress" className="flex items-center justify-between">
         {steps.map((step, index) => {
           const isCompleted = index < currentStep;
           const isCurrent = index === currentStep;
           const isUpcoming = index > currentStep;
 
           return (
-            <div key={step.label} className="flex flex-1 items-center">
-              <div className="flex flex-col items-center">
+            <div key={step.label} role="listitem" className="flex flex-1 items-center">
+              <div
+                className="flex flex-col items-center"
+                aria-current={isCurrent ? "step" : undefined}
+              >
                 <div
                   className={cn(
                     "flex h-8 w-8 items-center justify-center rounded-full border text-sm font-bold transition-colors",

@@ -27,11 +27,7 @@ export function EmptyState({
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-secondary text-accent">
           {icon}
         </div>
-        <motion.div
-          className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-accent"
-          animate={{ scale: [1, 1.2, 1], opacity: [0.6, 1, 0.6] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        />
+        <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-accent" />
       </div>
       <h3 className="mt-5 font-heading text-lg font-bold">{title}</h3>
       <p className="mt-1 max-w-xs text-sm text-muted-foreground">{description}</p>

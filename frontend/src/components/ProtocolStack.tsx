@@ -49,7 +49,7 @@ export function ProtocolStack() {
           transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
           className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground"
         >
-          Built to execute intents without custody or blind trust.
+          The contracts, circuits, and services behind every execution.
         </motion.p>
       </div>
 

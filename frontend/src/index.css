@@ -142,11 +142,13 @@
 }
 
 .animate-shimmer {
-  animation: shimmer 2.5s infinite;
+  /* Single sweep on mount (design: motion stays under --duration-slow). */
+  animation: shimmer var(--duration-slow) var(--ease-out-expo) 1 both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-shimmer {
+  .animate-shimmer,
+  .animate-ambient-drift {
     animation: none;
   }
 }

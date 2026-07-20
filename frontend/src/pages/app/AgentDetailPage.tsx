@@ -1,138 +1,162 @@
+import type { ReactNode } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Star, ShieldCheck, TrendingUp, Coins, Activity, Plus, Bot } from "lucide-react";
+import { ArrowLeft, TrendingUp, ShieldCheck, Coins, Activity, Plus } from "lucide-react";
 import { motion } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/app/PageHeader";
+import { SectionCard } from "@/components/app/SectionCard";
+import { StatCard } from "@/components/app/StatCard";
+import { ErrorState } from "@/components/app/ErrorState";
 import { useAgent } from "@/hooks/useAgent";
+
+const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
+/** Mount-only fade/slide used to stagger the page blocks. */
+function FadeIn({
+  children,
+  delay = 0,
+  className,
+}: {
+  children: ReactNode;
+  delay?: number;
+  className?: string;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: EASE, delay }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 export function AgentDetailPage() {
   const { agentId } = useParams<{ agentId: string }>();
-  const { data: agent, isLoading } = useAgent(agentId);
+  const { data: agent, isLoading, error, refetch } = useAgent(agentId);
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6">
         <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-24 w-full" />
         <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-6">
+        <ErrorState subject="this agent" onRetry={refetch} />
+        <div className="flex justify-center">
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/app/agents">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to agents
+            </Link>
+          </Button>
+        </div>
       </div>
     );
   }
 
   if (!agent) {
     return (
-      <div className="mx-auto max-w-3xl py-20 text-center">
-        <h1 className="font-heading text-2xl font-bold">Agent not found</h1>
-        <Button asChild className="mt-6 rounded-full">
-          <Link to="/app/agents">Back to agents</Link>
-        </Button>
+      <div className="mx-auto max-w-3xl">
+        <SectionCard className="py-16 text-center">
+          <h1 className="font-heading text-2xl font-bold">Agent not found</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            It may have been removed, or the link is wrong.
+          </p>
+          <Button asChild className="mt-6 rounded-full">
+            <Link to="/app/agents">Back to agents</Link>
+          </Button>
+        </SectionCard>
       </div>
     );
   }
 
+  const about = [
+    { label: "Operated by", value: agent.operatedBy },
+    { label: "Risk profile", value: agent.riskProfile },
+    { label: "Bond", value: `$${agent.bond.toLocaleString()}` },
+    { label: "Reputation", value: `${agent.reputation} / 5` },
+    { label: "Delegators", value: agent.followers.toLocaleString() },
+    { label: "Strategies", value: String(agent.strategies) },
+  ];
+
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div className="flex items-center gap-4">
+    <div className="mx-auto max-w-6xl space-y-6">
+      <FadeIn>
         <Button asChild variant="ghost" size="sm">
           <Link to="/app/agents">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to agents
           </Link>
         </Button>
+      </FadeIn>
+
+      <FadeIn delay={0.05}>
+        <PageHeader
+          title={agent.name}
+          subtitle={agent.description}
+          action={
+            <Button asChild className="rounded-full">
+              <Link to={`/app/delegations/new?agent=${agent.id}`}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create delegation
+              </Link>
+            </Button>
+          }
+        />
+      </FadeIn>
+
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <FadeIn delay={0.1}>
+          <StatCard
+            icon={TrendingUp}
+            label="Yield generated"
+            value={`$${agent.yieldGenerated.toLocaleString()}`}
+            className="h-full"
+          />
+        </FadeIn>
+        <FadeIn delay={0.15}>
+          <StatCard
+            icon={ShieldCheck}
+            label="Proofs submitted"
+            value={agent.proofsSubmitted.toLocaleString()}
+            className="h-full"
+          />
+        </FadeIn>
+        <FadeIn delay={0.2}>
+          <StatCard
+            icon={Coins}
+            label="Rebates captured"
+            value={`$${agent.mevCaptured.toLocaleString()}`}
+            className="h-full"
+          />
+        </FadeIn>
+        <FadeIn delay={0.25}>
+          <StatCard icon={Activity} label="Uptime" value={`${agent.uptime}%`} className="h-full" />
+        </FadeIn>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <Card>
-          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent-subtle text-accent">
-              <span className="font-heading text-2xl font-bold">{agent.name.charAt(0)}</span>
-            </div>
-            <div className="flex-1">
-              <div className="flex flex-wrap items-center gap-3">
-                <CardTitle className="font-heading text-2xl">{agent.name}</CardTitle>
-                <Badge variant="secondary">${agent.bond.toLocaleString()} bond</Badge>
-                <Badge variant="outline">{agent.riskProfile}</Badge>
+      <FadeIn delay={0.3}>
+        <SectionCard title="About" subtitle="What stands behind this agent.">
+          <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {about.map((item) => (
+              <div key={item.label} className="rounded-lg border border-border/60 bg-secondary p-3">
+                <dt className="text-xs text-muted-foreground">{item.label}</dt>
+                <dd className="mt-1 font-mono text-sm">{item.value}</dd>
               </div>
-              <CardDescription className="mt-2">{agent.description}</CardDescription>
-              <div className="mt-3 flex flex-wrap gap-4 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Star className="h-4 w-4 text-accent" /> {agent.reputation}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Bot className="h-4 w-4" /> {agent.followers.toLocaleString()} delegators
-                </span>
-                <span className="flex items-center gap-1">
-                  <ShieldCheck className="h-4 w-4" /> {agent.proofsSubmitted.toLocaleString()}{" "}
-                  proofs
-                </span>
-              </div>
-            </div>
-          </CardHeader>
-        </Card>
-      </motion.div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Card>
-          <CardHeader className="flex flex-row items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-accent" />
-            <CardTitle>Yield Generated</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="font-heading text-3xl font-bold">
-              ${agent.yieldGenerated.toLocaleString()}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center gap-2">
-            <Coins className="h-5 w-5 text-accent" />
-            <CardTitle>MEV Captured</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="font-heading text-3xl font-bold">${agent.mevCaptured.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center gap-2">
-            <Activity className="h-5 w-5 text-accent" />
-            <CardTitle>Uptime</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="font-heading text-3xl font-bold">{agent.uptime}%</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-accent" />
-            <CardTitle>Strategies</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="font-heading text-3xl font-bold">{agent.strategies}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Delegate to {agent.name}</CardTitle>
-          <CardDescription>
-            Authorize this Otter agent to execute intents within limits you set.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild className="rounded-full">
-            <Link to={`/app/delegations/new?agent=${agent.id}`}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create delegation
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
+            ))}
+          </dl>
+        </SectionCard>
+      </FadeIn>
     </div>
   );
 }

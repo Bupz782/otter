@@ -1,77 +1,97 @@
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Wallet, TrendingUp, Coins, Lightbulb, ArrowRight, Plus } from "lucide-react";
+import {
+  Wallet,
+  TrendingUp,
+  Zap,
+  Radar,
+  Coins,
+  Lightbulb,
+  Activity,
+  Plus,
+  ArrowRight,
+  ChevronRight,
+} from "lucide-react";
 import { motion } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/app/PageHeader";
+import { SectionCard } from "@/components/app/SectionCard";
+import { StatCard } from "@/components/app/StatCard";
+import { DataRow } from "@/components/app/DataRow";
+import { CountUp } from "@/components/app/CountUp";
+import { EmptyState } from "@/components/app/EmptyState";
+import { ErrorState } from "@/components/app/ErrorState";
 import { usePortfolio } from "@/hooks/usePortfolio";
 import { useIntents } from "@/hooks/useIntents";
 import { useActivity } from "@/hooks/useActivity";
-import { IntentStatusBadge } from "@/components/app/IntentStatusBadge";
-import { CountUp } from "@/components/app/CountUp";
-import { EmptyState } from "@/components/app/EmptyState";
-import { ShimmerCard } from "@/components/app/ShimmerCard";
+import { getStatusPresentation } from "@/lib/status";
+import { cn } from "@/lib/utils";
+import type { ActivityItem } from "@/types/app";
 
-const container = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.08 },
-  },
-};
+const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
-const item = {
-  hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0 },
-};
-
-function StatCard({
-  title,
-  value,
-  prefix,
-  suffix,
-  decimals,
-  sub,
-  icon,
-  loading,
-  highlight,
+/** Mount-only fade/slide used to stagger the dashboard cards. */
+function FadeIn({
+  children,
+  delay = 0,
+  className,
+  id,
 }: {
-  title: string;
-  value: number;
-  prefix?: string;
-  suffix?: string;
-  decimals?: number;
-  sub?: string;
-  icon: React.ReactNode;
-  loading?: boolean;
-  highlight?: boolean;
+  children: ReactNode;
+  delay?: number;
+  className?: string;
+  id?: string;
 }) {
   return (
-    <Card className={highlight ? "border-accent/30" : undefined}>
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">{title}</p>
-            {loading ? (
-              <Skeleton className="mt-2 h-8 w-32" />
-            ) : (
-              <p className="mt-2 font-heading text-2xl font-bold">
-                <CountUp value={value} prefix={prefix} suffix={suffix} decimals={decimals} />
-              </p>
-            )}
-            {sub && !loading && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
-          </div>
-          <div className="rounded-xl border border-border bg-secondary p-2 text-accent">{icon}</div>
-        </div>
-      </CardContent>
-    </Card>
+    <motion.div
+      id={id}
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: EASE, delay }}
+      className={className}
+    >
+      {children}
+    </motion.div>
   );
 }
 
+function formatCurrency(value: number): string {
+  return `$${value.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+/** Activity dots reuse the status palette: emerald for money events. */
+const ACTIVITY_DOT: Record<ActivityItem["type"], string> = {
+  deposit: getStatusPresentation("confirmed").dotClass,
+  intent_executed: getStatusPresentation("confirmed").dotClass,
+  mev_rebate: getStatusPresentation("confirmed").dotClass,
+  intent_created: getStatusPresentation("submitted").dotClass,
+  delegation_created: getStatusPresentation("monitoring").dotClass,
+  withdraw: getStatusPresentation("revoked").dotClass,
+};
+
 export function DashboardPage() {
-  const { data: portfolio, isLoading: portfolioLoading } = usePortfolio();
-  const { data: intents, isLoading: intentsLoading } = useIntents();
-  const { data: activity, isLoading: activityLoading } = useActivity();
+  const {
+    data: portfolio,
+    isLoading: portfolioLoading,
+    error: portfolioError,
+    refetch: refetchPortfolio,
+  } = usePortfolio();
+  const {
+    data: intents,
+    isLoading: intentsLoading,
+    error: intentsError,
+    refetch: refetchIntents,
+  } = useIntents();
+  const {
+    data: activity,
+    isLoading: activityLoading,
+    error: activityError,
+    refetch: refetchActivity,
+  } = useActivity();
 
   const activeIntents = intents.filter(
     (i) =>
@@ -81,228 +101,330 @@ export function DashboardPage() {
       i.status === "submitted"
   );
 
-  return (
-    <div className="mx-auto max-w-6xl space-y-8">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="space-y-2"
-      >
-        <h1 className="font-heading text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Overview of your vault, intents, and recent activity.
-        </p>
-      </motion.div>
+  const allocatedPct =
+    portfolio && portfolio.totalBalance > 0
+      ? Math.min(100, (portfolio.allocated / portfolio.totalBalance) * 100)
+      : 0;
 
-      <ShimmerCard
-        id="onboarding-dashboard-balance"
-        className="rounded-xl border border-accent/20 bg-gradient-to-br from-accent-subtle/40 to-transparent"
-      >
-        <div className="p-6 sm:p-8">
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Total vault balance</p>
-              {portfolioLoading ? (
-                <Skeleton className="mt-2 h-12 w-48" />
-              ) : (
-                <p className="mt-1 font-heading text-5xl font-bold tracking-tight">
+  return (
+    <div className="mx-auto max-w-6xl space-y-6">
+      <FadeIn>
+        <PageHeader
+          title="Dashboard"
+          subtitle="What your capital is doing right now."
+          action={
+            <Button asChild id="onboarding-dashboard-create" className="rounded-full">
+              <Link to="/app/intents/new">
+                <Plus className="mr-2 h-4 w-4" />
+                Create intent
+              </Link>
+            </Button>
+          }
+        />
+      </FadeIn>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <FadeIn id="onboarding-dashboard-balance" delay={0.05} className="lg:col-span-2">
+          <SectionCard className="h-full">
+            {portfolioError ? (
+              <ErrorState subject="your vault" onRetry={refetchPortfolio} />
+            ) : portfolioLoading ? (
+              <div className="space-y-6">
+                <Skeleton className="h-12 w-56" />
+                <Skeleton className="h-2 w-full rounded-full" />
+                <div className="grid grid-cols-2 gap-4">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Total vault balance
+                </p>
+                <p className="mt-2 font-heading text-4xl font-bold tabular-nums md:text-5xl">
                   <CountUp value={portfolio?.totalBalance ?? 0} prefix="$" decimals={2} />
                 </p>
-              )}
-              <p className="mt-2 text-sm text-muted-foreground">
-                {portfolio
-                  ? `${portfolio.positions.length} positions · $${portfolio.available.toLocaleString()} available`
-                  : ""}
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <Button asChild className="rounded-full">
-                <Link to="/app/intents/new">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create intent
-                </Link>
-              </Button>
-              <Button asChild variant="outline" className="rounded-full">
-                <Link to="/app/strategies">Browse strategies</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </ShimmerCard>
 
-      <motion.div
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
-      >
-        <motion.div variants={item}>
-          <StatCard
-            title="Allocated"
-            value={portfolio?.allocated ?? 0}
-            prefix="$"
-            sub={portfolio ? `${portfolio.positions.length} positions` : undefined}
-            icon={<Wallet className="h-5 w-5" />}
-            loading={portfolioLoading}
-          />
-        </motion.div>
-        <motion.div variants={item}>
-          <StatCard
-            title="Yield Earned"
-            value={portfolio?.yieldEarned ?? 0}
-            prefix="+$"
-            decimals={2}
-            icon={<TrendingUp className="h-5 w-5" />}
-            loading={portfolioLoading}
-            highlight
-          />
-        </motion.div>
-        <motion.div variants={item}>
-          <StatCard
-            title="MEV Rebates"
-            value={portfolio?.mevRebates ?? 0}
-            prefix="+$"
-            decimals={2}
-            icon={<Coins className="h-5 w-5" />}
-            loading={portfolioLoading}
-            highlight
-          />
-        </motion.div>
-        <motion.div variants={item}>
-          <StatCard
-            title="Active Intents"
-            value={activeIntents.length}
-            icon={<Lightbulb className="h-5 w-5" />}
-            loading={intentsLoading}
-          />
-        </motion.div>
-      </motion.div>
+                <div className="mt-8">
+                  <div className="h-2 overflow-hidden rounded-full bg-secondary">
+                    <div
+                      className="h-full rounded-full bg-accent"
+                      style={{ width: `${allocatedPct}%` }}
+                    />
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Allocated</p>
+                      <p className="mt-0.5 font-heading text-lg font-bold tabular-nums">
+                        {formatCurrency(portfolio?.allocated ?? 0)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Available</p>
+                      <p className="mt-0.5 font-heading text-lg font-bold tabular-nums">
+                        {formatCurrency(portfolio?.available ?? 0)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
-      <div className="grid gap-8 lg:grid-cols-3">
-        <Card id="onboarding-dashboard-intents" className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Active Intents</CardTitle>
-              <CardDescription>Intents currently being monitored or executed.</CardDescription>
-            </div>
-            <Button asChild size="sm" variant="outline">
-              <Link to="/app/intents">View all</Link>
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {intentsLoading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-20 w-full" />
-                <Skeleton className="h-20 w-full" />
-              </div>
-            ) : activeIntents.length === 0 ? (
-              <EmptyState
-                icon={<Lightbulb className="h-6 w-6" />}
-                title="No active intents"
-                description="Create your first intent and Otter will start monitoring the market for you."
-                action={
-                  <Button asChild className="rounded-full">
-                    <Link to="/app/intents/new">Create your first intent</Link>
-                  </Button>
-                }
-              />
-            ) : (
-              activeIntents.map((intent) => (
-                <Link
-                  key={intent.id}
-                  to={`/app/intents/${intent.id}`}
-                  className="group flex items-center justify-between rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-accent/40"
-                >
-                  <div className="space-y-1">
-                    <p className="font-medium transition-colors group-hover:text-accent">
-                      {intent.rawText}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {intent.parsed.amount} {intent.parsed.asset} · {intent.parsed.protocol} ·{" "}
-                      {intent.parsed.chain}
+                <div className="mt-6 grid grid-cols-2 gap-4 border-t border-border/50 pt-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Yield earned</p>
+                    <p
+                      className={cn(
+                        "mt-0.5 text-sm font-medium tabular-nums",
+                        (portfolio?.yieldEarned ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400"
+                      )}
+                    >
+                      {(portfolio?.yieldEarned ?? 0) >= 0 ? "+" : ""}
+                      {formatCurrency(portfolio?.yieldEarned ?? 0)}
                     </p>
                   </div>
-                  <IntentStatusBadge status={intent.status} />
-                </Link>
-              ))
+                  <div>
+                    <p className="text-xs text-muted-foreground">Execution rebates</p>
+                    <p
+                      className={cn(
+                        "mt-0.5 text-sm font-medium tabular-nums",
+                        (portfolio?.mevRebates ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400"
+                      )}
+                    >
+                      {(portfolio?.mevRebates ?? 0) >= 0 ? "+" : ""}
+                      {formatCurrency(portfolio?.mevRebates ?? 0)}
+                    </p>
+                  </div>
+                </div>
+              </>
             )}
-          </CardContent>
-        </Card>
+          </SectionCard>
+        </FadeIn>
 
-        <Card id="onboarding-dashboard-activity">
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Latest vault events.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <FadeIn id="onboarding-dashboard-activity" delay={0.1}>
+          <SectionCard title="Recent activity" className="h-full">
             {activityLoading ? (
               <div className="space-y-3">
                 <Skeleton className="h-12 w-full" />
                 <Skeleton className="h-12 w-full" />
                 <Skeleton className="h-12 w-full" />
               </div>
+            ) : activityError ? (
+              <ErrorState subject="recent activity" onRetry={refetchActivity} />
+            ) : activity.length === 0 ? (
+              <EmptyState
+                icon={<Activity className="h-6 w-6" />}
+                title="No activity yet"
+                description="Once an intent executes, every move shows up here."
+              />
             ) : (
-              activity.slice(0, 6).map((item) => (
-                <div key={item.id} className="flex items-start gap-3">
-                  <div className="mt-1.5 h-2 w-2 rounded-full bg-accent" />
-                  <div className="flex-1">
-                    <p className="text-sm">{item.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(item.timestamp).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              ))
+              <div className="space-y-3">
+                {activity.slice(0, 4).map((item) => (
+                  <DataRow key={item.id}>
+                    <span
+                      className={cn(
+                        "h-2 w-2 shrink-0 rounded-full",
+                        ACTIVITY_DOT[item.type] ?? "bg-accent"
+                      )}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm">{item.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(item.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                  </DataRow>
+                ))}
+              </div>
             )}
-          </CardContent>
-        </Card>
+          </SectionCard>
+        </FadeIn>
       </div>
 
-      <Card id="onboarding-dashboard-positions">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Positions</CardTitle>
-            <CardDescription>Where your capital is currently allocated.</CardDescription>
-          </div>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/app/strategies">
-              Explore strategies
-              <ArrowRight className="ml-2 h-3 w-3" />
-            </Link>
-          </Button>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
+      {!portfolioError && (
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <FadeIn delay={0.15}>
+            <StatCard
+              icon={Wallet}
+              label="Allocated"
+              value={
+                portfolioLoading ? (
+                  <Skeleton className="h-7 w-24" />
+                ) : (
+                  formatCurrency(portfolio?.allocated ?? 0)
+                )
+              }
+              hint={portfolio ? `${portfolio.positions.length} positions` : undefined}
+            />
+          </FadeIn>
+          <FadeIn delay={0.2}>
+            <StatCard
+              icon={TrendingUp}
+              label="Yield earned"
+              value={
+                portfolioLoading ? (
+                  <Skeleton className="h-7 w-24" />
+                ) : (
+                  formatCurrency(portfolio?.yieldEarned ?? 0)
+                )
+              }
+            />
+          </FadeIn>
+          <FadeIn delay={0.25}>
+            <StatCard
+              icon={Zap}
+              label="Execution rebates"
+              value={
+                portfolioLoading ? (
+                  <Skeleton className="h-7 w-24" />
+                ) : (
+                  formatCurrency(portfolio?.mevRebates ?? 0)
+                )
+              }
+            />
+          </FadeIn>
+          <FadeIn delay={0.3}>
+            <StatCard
+              icon={Radar}
+              label="Active intents"
+              value={intentsLoading ? <Skeleton className="h-7 w-12" /> : activeIntents.length}
+            />
+          </FadeIn>
+        </div>
+      )}
+
+      <FadeIn id="onboarding-dashboard-intents" delay={0.35}>
+        <SectionCard
+          title="Active intents"
+          action={
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/app/intents">
+                View all
+                <ArrowRight className="ml-1 h-3 w-3" />
+              </Link>
+            </Button>
+          }
+        >
+          {intentsLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          ) : intentsError ? (
+            <ErrorState subject="active intents" onRetry={refetchIntents} />
+          ) : activeIntents.length === 0 ? (
+            <EmptyState
+              icon={<Lightbulb className="h-6 w-6" />}
+              title="Nothing in the water yet."
+              description="Set your first intent and Otter starts watching the market."
+              action={
+                <Button asChild className="rounded-full">
+                  <Link to="/app/intents/new">Create intent</Link>
+                </Button>
+              }
+            />
+          ) : (
+            <div className="space-y-3">
+              {activeIntents.slice(0, 3).map((intent) => {
+                const status = getStatusPresentation(intent.status);
+                return (
+                  <Link key={intent.id} to={`/app/intents/${intent.id}`} className="block">
+                    <DataRow>
+                      <div className="flex w-28 shrink-0 items-center gap-2">
+                        <span className={cn("h-2 w-2 rounded-full", status.dotClass)} />
+                        <span className={cn("truncate text-xs", status.textClass)}>
+                          {status.label}
+                        </span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{intent.rawText}</p>
+                        <p className="truncate font-mono text-xs text-muted-foreground">
+                          {intent.parsed.condition ?? "Not specified"}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    </DataRow>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </SectionCard>
+      </FadeIn>
+
+      <FadeIn id="onboarding-dashboard-positions" delay={0.4}>
+        <SectionCard title="Positions" subtitle="Where your capital sits.">
           {portfolioLoading ? (
             <Skeleton className="h-40 w-full" />
+          ) : portfolioError ? (
+            <ErrorState subject="positions" onRetry={refetchPortfolio} />
+          ) : !portfolio || portfolio.positions.length === 0 ? (
+            <EmptyState
+              icon={<Coins className="h-6 w-6" />}
+              title="No open positions"
+              description="When an intent puts capital to work, it lands here."
+            />
           ) : (
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground">
-                  <th className="pb-3 font-medium">Asset</th>
-                  <th className="pb-3 font-medium">Protocol</th>
-                  <th className="pb-3 font-medium">Chain</th>
-                  <th className="pb-3 font-medium">Amount</th>
-                  <th className="pb-3 font-medium">Value</th>
-                  <th className="pb-3 font-medium">APY</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/50">
-                {portfolio?.positions.map((position) => (
-                  <tr key={`${position.asset}-${position.protocol}-${position.chain}`}>
-                    <td className="py-3 font-medium">{position.asset}</td>
-                    <td className="py-3 text-muted-foreground">{position.protocol}</td>
-                    <td className="py-3 text-muted-foreground">{position.chain}</td>
-                    <td className="py-3">{position.amount.toLocaleString()}</td>
-                    <td className="py-3">${position.value.toLocaleString()}</td>
-                    <td className="py-3 text-emerald-400">+{position.apy}%</td>
-                  </tr>
+            <>
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-muted-foreground">
+                      <th scope="col" className="pb-3 font-medium">
+                        Asset
+                      </th>
+                      <th scope="col" className="pb-3 font-medium">
+                        Protocol
+                      </th>
+                      <th scope="col" className="pb-3 font-medium">
+                        Chain
+                      </th>
+                      <th scope="col" className="pb-3 text-right font-medium">
+                        Amount
+                      </th>
+                      <th scope="col" className="pb-3 text-right font-medium">
+                        APY
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/50">
+                    {portfolio.positions.map((position) => (
+                      <tr key={`${position.asset}-${position.protocol}-${position.chain}`}>
+                        <td className="py-3 font-medium">{position.asset}</td>
+                        <td className="py-3 text-muted-foreground">{position.protocol}</td>
+                        <td className="py-3 text-muted-foreground">{position.chain}</td>
+                        <td className="py-3 text-right tabular-nums">
+                          {position.amount.toLocaleString()} {position.asset}
+                        </td>
+                        <td className="py-3 text-right tabular-nums text-emerald-400">
+                          +{position.apy}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="space-y-3 md:hidden">
+                {portfolio.positions.map((position) => (
+                  <DataRow key={`${position.asset}-${position.protocol}-${position.chain}`}>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{position.asset}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {position.protocol} · {position.chain}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-sm tabular-nums">
+                        {position.amount.toLocaleString()} {position.asset}
+                      </p>
+                      <p className="text-xs tabular-nums text-emerald-400">+{position.apy}% APY</p>
+                    </div>
+                  </DataRow>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            </>
           )}
-        </CardContent>
-      </Card>
+        </SectionCard>
+      </FadeIn>
     </div>
   );
 }

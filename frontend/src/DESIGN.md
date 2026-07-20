@@ -90,7 +90,7 @@ Buttons and pills use `rounded-full` for a softer CTA shape.
 
 - `AmbientBackground`: fixed slow-drifting gradient layer.
 - `PageTransition`: wraps route content for enter/exit fade + slide.
-- `DemoPreview`: lightweight `/demo` widget embedded on the home page.
+- `DemoPreview`: demo widget embedded on the home page (`#demo` anchor).
 
 Keep motion subtle. Avoid parallax tied to mouse movement. Respect `prefers-reduced-motion` via Framer Motion's `MotionConfig` and CSS media queries.
 
@@ -114,12 +114,26 @@ Always uses glassmorphism. Title uses `font-heading`.
 
 ## File map
 
-| File                                   | Purpose                                |
-| -------------------------------------- | -------------------------------------- |
-| `src/styles/tokens.css`                | Primitive tokens                       |
-| `src/index.css`                        | Semantic tokens, utilities, animations |
-| `src/components/ui/*`                  | shadcn/ui components styled to system  |
-| `src/components/AmbientBackground.tsx` | Ambient motion layer                   |
-| `src/components/PageTransition.tsx`    | Route transition wrapper               |
-| `src/components/DemoPreview.tsx`       | Home page demo widget                  |
-| `src/components/demo/*`                | Demo page intent simulator components  |
+| File                                   | Purpose                                 |
+| -------------------------------------- | --------------------------------------- |
+| `src/styles/tokens.css`                | Primitive tokens                        |
+| `src/index.css`                        | Semantic tokens, utilities, animations  |
+| `src/components/ui/*`                  | shadcn/ui components styled to system   |
+| `src/components/AmbientBackground.tsx` | Ambient motion layer                    |
+| `src/components/PageTransition.tsx`    | Route transition wrapper                |
+| `src/components/DemoPreview.tsx`       | Home page demo widget                   |
+| `src/components/demo/*`                | Demo widget intent simulator components |
+| `src/components/app/PageHeader.tsx`    | App page title/subtitle/action header   |
+| `src/components/app/SectionCard.tsx`   | App section container card              |
+| `src/components/app/StatCard.tsx`      | App KPI stat card                       |
+| `src/components/app/DataRow.tsx`       | App list row container                  |
+| `src/components/app/ErrorState.tsx`    | Load-failure card with retry            |
+| `src/lib/status.ts`                    | Shared intent-status presentation       |
+| `src/lib/demo-data.ts`                 | Demo fixtures shown when signed out     |
+
+## App (`/app`) conventions
+
+- Pages compose `PageHeader` + `SectionCard` + `StatCard` + `DataRow`; no ad-hoc card markup.
+- Data sections always resolve to one of: skeleton, `ErrorState` (with retry), genuine `EmptyState`, or data.
+- When no wallet session exists, hooks serve `src/lib/demo-data.ts` fixtures and the header shows an amber "Demo data" pill. Real API data only renders for authenticated sessions.
+- Status visuals come from `src/lib/status.ts` only.

@@ -1,99 +1,104 @@
+import type { ReactNode } from "react";
+import { LogOut, RotateCcw } from "lucide-react";
 import { motion } from "framer-motion";
-import { RotateCcw, Wallet } from "lucide-react";
 import { useAccount } from "wagmi";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/app/PageHeader";
+import { SectionCard } from "@/components/app/SectionCard";
+import { DataRow } from "@/components/app/DataRow";
+import { setAuthToken } from "@/lib/api";
+import { useAuthToken } from "@/hooks/useAuthToken";
 import { useOnboardingContext } from "@/components/app/OnboardingProvider";
+import { truncateHash } from "@/lib/utils";
+
+const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
+/** Mount-only fade/slide used to stagger the page blocks. */
+function FadeIn({
+  children,
+  delay = 0,
+  className,
+}: {
+  children: ReactNode;
+  delay?: number;
+  className?: string;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: EASE, delay }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 export function SettingsPage() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chain } = useAccount();
+  const { isAuthenticated } = useAuthToken();
   const { restart } = useOnboardingContext();
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <h1 className="font-heading text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">App preferences and mock configuration.</p>
-      </motion.div>
+    <div className="mx-auto max-w-2xl space-y-6">
+      <FadeIn>
+        <PageHeader title="Settings" subtitle="Your wallet, session, and the guided tour." />
+      </FadeIn>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wallet className="h-5 w-5 text-accent" />
-            Wallet
-          </CardTitle>
-          <CardDescription>Connected address and network.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-lg border border-border/60 bg-secondary p-4">
-            <p className="text-xs text-muted-foreground">Status</p>
-            <p className="font-medium">{isConnected ? "Connected (mock)" : "Disconnected"}</p>
-          </div>
-          {address && (
-            <div className="rounded-lg border border-border/60 bg-secondary p-4">
-              <p className="text-xs text-muted-foreground">Address</p>
-              <code className="text-sm">{address}</code>
+      <FadeIn delay={0.05}>
+        <SectionCard title="Wallet" subtitle="Connected address and network.">
+          {isConnected && address ? (
+            <div className="space-y-4">
+              <DataRow>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-muted-foreground">Address</p>
+                  <p className="font-mono text-sm">{truncateHash(address)}</p>
+                </div>
+                <Badge variant="outline" className="shrink-0">
+                  {chain?.name ?? "Unknown network"}
+                </Badge>
+              </DataRow>
+              <p className="text-sm text-muted-foreground">
+                Signatures happen in your wallet. Otter never holds your keys or moves funds without
+                a signed delegation.
+              </p>
             </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Not connected. Connect from the header to link your vault.
+            </p>
           )}
-          <p className="text-sm text-muted-foreground">
-            This is a mocked wallet connection. No real signatures or transactions are broadcast.
-          </p>
-        </CardContent>
-      </Card>
+        </SectionCard>
+      </FadeIn>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Onboarding</CardTitle>
-          <CardDescription>Replay the guided tour.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between rounded-lg border border-border/60 bg-secondary p-4">
-            <div>
-              <p className="font-medium">Guided tour</p>
-              <p className="text-xs text-muted-foreground">
-                Restart the contextual tooltip tour from the Dashboard.
-              </p>
-            </div>
-            <Button variant="outline" size="sm" onClick={restart} className="rounded-full">
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Restart tour
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <FadeIn delay={0.1}>
+        <SectionCard title="Tour" subtitle="Replay the five-step walkthrough of the dashboard.">
+          <Button variant="outline" onClick={restart} className="rounded-full">
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Take the tour
+          </Button>
+        </SectionCard>
+      </FadeIn>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Mock mode</CardTitle>
-          <CardDescription>All data and transactions are simulated.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between rounded-lg border border-border/60 bg-secondary p-4">
-            <div>
-              <p className="font-medium">Simulate latency</p>
-              <p className="text-xs text-muted-foreground">
-                Adds realistic network delays to mock API calls.
-              </p>
-            </div>
-            <Button variant="outline" size="sm" disabled>
-              On
+      <FadeIn delay={0.15}>
+        <SectionCard
+          title="Session"
+          subtitle="Sign-in ties your vault, intents, and delegations to this wallet."
+        >
+          {isAuthenticated ? (
+            <Button variant="outline" onClick={() => setAuthToken(null)} className="rounded-full">
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign out
             </Button>
-          </div>
-          <div className="flex items-center justify-between rounded-lg border border-border/60 bg-secondary p-4">
-            <div>
-              <p className="font-medium">Network</p>
-              <p className="text-xs text-muted-foreground">Mocked Ethereum mainnet.</p>
-            </div>
-            <Button variant="outline" size="sm" disabled>
-              Ethereum
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          ) : (
+            <p role="status" className="text-sm text-muted-foreground">
+              You are signed out. Connect and sign in from the header to continue.
+            </p>
+          )}
+        </SectionCard>
+      </FadeIn>
     </div>
   );
 }

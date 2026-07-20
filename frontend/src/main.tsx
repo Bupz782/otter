@@ -1,4 +1,4 @@
-import { StrictMode, Suspense, lazy } from "react";
+import { StrictMode, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
@@ -9,8 +9,6 @@ import "./index.css";
 import { App } from "./App";
 import { wagmiConfig } from "./lib/wagmi-config";
 import { AppLayout } from "./components/app/AppLayout";
-
-const DemoPage = lazy(() => import("./pages/DemoPage").then((m) => ({ default: m.DemoPage })));
 
 const DashboardPage = lazy(() =>
   import("./pages/app/DashboardPage").then((m) => ({ default: m.DashboardPage }))
@@ -36,9 +34,6 @@ const AgentsPage = lazy(() =>
 const AgentDetailPage = lazy(() =>
   import("./pages/app/AgentDetailPage").then((m) => ({ default: m.AgentDetailPage }))
 );
-const StrategiesPage = lazy(() =>
-  import("./pages/app/StrategiesPage").then((m) => ({ default: m.StrategiesPage }))
-);
 const ProofsPage = lazy(() =>
   import("./pages/app/ProofsPage").then((m) => ({ default: m.ProofsPage }))
 );
@@ -53,14 +48,6 @@ export function AppRoutes() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<App />} />
-        <Route
-          path="/demo"
-          element={
-            <Suspense fallback={null}>
-              <DemoPage />
-            </Suspense>
-          }
-        />
         <Route path="/app" element={<AppLayout />}>
           <Route index element={<Navigate to="/app/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
@@ -71,11 +58,9 @@ export function AppRoutes() {
           <Route path="delegations/new" element={<CreateDelegationPage />} />
           <Route path="agents" element={<AgentsPage />} />
           <Route path="agents/:agentId" element={<AgentDetailPage />} />
-          <Route path="strategies" element={<StrategiesPage />} />
           <Route path="proofs" element={<ProofsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="marketplace" element={<Navigate to="/app/agents" replace />} />
-          <Route path="social" element={<Navigate to="/app/strategies" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>

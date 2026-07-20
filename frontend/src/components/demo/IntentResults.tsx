@@ -23,11 +23,7 @@ export function IntentResults({ intent }: IntentResultsProps) {
 
       <Card className="border-border/60 bg-card/80 backdrop-blur-sm">
         <CardContent className="space-y-6 p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground">Original prompt</p>
-              <p className="font-heading text-lg font-bold text-foreground">{intent.prompt}</p>
-            </div>
+          <div className="flex justify-end">
             <Badge variant="secondary" className="w-fit rounded-full bg-accent-subtle text-accent">
               {intent.parsed.chain}
             </Badge>
