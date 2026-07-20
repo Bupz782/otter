@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { api, mapBackendConditionalIntent } from "@/lib/api";
 import type { ParsedIntent } from "@/types/app";
 
@@ -23,5 +23,7 @@ export function useParseIntent() {
     }
   };
 
-  return { data, isLoading, error, parse, reset: () => setData(null) };
+  const reset = useCallback(() => setData(null), []);
+
+  return { data, isLoading, error, parse, reset };
 }

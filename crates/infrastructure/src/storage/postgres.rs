@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use domain::ports::storage_port::{
-    DelegationRecord, ExecutionRecord, IntentRecord, StorageError, StoragePort,
+    DelegationRecord, ExecutionRecord, IntentRecord, StorageError, StoragePort, StrategyRecord,
 };
 use sqlx::{Pool, Postgres, Row};
 
@@ -407,5 +407,169 @@ impl StoragePort for PgStorage {
                 })
             })
             .collect()
+    }
+
+    async fn save_strategy(&self, record: &StrategyRecord) -> Result<(), StorageError> {
+        sqlx::query(
+            "INSERT INTO strategies
+             (id, title, description, raw_text, intent_json, creator_address, agent_id,
+              risk_profile, copies, total_volume, apy, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+             ON CONFLICT (id) DO UPDATE SET
+                 title = EXCLUDED.title,
+                 description = EXCLUDED.description,
+                 raw_text = EXCLUDED.raw_text,
+                 intent_json = EXCLUDED.intent_json,
+                 creator_address = EXCLUDED.creator_address,
+                 agent_id = EXCLUDED.agent_id,
+                 risk_profile = EXCLUDED.risk_profile,
+                 copies = EXCLUDED.copies,
+                 total_volume = EXCLUDED.total_volume,
+                 apy = EXCLUDED.apy,
+                 created_at = EXCLUDED.created_at,
+                 updated_at = EXCLUDED.updated_at",
+        )
+        .bind(&record.id)
+        .bind(&record.title)
+        .bind(&record.description)
+        .bind(&record.raw_text)
+        .bind(&record.intent_json)
+        .bind(record.creator_address.as_ref())
+        .bind(&record.agent_id)
+        .bind(&record.risk_profile)
+        .bind(record.copies as i64)
+        .bind(record.total_volume as i64)
+        .bind(record.apy)
+        .bind(record.created_at)
+        .bind(record.updated_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+
+        Ok(())
+    }
+
+    async fn list_strategies(&self) -> Result<Vec<StrategyRecord>, StorageError> {
+        let rows = sqlx::query(
+            "SELECT id, title, description, raw_text, intent_json, creator_address, agent_id,
+                    risk_profile, copies, total_volume, apy, created_at, updated_at
+             FROM strategies
+             ORDER BY updated_at DESC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+
+        rows.iter()
+            .map(|row| {
+                let copies: i64 = row
+                    .try_get("copies")
+                    .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+                let total_volume: i64 = row
+                    .try_get("total_volume")
+                    .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+                Ok(StrategyRecord {
+                    id: row
+                        .try_get("id")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    title: row
+                        .try_get("title")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    description: row
+                        .try_get("description")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    raw_text: row
+                        .try_get("raw_text")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    intent_json: row
+                        .try_get("intent_json")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    creator_address: row
+                        .try_get("creator_address")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    agent_id: row
+                        .try_get("agent_id")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    risk_profile: row
+                        .try_get("risk_profile")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    copies: copies as u64,
+                    total_volume: total_volume as u64,
+                    apy: row
+                        .try_get("apy")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    created_at: row
+                        .try_get("created_at")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    updated_at: row
+                        .try_get("updated_at")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                })
+            })
+            .collect()
+    }
+
+    async fn get_strategy(&self, id: &str) -> Result<Option<StrategyRecord>, StorageError> {
+        let row = sqlx::query(
+            "SELECT id, title, description, raw_text, intent_json, creator_address, agent_id,
+                    risk_profile, copies, total_volume, apy, created_at, updated_at
+             FROM strategies
+             WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+
+        match row {
+            Some(r) => {
+                let copies: i64 = r
+                    .try_get("copies")
+                    .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+                let total_volume: i64 = r
+                    .try_get("total_volume")
+                    .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+                Ok(Some(StrategyRecord {
+                    id: r.try_get("id")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    title: r.try_get("title")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    description: r.try_get("description")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    raw_text: r.try_get("raw_text")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    intent_json: r.try_get("intent_json")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    creator_address: r.try_get("creator_address")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    agent_id: r.try_get("agent_id")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    risk_profile: r.try_get("risk_profile")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    copies: copies as u64,
+                    total_volume: total_volume as u64,
+                    apy: r.try_get("apy")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    created_at: r.try_get("created_at")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    updated_at: r.try_get("updated_at")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                }))
+            }
+            None => Ok(None),
+        }
+    }
+
+    async fn increment_strategy_copies(&self, id: &str) -> Result<(), StorageError> {
+        sqlx::query(
+            "UPDATE strategies SET copies = copies + 1, updated_at = $1 WHERE id = $2",
+        )
+        .bind(migrations::unix_now())
+        .bind(id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+
+        Ok(())
     }
 }

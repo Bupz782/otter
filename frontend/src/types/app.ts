@@ -69,6 +69,17 @@ export interface Strategy {
   totalVolume: number;
   apy: number;
   createdAt: string;
+  updatedAt: string;
+  creatorAddress?: string;
+  intent?: ParsedIntent;
+}
+
+export interface CreateStrategyPayload {
+  title: string;
+  description: string;
+  rawText: string;
+  agentId: string;
+  riskProfile: Strategy["riskProfile"];
 }
 
 export interface Portfolio {

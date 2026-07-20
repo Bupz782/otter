@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use domain::models::intent::ConditionalIntent;
 use domain::ports::storage_port::{
-    DelegationRecord, ExecutionRecord, IntentRecord, StorageError, StoragePort,
+    DelegationRecord, ExecutionRecord, IntentRecord, StorageError, StoragePort, StrategyRecord,
 };
 use rusqlite::{Connection, OptionalExtension};
 
@@ -461,6 +461,136 @@ impl StoragePort for SqliteStorage {
         .await
         .map_err(|e| StorageError::ReadFailed(e.to_string()))?
     }
+
+    async fn save_strategy(&self, record: &StrategyRecord) -> Result<(), StorageError> {
+        let conn = self.conn.clone();
+        let record = record.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            conn.execute(
+                "INSERT OR REPLACE INTO strategies
+                 (id, title, description, raw_text, intent_json, creator_address, agent_id,
+                  risk_profile, copies, total_volume, apy, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                rusqlite::params![
+                    &record.id,
+                    &record.title,
+                    &record.description,
+                    &record.raw_text,
+                    &record.intent_json,
+                    record.creator_address.as_deref(),
+                    &record.agent_id,
+                    &record.risk_profile,
+                    record.copies as i64,
+                    record.total_volume as i64,
+                    record.apy,
+                    record.created_at,
+                    record.updated_at,
+                ],
+            )
+            .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| StorageError::SaveFailed(e.to_string()))?
+    }
+
+    async fn list_strategies(&self) -> Result<Vec<StrategyRecord>, StorageError> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn
+                .lock()
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, title, description, raw_text, intent_json, creator_address, agent_id,
+                            risk_profile, copies, total_volume, apy, created_at, updated_at
+                     FROM strategies
+                     ORDER BY updated_at DESC",
+                )
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok(StrategyRecord {
+                        id: row.get(0)?,
+                        title: row.get(1)?,
+                        description: row.get(2)?,
+                        raw_text: row.get(3)?,
+                        intent_json: row.get(4)?,
+                        creator_address: row.get(5)?,
+                        agent_id: row.get(6)?,
+                        risk_profile: row.get(7)?,
+                        copies: row.get::<_, i64>(8)? as u64,
+                        total_volume: row.get::<_, i64>(9)? as u64,
+                        apy: row.get(10)?,
+                        created_at: row.get(11)?,
+                        updated_at: row.get(12)?,
+                    })
+                })
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))
+        })
+        .await
+        .map_err(|e| StorageError::ReadFailed(e.to_string()))?
+    }
+
+    async fn get_strategy(&self, id: &str) -> Result<Option<StrategyRecord>, StorageError> {
+        let conn = self.conn.clone();
+        let id = id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn
+                .lock()
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+            let row = conn
+                .query_row(
+                    "SELECT id, title, description, raw_text, intent_json, creator_address, agent_id,
+                            risk_profile, copies, total_volume, apy, created_at, updated_at
+                     FROM strategies WHERE id = ?1",
+                    [&id],
+                    |row| {
+                        Ok(StrategyRecord {
+                            id: row.get(0)?,
+                            title: row.get(1)?,
+                            description: row.get(2)?,
+                            raw_text: row.get(3)?,
+                            intent_json: row.get(4)?,
+                            creator_address: row.get(5)?,
+                            agent_id: row.get(6)?,
+                            risk_profile: row.get(7)?,
+                            copies: row.get::<_, i64>(8)? as u64,
+                            total_volume: row.get::<_, i64>(9)? as u64,
+                            apy: row.get(10)?,
+                            created_at: row.get(11)?,
+                            updated_at: row.get(12)?,
+                        })
+                    },
+                )
+                .optional()
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+            Ok(row)
+        })
+        .await
+        .map_err(|e| StorageError::ReadFailed(e.to_string()))?
+    }
+
+    async fn increment_strategy_copies(&self,
+        id: &str,
+    ) -> Result<(), StorageError> {
+        let conn = self.conn.clone();
+        let id = id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            conn.execute(
+                "UPDATE strategies SET copies = copies + 1, updated_at = ?1 WHERE id = ?2",
+                rusqlite::params![migrations::unix_now(), id],
+            )
+            .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| StorageError::SaveFailed(e.to_string()))?
+    }
 }
 
 #[cfg(test)]
@@ -535,5 +665,56 @@ mod tests {
     async fn health_check_succeeds() {
         let storage = SqliteStorage::in_memory().unwrap();
         storage.health_check().await.unwrap();
+    }
+
+    fn sample_strategy(id: &str) -> StrategyRecord {
+        StrategyRecord {
+            id: id.to_string(),
+            title: "Delta-neutral LP".to_string(),
+            description: "A strategy description.".to_string(),
+            raw_text: "delta neutral lp on aerodrome".to_string(),
+            intent_json: "{}".to_string(),
+            creator_address: Some("0xCreator".to_string()),
+            agent_id: "agent-1".to_string(),
+            risk_profile: "moderate".to_string(),
+            copies: 0,
+            total_volume: 0,
+            apy: 0.12,
+            created_at: now_secs(),
+            updated_at: now_secs(),
+        }
+    }
+
+    #[tokio::test]
+    async fn save_and_list_strategy() {
+        let storage = SqliteStorage::in_memory().unwrap();
+        let record = sample_strategy("strategy-1");
+        storage.save_strategy(&record).await.unwrap();
+
+        let strategies = storage.list_strategies().await.unwrap();
+        assert_eq!(strategies.len(), 1);
+        assert_eq!(strategies[0].id, "strategy-1");
+        assert_eq!(strategies[0].title, "Delta-neutral LP");
+    }
+
+    #[tokio::test]
+    async fn get_strategy_by_id() {
+        let storage = SqliteStorage::in_memory().unwrap();
+        storage.save_strategy(&sample_strategy("a")).await.unwrap();
+
+        let found = storage.get_strategy("a").await.unwrap().unwrap();
+        assert_eq!(found.id, "a");
+        assert!(storage.get_strategy("missing").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn increment_strategy_copies_bumps_count() {
+        let storage = SqliteStorage::in_memory().unwrap();
+        storage.save_strategy(&sample_strategy("forkable")).await.unwrap();
+
+        storage.increment_strategy_copies("forkable").await.unwrap();
+        let found = storage.get_strategy("forkable").await.unwrap().unwrap();
+        assert_eq!(found.copies, 1);
+        assert!(found.updated_at >= found.created_at);
     }
 }

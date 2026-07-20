@@ -16,7 +16,10 @@ use domain::models::execution_plan::ExecutionPlan;
 use domain::models::intent::{Asset, ConditionalIntent};
 use domain::ports::price_oracle_port::PriceOraclePort;
 use domain::ports::wallet_port::WalletPort;
-use domain::ports::{BlockchainPort, DelegationRecord, ExecutionRecord, IntentRecord, StoragePort};
+use domain::ports::storage_port::StrategyRecord;
+use domain::ports::{
+    BlockchainPort, DelegationRecord, ExecutionRecord, IntentRecord, StoragePort,
+};
 use infrastructure::blockchain::{
     AlloyEvmAdapter, CompositeOracle, LocalWalletAdapter, OracleNetwork,
 };
@@ -55,7 +58,6 @@ struct AppState {
     cors_allowed_origins: String,
     event_tx: tokio::sync::broadcast::Sender<Event>,
     agents: Vec<AgentSummary>,
-    strategies: Vec<StrategySummary>,
     agent_pubkey: Option<AgentPubkey>,
 }
 
@@ -288,6 +290,7 @@ struct StrategySummary {
     total_volume: u64,
     apy: f64,
     created_at: i64,
+    updated_at: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -351,6 +354,44 @@ struct LeaderboardResponse {
 }
 
 #[derive(Debug, Deserialize)]
+struct CreateStrategyRequest {
+    title: String,
+    description: String,
+    raw_text: String,
+    agent_id: String,
+    risk_profile: String,
+}
+
+#[derive(Debug, Serialize)]
+struct StrategyDetailResponse {
+    id: String,
+    title: String,
+    description: String,
+    raw_text: String,
+    intent: ConditionalIntent,
+    creator_address: Option<String>,
+    agent_id: String,
+    agent_name: String,
+    risk_profile: String,
+    copies: u64,
+    total_volume: u64,
+    apy: f64,
+    created_at: i64,
+    updated_at: i64,
+}
+
+#[derive(Debug, Serialize)]
+struct StrategyCreatedResponse {
+    id: String,
+}
+
+#[derive(Debug, Serialize)]
+struct ForkStrategyResponse {
+    strategy_id: String,
+    redirect_to: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct DelegationHashRequest {
     pubkey_x: String,
     pubkey_y: String,
@@ -393,7 +434,9 @@ fn app(state: Arc<AppState>) -> Router {
         .route("/api/v1/agents", get(list_agents))
         .route("/api/v1/agents/:id", get(get_agent))
         .route("/api/v1/agents/:id/pubkey", get(get_agent_pubkey))
-        .route("/api/v1/strategies", get(list_strategies))
+        .route("/api/v1/strategies", get(list_strategies).post(create_strategy))
+        .route("/api/v1/strategies/:id", get(get_strategy))
+        .route("/api/v1/strategies/:id/fork", post(fork_strategy))
         .route("/api/v1/portfolio", get(get_portfolio))
         .route("/api/v1/proofs", get(list_proofs))
         .route("/api/v1/leaderboard", get(get_leaderboard))
@@ -634,6 +677,7 @@ fn default_strategies() -> Vec<StrategySummary> {
             total_volume: 5_400_000,
             apy: 4.1,
             created_at: 1_720_000_000,
+            updated_at: 1_720_000_000,
         },
         StrategySummary {
             id: "strategy-2".to_string(),
@@ -647,6 +691,7 @@ fn default_strategies() -> Vec<StrategySummary> {
             total_volume: 2_100_000,
             apy: 0.0,
             created_at: 1_720_500_000,
+            updated_at: 1_720_500_000,
         },
         StrategySummary {
             id: "strategy-3".to_string(),
@@ -660,6 +705,7 @@ fn default_strategies() -> Vec<StrategySummary> {
             total_volume: 1_800_000,
             apy: 5.2,
             created_at: 1_720_900_000,
+            updated_at: 1_720_900_000,
         },
     ]
 }
@@ -713,6 +759,18 @@ async fn main() {
         tracing::error!(?err, "failed to hydrate active intents from storage");
     }
 
+    // Seed default strategy templates when the table is empty so the UI has
+    // something to display on a fresh install.
+    if let Ok(records) = storage.list_strategies().await {
+        if records.is_empty()
+            && let Err(err) = seed_default_strategies(&storage, &orchestrator).await
+        {
+            tracing::warn!(?err, "failed to seed default strategies");
+        }
+    } else {
+        tracing::warn!("failed to check strategies table for seeding");
+    }
+
     let metrics = Arc::new(Metrics::default());
     let (bus, mut receiver) = EventBus::new(256);
     let (event_tx, _) = tokio::sync::broadcast::channel::<Event>(256);
@@ -747,7 +805,6 @@ async fn main() {
         cors_allowed_origins: config.cors_allowed_origins.clone(),
         event_tx: event_tx.clone(),
         agents: default_agents(),
-        strategies: default_strategies(),
         agent_pubkey: load_private_key(&config)
             .ok()
             .and_then(|(key, _)| load_agent_pubkey(&key)),
@@ -1268,10 +1325,184 @@ async fn get_agent_pubkey(
     }))
 }
 
-async fn list_strategies(AxumState(state): AxumState<Arc<AppState>>) -> Json<StrategiesResponse> {
-    Json(StrategiesResponse {
-        strategies: state.strategies.clone(),
-    })
+async fn list_strategies(
+    AxumState(state): AxumState<Arc<AppState>>,
+) -> Result<Json<StrategiesResponse>, AppError> {
+    let records = state.storage.list_strategies().await?;
+    let strategies = records.into_iter().map(map_strategy_record_to_summary).collect();
+    Ok(Json(StrategiesResponse { strategies }))
+}
+
+async fn get_strategy(
+    AxumState(state): AxumState<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Json<StrategyDetailResponse>, AppError> {
+    let record = state
+        .storage
+        .get_strategy(&id)
+        .await?
+        .ok_or(AppError::Storage(domain::ports::StorageError::NotFound(id)))?;
+    Ok(Json(map_strategy_record_to_detail(record, &state.agents)))
+}
+
+async fn create_strategy(
+    AxumState(state): AxumState<Arc<AppState>>,
+    Extension(user): Extension<Option<AuthUser>>,
+    Json(body): Json<CreateStrategyRequest>,
+) -> Result<Json<StrategyCreatedResponse>, AppError> {
+    let conditional = {
+        let mut orchestrator = state.write_orchestrator().await;
+        orchestrator.parse(&body.raw_text)?
+    };
+
+    let strategy = domain::models::strategy::Strategy {
+        id: format!("strategy-{}", uuid::Uuid::new_v4()),
+        title: body.title,
+        description: body.description,
+        raw_text: body.raw_text,
+        intent: conditional,
+        creator_address: user.map(|u| u.address),
+        agent_id: body.agent_id,
+        risk_profile: body.risk_profile,
+        copies: 0,
+        total_volume: 0,
+        apy: 0.0,
+        created_at: now_secs(),
+        updated_at: now_secs(),
+    };
+    strategy
+        .validate()
+        .map_err(|e| AppError::Validation(format!("{:?}", e)))?;
+
+    let record = strategy_to_record(strategy);
+    state.storage.save_strategy(&record).await?;
+
+    tracing::info!(strategy_id = %record.id, "strategy created");
+    Ok(Json(StrategyCreatedResponse { id: record.id }))
+}
+
+async fn fork_strategy(
+    AxumState(state): AxumState<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Json<ForkStrategyResponse>, AppError> {
+    state
+        .storage
+        .get_strategy(&id)
+        .await?
+        .ok_or(AppError::Storage(domain::ports::StorageError::NotFound(id.clone())))?;
+    state.storage.increment_strategy_copies(&id).await?;
+    Ok(Json(ForkStrategyResponse {
+        strategy_id: id.clone(),
+        redirect_to: format!("/app/delegations/new?strategy={}", id),
+    }))
+}
+
+fn strategy_to_record(strategy: domain::models::strategy::Strategy) -> StrategyRecord {
+    StrategyRecord {
+        id: strategy.id,
+        title: strategy.title,
+        description: strategy.description,
+        raw_text: strategy.raw_text,
+        intent_json: serde_json::to_string(&strategy.intent).expect("intent serializes"),
+        creator_address: strategy.creator_address,
+        agent_id: strategy.agent_id,
+        risk_profile: strategy.risk_profile,
+        copies: strategy.copies,
+        total_volume: strategy.total_volume,
+        apy: strategy.apy,
+        created_at: strategy.created_at,
+        updated_at: strategy.updated_at,
+    }
+}
+
+fn map_strategy_record_to_summary(record: StrategyRecord) -> StrategySummary {
+    StrategySummary {
+        id: record.id,
+        agent_id: record.agent_id.clone(),
+        agent_name: agent_name_fallback(&record.agent_id),
+        title: record.title,
+        description: record.description,
+        raw_text: record.raw_text,
+        risk_profile: record.risk_profile,
+        copies: record.copies,
+        total_volume: record.total_volume,
+        apy: record.apy,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn map_strategy_record_to_detail(
+    record: StrategyRecord,
+    agents: &[AgentSummary],
+) -> StrategyDetailResponse {
+    let intent: ConditionalIntent = serde_json::from_str(&record.intent_json)
+        .expect("stored intent deserializes");
+    StrategyDetailResponse {
+        id: record.id,
+        title: record.title,
+        description: record.description,
+        raw_text: record.raw_text,
+        intent,
+        creator_address: record.creator_address,
+        agent_id: record.agent_id.clone(),
+        agent_name: agents
+            .iter()
+            .find(|a| a.id == record.agent_id)
+            .map(|a| a.name.clone())
+            .unwrap_or_else(|| agent_name_fallback(&record.agent_id)),
+        risk_profile: record.risk_profile,
+        copies: record.copies,
+        total_volume: record.total_volume,
+        apy: record.apy,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn agent_name_fallback(agent_id: &str) -> String {
+    match agent_id {
+        "agent-1" => "Aave Ace".to_string(),
+        "agent-2" => "Uni-Unicorn".to_string(),
+        "agent-3" => "Compound King".to_string(),
+        "agent-4" => "Cross-Chain Carl".to_string(),
+        _ => "Otter Agent".to_string(),
+    }
+}
+
+async fn seed_default_strategies(
+    storage: &Arc<dyn StoragePort>,
+    orchestrator: &Arc<RwLock<AgentOrchestrator>>,
+) -> Result<(), AppError> {
+    for summary in default_strategies() {
+        let intent = {
+            let mut orchestrator = orchestrator.write().await;
+            match orchestrator.parse(&summary.raw_text) {
+                Ok(intent) => intent,
+                Err(err) => {
+                    tracing::warn!(strategy_id = %summary.id, ?err, "failed to parse default strategy raw text");
+                    continue;
+                }
+            }
+        };
+        let record = StrategyRecord {
+            id: summary.id,
+            title: summary.title,
+            description: summary.description,
+            raw_text: summary.raw_text,
+            intent_json: serde_json::to_string(&intent).expect("intent serializes"),
+            creator_address: None,
+            agent_id: summary.agent_id,
+            risk_profile: summary.risk_profile,
+            copies: summary.copies,
+            total_volume: summary.total_volume,
+            apy: summary.apy,
+            created_at: summary.created_at,
+            updated_at: summary.created_at,
+        };
+        storage.save_strategy(&record).await?;
+    }
+    Ok(())
 }
 
 async fn get_portfolio(
@@ -1822,7 +2053,6 @@ mod tests {
             cors_allowed_origins: "*".to_string(),
             event_tx: tokio::sync::broadcast::channel(1).0,
             agents: default_agents(),
-            strategies: default_strategies(),
             agent_pubkey: None,
         })
     }
@@ -1873,7 +2103,6 @@ mod tests {
             cors_allowed_origins: state.cors_allowed_origins.clone(),
             event_tx: state.event_tx.clone(),
             agents: state.agents.clone(),
-            strategies: state.strategies.clone(),
             agent_pubkey: state.agent_pubkey.clone(),
         });
 
@@ -2096,7 +2325,6 @@ mod tests {
             cors_allowed_origins: state.cors_allowed_origins.clone(),
             event_tx: state.event_tx.clone(),
             agents: state.agents.clone(),
-            strategies: state.strategies.clone(),
             agent_pubkey: state.agent_pubkey.clone(),
         }
     }
@@ -2190,6 +2418,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn delegations_scoped_to_authenticated_user() {
+        let state = test_state().await;
+        let user_a = AuthUser {
+            address: "0xaaa".to_string(),
+        };
+        let user_b = AuthUser {
+            address: "0xbbb".to_string(),
+        };
+
+        let _ = set_delegation(
+            AxumState(state.clone()),
+            Extension(Some(user_a.clone())),
+            Json(valid_set_delegation_request()),
+        )
+        .await
+        .unwrap();
+
+        let for_a = list_delegations(AxumState(state.clone()), Extension(Some(user_a.clone())))
+            .await
+            .unwrap();
+        assert_eq!(for_a.delegations.len(), 1);
+
+        let for_b = list_delegations(AxumState(state.clone()), Extension(Some(user_b)))
+            .await
+            .unwrap();
+        assert!(for_b.delegations.is_empty());
+    }
+
+    #[tokio::test]
     async fn intents_scoped_to_authenticated_user() {
         let state = test_state().await;
         let user_a = AuthUser {
@@ -2233,31 +2490,187 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn delegations_scoped_to_authenticated_user() {
+    async fn strategies_list_is_empty_on_fresh_storage() {
         let state = test_state().await;
-        let user_a = AuthUser {
-            address: "0xaaa".to_string(),
-        };
-        let user_b = AuthUser {
-            address: "0xbbb".to_string(),
+        let response = list_strategies(AxumState(state)).await.unwrap();
+        assert!(response.strategies.is_empty());
+    }
+
+    #[tokio::test]
+    async fn create_strategy_persists_and_lists() {
+        let state = test_state().await;
+        let body = CreateStrategyRequest {
+            title: "Test Strategy".to_string(),
+            description: "A strategy for testing.".to_string(),
+            raw_text: "lend 100 USDC on Aave if yield > 3%".to_string(),
+            agent_id: "agent-1".to_string(),
+            risk_profile: "Conservative".to_string(),
         };
 
-        let _ = set_delegation(
+        let created = create_strategy(AxumState(state.clone()), Extension(None::<AuthUser>), Json(body))
+            .await
+            .unwrap();
+
+        let listed = list_strategies(AxumState(state)).await.unwrap();
+        assert_eq!(listed.strategies.len(), 1);
+        assert_eq!(listed.strategies[0].id, created.id);
+        assert_eq!(listed.strategies[0].agent_name, "Aave Ace");
+    }
+
+    #[tokio::test]
+    async fn get_strategy_returns_created_strategy_detail() {
+        let state = test_state().await;
+        let body = CreateStrategyRequest {
+            title: "Yield Hunt".to_string(),
+            description: "Find yield.".to_string(),
+            raw_text: "lend 100 USDC on Aave if yield > 3%".to_string(),
+            agent_id: "agent-1".to_string(),
+            risk_profile: "Conservative".to_string(),
+        };
+
+        let created = create_strategy(
             AxumState(state.clone()),
-            Extension(Some(user_a.clone())),
-            Json(valid_set_delegation_request()),
+            Extension(None::<AuthUser>),
+            Json(body),
         )
         .await
         .unwrap();
 
-        let for_a = list_delegations(AxumState(state.clone()), Extension(Some(user_a.clone())))
+        let detail = get_strategy(AxumState(state), Path(created.id.clone()))
             .await
             .unwrap();
-        assert_eq!(for_a.delegations.len(), 1);
+        assert_eq!(detail.title, "Yield Hunt");
+        assert_eq!(detail.raw_text, "lend 100 USDC on Aave if yield > 3%");
+        assert!(detail.intent.condition.is_some());
+    }
 
-        let for_b = list_delegations(AxumState(state.clone()), Extension(Some(user_b)))
+    #[tokio::test]
+    async fn get_strategy_returns_not_found_for_missing_id() {
+        let state = test_state().await;
+        let response = get_strategy(AxumState(state), Path("strategy-missing".to_string()))
+            .await;
+        assert_eq!(response.unwrap_err().into_response().status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn fork_strategy_handler_increments_copies() {
+        let state = test_state().await;
+        let body = CreateStrategyRequest {
+            title: "Forkable Strategy".to_string(),
+            description: "A strategy to fork.".to_string(),
+            raw_text: "lend 100 USDC on Aave if yield > 3%".to_string(),
+            agent_id: "agent-1".to_string(),
+            risk_profile: "Conservative".to_string(),
+        };
+
+        let created = create_strategy(AxumState(state.clone()), Extension(None::<AuthUser>), Json(body))
             .await
             .unwrap();
-        assert!(for_b.delegations.is_empty());
+
+        let forked = fork_strategy(AxumState(state.clone()), Path(created.id.clone()))
+            .await
+            .unwrap();
+        assert_eq!(forked.strategy_id, created.id);
+
+        let listed = list_strategies(AxumState(state)).await.unwrap();
+        assert_eq!(listed.strategies[0].copies, 1);
+    }
+
+    #[tokio::test]
+    async fn create_strategy_requires_auth_when_enabled() {
+        let state = auth_test_state().await;
+        let router = app(state.clone());
+        let req = with_connect_info(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/strategies")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"title":"T","description":"D","raw_text":"Lend 1 USDC on Aave","agent_id":"agent-1","risk_profile":"Conservative"}"#))
+                .unwrap(),
+        );
+        let response = router.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn create_strategy_persists_and_returns_id() {
+        let state = test_state().await;
+        let router = app(state.clone());
+        let req = with_connect_info(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/strategies")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"title":"T","description":"D","raw_text":"Lend 1 USDC on Aave","agent_id":"agent-1","risk_profile":"Conservative"}"#))
+                .unwrap(),
+        );
+        let response = router.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(json["id"].as_str().unwrap().starts_with("strategy-"));
+    }
+
+    #[tokio::test]
+    async fn fork_strategy_increments_copies() {
+        let state = test_state().await;
+        let id = seed_strategy(&state).await;
+        let router = app(state.clone());
+        let req = with_connect_info(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/v1/strategies/{}/fork", id))
+                .body(Body::empty())
+                .unwrap(),
+        );
+        let response = router.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let record = state.storage.get_strategy(&id).await.unwrap().unwrap();
+        assert_eq!(record.copies, 1);
+    }
+
+    async fn seed_strategy(state: &Arc<AppState>) -> String {
+        let record = domain::ports::storage_port::StrategyRecord {
+            id: "strategy-test".to_string(),
+            title: "Test".to_string(),
+            description: "D".to_string(),
+            raw_text: "Lend 1 USDC".to_string(),
+            intent_json: serde_json::to_string(&domain::models::intent::ConditionalIntent {
+                intent: domain::models::intent::Intent::Lend {
+                    asset: domain::models::intent::Asset::Usdc,
+                    amount: 1_000_000,
+                    protocol: domain::models::intent::LendingType::Aave,
+                },
+                condition: None,
+            }).unwrap(),
+            creator_address: None,
+            agent_id: "agent-1".to_string(),
+            risk_profile: "Conservative".to_string(),
+            copies: 0,
+            total_volume: 0,
+            apy: 0.0,
+            created_at: 0,
+            updated_at: 0,
+        };
+        state.storage.save_strategy(&record).await.unwrap();
+        record.id
+    }
+
+    #[tokio::test]
+    async fn create_strategy_rejects_invalid_risk_profile() {
+        let state = test_state().await;
+        let body = CreateStrategyRequest {
+            title: "Bad Strategy".to_string(),
+            description: "A strategy with bad risk profile.".to_string(),
+            raw_text: "lend 100 USDC on Aave if yield > 3%".to_string(),
+            agent_id: "agent-1".to_string(),
+            risk_profile: "Wild".to_string(),
+        };
+
+        let response = create_strategy(AxumState(state), Extension(None::<AuthUser>), Json(body))
+            .await;
+        assert_eq!(response.unwrap_err().into_response().status(), StatusCode::BAD_REQUEST);
     }
 }

@@ -50,6 +50,24 @@ pub struct ExecutionRecord {
     pub created_at: i64,
 }
 
+/// A persisted strategy template record.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StrategyRecord {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    pub raw_text: String,
+    pub intent_json: String,
+    pub creator_address: Option<String>,
+    pub agent_id: String,
+    pub risk_profile: String,
+    pub copies: u64,
+    pub total_volume: u64,
+    pub apy: f64,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
 /// Errors returned by storage operations.
 #[derive(Debug, Error)]
 pub enum StorageError {
@@ -103,4 +121,16 @@ pub trait StoragePort: Send + Sync {
         &self,
         intent_id: &str,
     ) -> Result<Vec<ExecutionRecord>, StorageError>;
+
+    /// Persist a strategy template record.
+    async fn save_strategy(&self, record: &StrategyRecord) -> Result<(), StorageError>;
+
+    /// Return all stored strategy records, most recently updated first.
+    async fn list_strategies(&self) -> Result<Vec<StrategyRecord>, StorageError>;
+
+    /// Return a single strategy by id, if it exists.
+    async fn get_strategy(&self, id: &str) -> Result<Option<StrategyRecord>, StorageError>;
+
+    /// Increment the copy count for a strategy and refresh its updated_at timestamp.
+    async fn increment_strategy_copies(&self, id: &str) -> Result<(), StorageError>;
 }

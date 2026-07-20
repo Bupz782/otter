@@ -4,6 +4,7 @@ import {
   Lightbulb,
   FileSignature,
   Bot,
+  BookOpen,
   ShieldCheck,
   Settings,
   Plus,
@@ -47,7 +48,10 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "Discover",
-    items: [{ to: "/app/agents", label: "Otter Agents", icon: <Bot className="h-4 w-4" /> }],
+    items: [
+      { to: "/app/agents", label: "Otter Agents", icon: <Bot className="h-4 w-4" /> },
+      { to: "/app/strategies", label: "Strategies", icon: <BookOpen className="h-4 w-4" /> },
+    ],
   },
   {
     label: "Verify",

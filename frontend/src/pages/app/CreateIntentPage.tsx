@@ -19,6 +19,7 @@ import { useCreateIntent } from "@/hooks/useCreateIntent";
 import { useDelegations } from "@/hooks/useDelegations";
 import { useAgents } from "@/hooks/useAgents";
 import { useStrategies } from "@/hooks/useStrategies";
+import { useStrategy } from "@/hooks/useStrategy";
 import { useAuthToken } from "@/hooks/useAuthToken";
 import { matchMockIntent, type MockIntent } from "@/data/intents";
 import { truncateHash } from "@/lib/utils";
@@ -91,6 +92,10 @@ export function CreateIntentPage() {
   const { isAuthenticated } = useAuthToken();
   const isDemo = !isAuthenticated;
   const { data: strategies } = useStrategies();
+  const delegationId = searchParams.get("delegation");
+  const strategyId = searchParams.get("strategy");
+  const agentId = searchParams.get("agent");
+  const { data: strategy } = useStrategy(strategyId ?? undefined);
   const [step, setStep] = useState(0);
   const [text, setText] = useState("");
   const [selectedDelegation, setSelectedDelegation] = useState<string | null>(null);
@@ -111,16 +116,19 @@ export function CreateIntentPage() {
   const [parsedDraft, setParsedDraft] = useState<ParsedIntent | null>(null);
 
   useEffect(() => {
-    const strategyId = searchParams.get("strategy");
-    const agentId = searchParams.get("agent");
-    if (strategyId && strategies) {
-      const strategy = strategies.find((s) => s.id === strategyId);
-      if (strategy) setText(strategy.rawText);
+    if (strategyId) {
+      // Authenticated: strategy detail from the API; demo mode: fall back to
+      // the local strategy list so the prefill works without a session.
+      const prefill = strategy ?? strategies?.find((s) => s.id === strategyId);
+      if (prefill) setText(prefill.rawText);
     } else if (agentId && delegations) {
       const delegation = delegations.find((d) => d.agentId === agentId);
       if (delegation) setSelectedDelegation(delegation.id);
     }
-  }, [searchParams, strategies, delegations]);
+    if (delegationId && delegations) {
+      setSelectedDelegation(delegationId);
+    }
+  }, [searchParams, strategy, strategies, delegations, agentId, delegationId, strategyId]);
 
   const handleParse = async () => {
     if (!text.trim()) return;

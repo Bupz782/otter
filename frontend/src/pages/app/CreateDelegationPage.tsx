@@ -13,6 +13,7 @@ import { useAgents } from "@/hooks/useAgents";
 import { useCreateDelegation } from "@/hooks/useCreateDelegation";
 import { useAuthToken } from "@/hooks/useAuthToken";
 import { ConnectWalletState } from "@/components/app/ConnectWalletState";
+import { useStrategy } from "@/hooks/useStrategy";
 import { cn } from "@/lib/utils";
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -49,6 +50,8 @@ export function CreateDelegationPage() {
   const [searchParams] = useSearchParams();
   const { isAuthenticated } = useAuthToken();
   const isDemo = !isAuthenticated;
+  const strategyId = searchParams.get("strategy");
+  const { data: strategy } = useStrategy(strategyId ?? undefined);
   const { data: agents, isLoading: agentsLoading } = useAgents();
   const { mutate: create, isLoading: creating, data: created } = useCreateDelegation();
 
@@ -72,6 +75,17 @@ export function CreateDelegationPage() {
     }
   }, [searchParams, agents]);
 
+  // Prefill from a SocialFi strategy: its agent and protocol become the
+  // delegation defaults (forking a strategy starts a matching delegation).
+  useEffect(() => {
+    if (strategy?.intent) {
+      setSelectedAgent(strategy.agentId);
+      if (strategy.intent.protocol && protocols.includes(strategy.intent.protocol)) {
+        setAllowedProtocols([strategy.intent.protocol]);
+      }
+    }
+  }, [strategy]);
+
   const limitsValid = Object.values(maxAmounts).every(
     (value) => Number.isFinite(value) && value > 0
   );
@@ -94,14 +108,21 @@ export function CreateDelegationPage() {
     if (!selectedAgent || !formValid) return;
     setSubmitError(null);
     try {
-      await create({
+      const newDelegation = await create({
         agentId: selectedAgent,
         maxAmounts,
         allowedProtocols,
         allowedChains,
         expiryDays,
       });
-      setTimeout(() => navigate("/app/delegations"), 800);
+      setTimeout(() => {
+        // Forking a strategy: carry delegation and strategy into intent creation.
+        if (strategyId && newDelegation) {
+          navigate(`/app/intents/new?delegation=${newDelegation.id}&strategy=${strategyId}`);
+        } else {
+          navigate("/app/delegations");
+        }
+      }, 800);
     } catch {
       setSubmitError("Couldn't sign the delegation. Try again.");
     }
