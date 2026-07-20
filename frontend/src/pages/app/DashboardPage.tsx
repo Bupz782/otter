@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import {
   Wallet,
   TrendingUp,
@@ -74,6 +75,7 @@ const ACTIVITY_DOT: Record<ActivityItem["type"], string> = {
 };
 
 export function DashboardPage() {
+  useDocumentTitle("Dashboard");
   const {
     data: portfolio,
     isLoading: portfolioLoading,

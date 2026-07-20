@@ -94,14 +94,14 @@ Points issus des tests en échec et des faiblesses constatées en recette. Pour 
 - **Constat** — aucune configuration TLS n'est versionnée : `frontend/nginx.conf` écoute en HTTP clair sur le port 3000, et `docker-compose.yml` n'expose pas de terminaison TLS. La mise en HTTPS repose sur l'infrastructure d'accueil (reverse proxy externe).
 - **Risque** — comportement de production non reproductible ni auditable depuis le dépôt ; risque de déploiement en clair si le proxy externe est absent ou mal configuré.
 - **Action corrective** — documenter l'exigence de terminaison TLS dans le guide de déploiement et fournir une configuration de reverse proxy de référence (ex. Traefik/Caddy) versionnée.
-- **Statut** — à faire.
+- **Statut** — traité pour la partie dépôt : une configuration TLS de référence est versionnée dans `deploy/Caddyfile` (Caddy, certificats automatiques via Let's Encrypt, frontend sur le port 3000, routage de `/api/*` vers l'API sur le port 3001, headers de sécurité de base ; `/health`, `/ready` et `/metrics` non exposés) et documentée dans `DEPLOYMENT.md` (section « Terminaison TLS »). La terminaison TLS reste volontairement hors `docker-compose.yml` : le déploiement effectif du proxy relève de l'infrastructure d'accueil.
 
 ### 3.4 Secret JWT aléatoire en développement
 
-- **Constat** — lorsque `OTTER_JWT_SECRET` est absent, l'API génère un secret aléatoire à chaque démarrage (`crates/interfaces/src/bin/otter_api.rs:723-725`, avec avertissement « auth enabled but no OTTER_JWT_SECRET set; generating a random dev secret »).
+- **Constat** — lorsque `OTTER_JWT_SECRET` est absent, l'API génère un secret aléatoire à chaque démarrage (`crates/interfaces/src/bin/otter_api.rs`, avec avertissement « auth enabled but no OTTER_JWT_SECRET set; generating a random dev secret »).
 - **Risque** — en développement, tous les tokens sont invalidés à chaque redémarrage (sessions perdues, faux échecs en recette) ; en production, un oubli de configuration passerait pour un système « qui marche » tout en étant non déterministe.
 - **Action corrective** — conserver le comportement aléatoire uniquement en dev (déjà le cas, avec warning), et faire échouer le démarrage si le secret est absent lorsque `OTTER_NETWORK` vaut `mainnet`/`sepolia` ; documenter la variable dans `.env.example`.
-- **Statut** — partiellement traité (warning en place) ; durcissement production à planifier.
+- **Statut** — traité. La fonction `resolve_jwt_secret` (`crates/interfaces/src/bin/otter_api.rs`) refuse le démarrage (`std::process::exit(1)` avec message d'erreur explicite) si l'auth est activée sans `OTTER_JWT_SECRET` lorsque `OTTER_NETWORK` vaut `mainnet` ou `sepolia` ; le secret aléatoire + warning reste valable en local/dev. La variable est documentée dans `.env.example`. Preuve automatisée : tests `jwt_secret_required_on_public_networks` et `jwt_secret_random_allowed_locally`.
 
 ---
 
@@ -124,7 +124,7 @@ Points issus des tests en échec et des faiblesses constatées en recette. Pour 
 
 - La majorité des bogues Majeur provient de la chaîne CI/DevOps et de la sécurité (contrôle d'accès, secrets) : les passes de revue structurées (findings Critical/Important) ont été le canal de détection le plus productif, avant même la mise en production.
 - Chaque correction est adossée à un contrôle automatisé rejoué en continu (clippy, `cargo test`, `forge test`, `nargo test`, vitest, smoke tests), ce qui transforme chaque bogue traité en barrière de non-régression durable.
-- Les quatre points d'amélioration de la section 3 sont tracés avec un statut explicite ; leur traitement est intégré à la feuille de route (couverture tarpaulin en CI, tests de hooks frontend, TLS versionné, durcissement du secret JWT en production).
+- Les points d'amélioration de la section 3 sont tracés avec un statut explicite ; leur traitement est intégré à la feuille de route (couverture tarpaulin en CI, tests de hooks frontend). Le durcissement du secret JWT en production (§3.4) est traité. Le point TLS (§3.3) est traité pour la partie dépôt : configuration de référence versionnée dans `deploy/Caddyfile`.
 
 ---
 
@@ -134,13 +134,13 @@ Le cahier de recettes (`docs/CAHIER_DE_RECETTES.md` §6.3) a consigné 7 anomali
 
 | Réf. | Description (abrégée) | Criticité | Traitement / analyse du point d'amélioration | Statut |
 |---|---|---|---|---|
-| A1 | `POST /api/v1/intents/parse` n'applique pas `validate_intent_text` (texte > 2000 caractères accepté, contrairement à `POST /api/v1/intents`) | Mineur | Factoriser la validation d'entrée dans un middleware partagé entre `parse_intent` et `create_intent` ; ajouter un test 413/400 sur `/intents/parse` | À traiter |
+| A1 | `POST /api/v1/intents/parse` n'applique pas `validate_intent_text` (texte > 2000 caractères accepté, contrairement à `POST /api/v1/intents`) | Mineur | `validate_intent_text` (trim, rejet vide, limite 2000 caractères) appelée au début de `parse_intent`, comme dans `create_intent` ; tests `parse_intent_rejects_long_text` et `parse_intent_rejects_empty_text` (HTTP 400, même code que sur `/intents`) | **Résolu** |
 | A2 | `/agents`, `/strategies`, `/leaderboard`, `/proofs` retournent des données de démonstration embarquées (`default_agents()`, `default_strategies()`) | Mineur | Acceptable pour un prototype de démonstration ; à remplacer par des données persistées avant mise en production (traçabilité via BACKLOG marketplace) | Accepté pour le MVP, à traiter avant production |
-| A3 | Parsing LLM : modèle local llama.cpp/GGUF au lieu de l'API Claude visée par US-028/029/030 ; `HybridParser` non branché sur l'API (qui instancie `RegexParser` seul) | Mineur | Choix assumé (LLM local = confidentialité, hors-ligne) ; brancher le `HybridParser` (fallback LLM → regex) dans `build_orchestrator` pour fiabiliser le parsing | À traiter |
-| A4 | Rate limiting **par adresse IP** alors que US-422 spécifie « 100 req/min **par user** » | Mineur | Étendre le middleware pour clé JWT (sub) quand authentifié, IP sinon ; ajuster le test dédié | À traiter |
+| A3 | Parsing LLM : modèle local llama.cpp/GGUF au lieu de l'API Claude visée par US-028/029/030 ; `HybridParser` non branché sur l'API (qui instancie `RegexParser` seul) | Mineur | Choix assumé (LLM local = confidentialité, hors-ligne) ; `build_orchestrator` instancie désormais le `HybridParser` (fallback LLM → regex) via `build_intent_parser` lorsqu'un modèle GGUF est présent et chargeable, sinon le `RegexParser` seul — le démarrage sans modèle reste fonctionnel (test `build_intent_parser_falls_back_to_regex_without_model`). Adaptations : `LlmIntentParser` passe de `RefCell` à `Mutex` (Send + Sync requis par l'état Axum) et le port `IntentParserPort` est implémenté pour `Arc<T>` | **Résolu** |
+| A4 | Rate limiting **par adresse IP** alors que US-422 spécifie « 100 req/min **par user** » | Mineur | Clé de comptage étendue : `sub` du JWT quand un token valide est présent (header `Authorization: Bearer`), IP sinon ; le chemin non authentifié est inchangé ; test `rate_limit_scoped_per_user` (comptage différencié par utilisateur depuis la même IP) | **Résolu** |
 | A5 | `_execute` ETH natif débite le solde interne sans transfert sortant (compatibilité ascendante) ; seul le flux ERC-20 transfère vers le routeur | Majeur | Documenté comme limitation du flux ETH natif ; implémenter le transfert sortant ETH ou restreindre l'exécution aux ERC-20 en production | À traiter avant mainnet |
 | A6 | `docs/PLAN_CORRECTION_BOGUES.md` référencé par le cahier n'existait pas à la date de la recette | Mineur | Document créé (le présent fichier), qui trace A1–A7 | **Résolu** |
-| A7 | Vérification SIWE de bout en bout (signature réelle d'un wallet) non couverte par un test automatisé | Mineur | Ajouter un test d'intégration signant un challenge EIP-4361 avec une clé de test (anvil) et vérifiant le JWT émis | À traiter |
+| A7 | Vérification SIWE de bout en bout (signature réelle d'un wallet) non couverte par un test automatisé | Mineur | Test d'intégration `siwe_end_to_end_real_signature` : challenge `POST /auth/challenge`, signature EIP-191 réelle avec la clé de test Anvil #0 via `k256`, `POST /auth/verify`, JWT émis dont le `sub` est l'adresse du signataire, appel protégé accepté ; test unitaire `verify_signature_accepts_real_eip191_signature` dans `auth.rs`. Corrections rendues nécessaires par le test : vérification de signature synchrone (`verify_eip191` au lieu d'un `block_on` imbriqué qui paniquait dans le runtime async) et `sub` = adresse EIP-55 au lieu du debug du tableau d'octets | **Résolu** |
 
 Aucune anomalie Bloquante n'a été détectée pendant la recette ; la chaîne critique (authentification, délégation signée, preuve ZK, anti-rejeu) reste intégralement vérifiée par les tests automatisés.
 

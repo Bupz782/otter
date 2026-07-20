@@ -1,0 +1,33 @@
+# Mises à jour automatisées des dépendances (PR hebdomadaires).
+# Complète le job security-audit de .github/workflows/ci.yml (cargo audit).
+version: 2
+updates:
+  # Dépendances Rust du workspace (Cargo.toml / Cargo.lock à la racine).
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+
+  # Dépendances npm du frontend.
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+
+  # Actions GitHub utilisées dans .github/workflows/.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  # Images de base du Dockerfile racine (backend).
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+
+  # Images de base du Dockerfile du frontend.
+  - package-ecosystem: docker
+    directory: /frontend
+    schedule:
+      interval: weekly

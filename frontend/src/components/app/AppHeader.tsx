@@ -5,6 +5,7 @@ import { AppConnectButton } from "./AppConnectButton";
 import { Button } from "@/components/ui/button";
 import { useOnboardingContext } from "./OnboardingProvider";
 import { useAuthToken } from "@/hooks/useAuthToken";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 const breadcrumbMap: Record<string, string> = {
   "/app/dashboard": "Dashboard",
@@ -47,6 +48,7 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
   const [intentHelpOpen, setIntentHelpOpen] = useState(false);
   const helpRef = useRef<HTMLDivElement>(null);
   const helpButtonRef = useRef<HTMLButtonElement>(null);
+  const intentHelpRef = useFocusTrap<HTMLDivElement>(intentHelpOpen);
   const { restart } = useOnboardingContext();
 
   useEffect(() => {
@@ -209,6 +211,7 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
           onClick={() => setIntentHelpOpen(false)}
         >
           <div
+            ref={intentHelpRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="intent-help-title"

@@ -14,17 +14,16 @@ use domain::models::condition::Metric;
 use domain::models::delegation::DelegationMessage;
 use domain::models::execution_plan::ExecutionPlan;
 use domain::models::intent::{Asset, ConditionalIntent};
+use domain::ports::intent_parser_port::IntentParserPort;
 use domain::ports::price_oracle_port::PriceOraclePort;
-use domain::ports::wallet_port::WalletPort;
 use domain::ports::storage_port::StrategyRecord;
-use domain::ports::{
-    BlockchainPort, DelegationRecord, ExecutionRecord, IntentRecord, StoragePort,
-};
+use domain::ports::wallet_port::WalletPort;
+use domain::ports::{BlockchainPort, DelegationRecord, ExecutionRecord, IntentRecord, StoragePort};
 use infrastructure::blockchain::{
     AlloyEvmAdapter, CompositeOracle, LocalWalletAdapter, OracleNetwork,
 };
 use infrastructure::config::Config;
-use infrastructure::parsers::RegexParser;
+use infrastructure::parsers::{HybridParser, LlmIntentParser, RegexParser};
 use infrastructure::services::OnChainExecutionService;
 use infrastructure::storage::{PgStorage, SqliteStorage};
 use infrastructure::zkp::NoirAdapter;
@@ -32,15 +31,19 @@ use interfaces::auth::{AuthService, AuthUser};
 use interfaces::secrets::load_private_key;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::net::IpAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::{Mutex, RwLock};
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
+/// Parser type used by the API daemon: a hybrid LLM parser when a model is
+/// available, the deterministic regex parser otherwise, shared behind a trait
+/// object so both variants fit the same orchestrator type.
+type AgentParser = Arc<dyn IntentParserPort + Send + Sync>;
+
 /// Concrete orchestrator type used by the API daemon.
-type AgentOrchestrator = Orchestrator<RegexParser, CompositeOracle, NoirAdapter, AlloyEvmAdapter>;
+type AgentOrchestrator = Orchestrator<AgentParser, CompositeOracle, NoirAdapter, AlloyEvmAdapter>;
 
 /// Shared application state.
 struct AppState {
@@ -54,7 +57,7 @@ struct AppState {
     auth_enabled: bool,
     auth_service: Option<Arc<AuthService>>,
     rate_limit_per_minute: u32,
-    request_counts: Arc<Mutex<HashMap<IpAddr, Vec<Instant>>>>,
+    request_counts: Arc<Mutex<HashMap<String, Vec<Instant>>>>,
     cors_allowed_origins: String,
     event_tx: tokio::sync::broadcast::Sender<Event>,
     agents: Vec<AgentSummary>,
@@ -434,7 +437,10 @@ fn app(state: Arc<AppState>) -> Router {
         .route("/api/v1/agents", get(list_agents))
         .route("/api/v1/agents/:id", get(get_agent))
         .route("/api/v1/agents/:id/pubkey", get(get_agent_pubkey))
-        .route("/api/v1/strategies", get(list_strategies).post(create_strategy))
+        .route(
+            "/api/v1/strategies",
+            get(list_strategies).post(create_strategy),
+        )
         .route("/api/v1/strategies/:id", get(get_strategy))
         .route("/api/v1/strategies/:id/fork", post(fork_strategy))
         .route("/api/v1/portfolio", get(get_portfolio))
@@ -526,12 +532,12 @@ async fn rate_limit_middleware(
         return next.run(request).await;
     }
 
-    let ip = addr.ip();
+    let key = rate_limit_key(&state, request.headers(), addr.ip());
     let now = Instant::now();
     let window = Duration::from_secs(60);
 
     let mut counts = state.request_counts.lock().await;
-    let entries = counts.entry(ip).or_default();
+    let entries = counts.entry(key).or_default();
     entries.retain(|t| now.duration_since(*t) < window);
 
     if entries.len() >= state.rate_limit_per_minute as usize {
@@ -548,6 +554,21 @@ async fn rate_limit_middleware(
     drop(counts);
 
     next.run(request).await
+}
+
+/// Rate limiting is per authenticated user (JWT `sub`) when a valid token is
+/// presented, per source IP otherwise (US-422).
+fn rate_limit_key(state: &AppState, headers: &header::HeaderMap, ip: std::net::IpAddr) -> String {
+    if let Some(service) = state.auth_service.as_ref() {
+        let token = headers
+            .get(header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.strip_prefix("Bearer "));
+        if let Some(user) = token.and_then(|t| service.validate_token(t).ok()) {
+            return format!("user:{}", user.address);
+        }
+    }
+    format!("ip:{}", ip)
 }
 
 async fn auth_challenge(
@@ -776,14 +797,12 @@ async fn main() {
     let (event_tx, _) = tokio::sync::broadcast::channel::<Event>(256);
 
     let auth_service = if config.auth_enabled {
-        let secret = if config.jwt_secret.is_empty() {
-            tracing::warn!(
-                "auth enabled but no OTTER_JWT_SECRET set; generating a random dev secret"
-            );
-            let bytes: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
-            hex::encode(bytes)
-        } else {
-            config.jwt_secret.clone()
+        let secret = match resolve_jwt_secret(&config) {
+            Ok(secret) => secret,
+            Err(err) => {
+                tracing::error!(%err, "invalid auth configuration");
+                std::process::exit(1);
+            }
         };
         Some(Arc::new(AuthService::new(secret, config.jwt_ttl_hours)))
     } else {
@@ -861,6 +880,28 @@ fn load_config() -> Config {
     }
 }
 
+/// Resolve the JWT secret used to sign tokens. On public networks
+/// (`mainnet`/`sepolia`) an explicit `OTTER_JWT_SECRET` is mandatory: starting
+/// with a random secret would silently invalidate every token on restart.
+/// Locally (no network or any other value) a random dev secret is allowed,
+/// with a warning.
+fn resolve_jwt_secret(config: &Config) -> Result<String, String> {
+    if !config.jwt_secret.is_empty() {
+        return Ok(config.jwt_secret.clone());
+    }
+    let network = config.network.as_deref().unwrap_or_default().to_lowercase();
+    if matches!(network.as_str(), "mainnet" | "sepolia") {
+        return Err(format!(
+            "OTTER_JWT_SECRET must be set when auth is enabled on network '{}'; \
+             refusing to start with a random secret",
+            network
+        ));
+    }
+    tracing::warn!("auth enabled but no OTTER_JWT_SECRET set; generating a random dev secret");
+    let bytes: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
+    Ok(hex::encode(bytes))
+}
+
 fn parse_network(value: Option<&String>) -> OracleNetwork {
     match value.map(|s| s.to_lowercase()).as_deref() {
         Some("mainnet") => OracleNetwork::Mainnet,
@@ -869,7 +910,7 @@ fn parse_network(value: Option<&String>) -> OracleNetwork {
 }
 
 async fn build_orchestrator(config: &Config) -> (AgentOrchestrator, bool) {
-    let parser = RegexParser::new();
+    let parser = build_intent_parser(config);
     let network = parse_network(config.network.as_ref());
     let oracle = CompositeOracle::new(config.rpc_url.clone(), network)
         .expect("failed to initialize composite oracle");
@@ -904,7 +945,7 @@ async fn build_orchestrator(config: &Config) -> (AgentOrchestrator, bool) {
             .unwrap_or(1);
         let execution = Arc::new(
             OnChainExecutionService::new(
-                parser.clone(),
+                RegexParser::new(),
                 oracle.clone(),
                 zkp.clone(),
                 evm.clone(),
@@ -925,6 +966,39 @@ async fn build_orchestrator(config: &Config) -> (AgentOrchestrator, bool) {
         "running without on-chain execution; set OTTER_EXECUTION_ENABLED=true and provide OTTER_PRIVATE_KEY / OTTER_VAULT_ADDRESS to enable"
     );
     (Orchestrator::new(parser, oracle, zkp, evm), false)
+}
+
+/// Build the intent parser for the API daemon. When a GGUF model exists at
+/// `config.model_path` and loads successfully, use the hybrid parser (LLM with
+/// regex fallback); otherwise keep the deterministic regex parser so the API
+/// stays fully functional without a model.
+fn build_intent_parser(config: &Config) -> AgentParser {
+    if std::path::Path::new(&config.model_path).exists() {
+        let llm = LlmIntentParser::new(&config.model_path);
+        let load_result = llm.client_mut().load();
+        match load_result {
+            Ok(()) => {
+                tracing::info!(
+                    model_path = %config.model_path,
+                    "LLM model loaded; using hybrid intent parser (LLM with regex fallback)"
+                );
+                return Arc::new(HybridParser::new(llm));
+            }
+            Err(err) => {
+                tracing::warn!(
+                    model_path = %config.model_path,
+                    %err,
+                    "failed to load LLM model; falling back to regex intent parser"
+                );
+            }
+        }
+    } else {
+        tracing::info!(
+            model_path = %config.model_path,
+            "no LLM model found; using regex intent parser"
+        );
+    }
+    Arc::new(RegexParser::new())
 }
 
 fn dummy_evm_adapter(config: &Config) -> AlloyEvmAdapter {
@@ -1329,7 +1403,10 @@ async fn list_strategies(
     AxumState(state): AxumState<Arc<AppState>>,
 ) -> Result<Json<StrategiesResponse>, AppError> {
     let records = state.storage.list_strategies().await?;
-    let strategies = records.into_iter().map(map_strategy_record_to_summary).collect();
+    let strategies = records
+        .into_iter()
+        .map(map_strategy_record_to_summary)
+        .collect();
     Ok(Json(StrategiesResponse { strategies }))
 }
 
@@ -1389,7 +1466,9 @@ async fn fork_strategy(
         .storage
         .get_strategy(&id)
         .await?
-        .ok_or(AppError::Storage(domain::ports::StorageError::NotFound(id.clone())))?;
+        .ok_or(AppError::Storage(domain::ports::StorageError::NotFound(
+            id.clone(),
+        )))?;
     state.storage.increment_strategy_copies(&id).await?;
     Ok(Json(ForkStrategyResponse {
         strategy_id: id.clone(),
@@ -1436,8 +1515,8 @@ fn map_strategy_record_to_detail(
     record: StrategyRecord,
     agents: &[AgentSummary],
 ) -> StrategyDetailResponse {
-    let intent: ConditionalIntent = serde_json::from_str(&record.intent_json)
-        .expect("stored intent deserializes");
+    let intent: ConditionalIntent =
+        serde_json::from_str(&record.intent_json).expect("stored intent deserializes");
     StrategyDetailResponse {
         id: record.id,
         title: record.title,
@@ -1601,6 +1680,8 @@ async fn parse_intent(
     AxumState(state): AxumState<Arc<AppState>>,
     Json(body): Json<ParseRequest>,
 ) -> Result<Json<ParseResponse>, AppError> {
+    validate_intent_text(&body.text)?;
+
     let intent = {
         let mut orchestrator = state.write_orchestrator().await;
         orchestrator.parse(&body.text)?
@@ -2022,7 +2103,7 @@ mod tests {
     }
 
     async fn test_state() -> Arc<AppState> {
-        let parser = RegexParser::new();
+        let parser: AgentParser = Arc::new(RegexParser::new());
         let oracle =
             CompositeOracle::new("http://localhost:8545".to_string(), OracleNetwork::Sepolia)
                 .expect("composite oracle should build");
@@ -2507,9 +2588,13 @@ mod tests {
             risk_profile: "Conservative".to_string(),
         };
 
-        let created = create_strategy(AxumState(state.clone()), Extension(None::<AuthUser>), Json(body))
-            .await
-            .unwrap();
+        let created = create_strategy(
+            AxumState(state.clone()),
+            Extension(None::<AuthUser>),
+            Json(body),
+        )
+        .await
+        .unwrap();
 
         let listed = list_strategies(AxumState(state)).await.unwrap();
         assert_eq!(listed.strategies.len(), 1);
@@ -2547,9 +2632,11 @@ mod tests {
     #[tokio::test]
     async fn get_strategy_returns_not_found_for_missing_id() {
         let state = test_state().await;
-        let response = get_strategy(AxumState(state), Path("strategy-missing".to_string()))
-            .await;
-        assert_eq!(response.unwrap_err().into_response().status(), StatusCode::NOT_FOUND);
+        let response = get_strategy(AxumState(state), Path("strategy-missing".to_string())).await;
+        assert_eq!(
+            response.unwrap_err().into_response().status(),
+            StatusCode::NOT_FOUND
+        );
     }
 
     #[tokio::test]
@@ -2563,9 +2650,13 @@ mod tests {
             risk_profile: "Conservative".to_string(),
         };
 
-        let created = create_strategy(AxumState(state.clone()), Extension(None::<AuthUser>), Json(body))
-            .await
-            .unwrap();
+        let created = create_strategy(
+            AxumState(state.clone()),
+            Extension(None::<AuthUser>),
+            Json(body),
+        )
+        .await
+        .unwrap();
 
         let forked = fork_strategy(AxumState(state.clone()), Path(created.id.clone()))
             .await
@@ -2607,7 +2698,9 @@ mod tests {
         let response = router.oneshot(req).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert!(json["id"].as_str().unwrap().starts_with("strategy-"));
     }
@@ -2644,7 +2737,8 @@ mod tests {
                     protocol: domain::models::intent::LendingType::Aave,
                 },
                 condition: None,
-            }).unwrap(),
+            })
+            .unwrap(),
             creator_address: None,
             agent_id: "agent-1".to_string(),
             risk_profile: "Conservative".to_string(),
@@ -2669,8 +2763,239 @@ mod tests {
             risk_profile: "Wild".to_string(),
         };
 
-        let response = create_strategy(AxumState(state), Extension(None::<AuthUser>), Json(body))
-            .await;
-        assert_eq!(response.unwrap_err().into_response().status(), StatusCode::BAD_REQUEST);
+        let response =
+            create_strategy(AxumState(state), Extension(None::<AuthUser>), Json(body)).await;
+        assert_eq!(
+            response.unwrap_err().into_response().status(),
+            StatusCode::BAD_REQUEST
+        );
+    }
+
+    #[tokio::test]
+    async fn parse_intent_rejects_long_text() {
+        let state = test_state().await;
+        let long_text = "lend ".to_string() + &"x".repeat(MAX_INTENT_TEXT_LEN);
+        let response = parse_intent(AxumState(state), Json(ParseRequest { text: long_text }))
+            .await
+            .into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn parse_intent_rejects_empty_text() {
+        let state = test_state().await;
+        let response = parse_intent(
+            AxumState(state),
+            Json(ParseRequest {
+                text: "   ".to_string(),
+            }),
+        )
+        .await
+        .into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    async fn rate_limit_auth_test_state() -> Arc<AppState> {
+        let base = test_state().await;
+        Arc::new(AppState {
+            auth_enabled: true,
+            auth_service: Some(Arc::new(AuthService::new("test-secret".to_string(), 24))),
+            rate_limit_per_minute: 2,
+            ..clone_state(&base)
+        })
+    }
+
+    fn authed_get(uri: &str, token: Option<&str>) -> Request<Body> {
+        let mut builder = Request::builder().method("GET").uri(uri);
+        if let Some(token) = token {
+            builder = builder.header(header::AUTHORIZATION, format!("Bearer {}", token));
+        }
+        with_connect_info(builder.body(Body::empty()).unwrap())
+    }
+
+    #[tokio::test]
+    async fn rate_limit_scoped_per_user() {
+        let state = rate_limit_auth_test_state().await;
+        let router = app(state);
+        let token_a = generate_test_token("test-secret", "0xaaa");
+        let token_b = generate_test_token("test-secret", "0xbbb");
+
+        // User A exhausts its quota: 2 requests pass, the third is limited.
+        for i in 0..3 {
+            let response = router
+                .clone()
+                .oneshot(authed_get("/health", Some(&token_a)))
+                .await
+                .unwrap();
+            if i < 2 {
+                assert_eq!(
+                    response.status(),
+                    StatusCode::OK,
+                    "request {} should pass",
+                    i
+                );
+            } else {
+                assert_eq!(
+                    response.status(),
+                    StatusCode::TOO_MANY_REQUESTS,
+                    "request {} should be rate limited",
+                    i
+                );
+            }
+        }
+
+        // User B, from the same IP, has its own quota and still passes.
+        let response = router
+            .clone()
+            .oneshot(authed_get("/health", Some(&token_b)))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Unauthenticated requests keep their own per-IP bucket.
+        let response = router
+            .clone()
+            .oneshot(authed_get("/health", None))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn jwt_secret_required_on_public_networks() {
+        for network in ["mainnet", "sepolia"] {
+            let config = Config {
+                auth_enabled: true,
+                network: Some(network.to_string()),
+                ..Default::default()
+            };
+            assert!(
+                resolve_jwt_secret(&config).is_err(),
+                "network {} should require OTTER_JWT_SECRET",
+                network
+            );
+        }
+    }
+
+    #[test]
+    fn jwt_secret_random_allowed_locally() {
+        // No network configured (local dev): a random dev secret is generated.
+        let local = Config {
+            auth_enabled: true,
+            ..Default::default()
+        };
+        assert!(resolve_jwt_secret(&local).is_ok());
+
+        let localhost = Config {
+            auth_enabled: true,
+            network: Some("localhost".to_string()),
+            ..Default::default()
+        };
+        assert!(resolve_jwt_secret(&localhost).is_ok());
+
+        // An explicit secret is always honored, even on a public network.
+        let explicit = Config {
+            auth_enabled: true,
+            network: Some("mainnet".to_string()),
+            jwt_secret: "fixed-secret".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(resolve_jwt_secret(&explicit).unwrap(), "fixed-secret");
+    }
+
+    #[test]
+    fn build_intent_parser_falls_back_to_regex_without_model() {
+        let config = Config {
+            model_path: "models/definitely-missing.gguf".to_string(),
+            ..Default::default()
+        };
+        let parser = build_intent_parser(&config);
+        let intent = parser.parse("lend 100 USDC on Aave");
+        assert!(intent.is_ok(), "regex fallback should parse: {:?}", intent);
+    }
+
+    #[tokio::test]
+    async fn siwe_end_to_end_real_signature() {
+        use k256::ecdsa::{RecoveryId, Signature, SigningKey};
+        use sha3::{Digest, Keccak256};
+
+        // Well-known Anvil test account #0 private key.
+        let private_key =
+            hex::decode("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+                .unwrap();
+        let signing_key = SigningKey::from_slice(&private_key).unwrap();
+        let encoded = signing_key.verifying_key().to_encoded_point(false);
+        let digest = Keccak256::digest(&encoded.as_bytes()[1..]);
+        let address_bytes: [u8; 20] = digest[12..].try_into().unwrap();
+        // The SIWE parser requires an EIP-55 checksummed address.
+        let address = siwe::eip55(&address_bytes);
+
+        let state = auth_test_state().await;
+        let router = app(state.clone());
+
+        // 1. Request a SIWE challenge for the signer's address.
+        let req = with_connect_info(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/auth/challenge")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(format!(r#"{{"address":"{}"}}"#, address)))
+                .unwrap(),
+        );
+        let response = router.clone().oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let resp: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let message = resp["message"].as_str().unwrap().to_string();
+
+        // 2. Sign the challenge with EIP-191 personal_sign.
+        let prefixed = format!("\x19Ethereum Signed Message:\n{}{}", message.len(), message);
+        let prehash = Keccak256::digest(prefixed.as_bytes());
+        let (signature, recovery_id): (Signature, RecoveryId) =
+            signing_key.sign_prehash_recoverable(&prehash).unwrap();
+        let mut signature_bytes = signature.to_bytes().to_vec();
+        signature_bytes.push(recovery_id.to_byte() + 27);
+        let signature_hex = format!("0x{}", hex::encode(signature_bytes));
+
+        // 3. Exchange the signed challenge for a JWT.
+        let verify_body = serde_json::json!({ "message": message, "signature": signature_hex });
+        let req = with_connect_info(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/auth/verify")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(verify_body.to_string()))
+                .unwrap(),
+        );
+        let response = router.clone().oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let resp: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let token = resp["token"].as_str().unwrap().to_string();
+
+        // 4. The JWT subject must be the signer's address (lowercased).
+        let user = state
+            .auth_service
+            .as_ref()
+            .unwrap()
+            .validate_token(&token)
+            .unwrap();
+        assert_eq!(user.address, address.to_lowercase());
+
+        // 5. A protected endpoint accepts the issued JWT.
+        let req = with_connect_info(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/intents")
+                .header(header::AUTHORIZATION, format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        );
+        let response = router.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
     }
 }

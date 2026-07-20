@@ -7,8 +7,8 @@ use domain::ports::zkp_port::ZkpPort;
 use infrastructure::zkp::NoirAdapter;
 use k256::ecdsa::{SigningKey, signature::DigestSigner};
 use rand::rngs::OsRng;
-use std::path::PathBuf;
 use serial_test::serial;
+use std::path::PathBuf;
 
 fn sign_delegation(delegation: &DelegationMessage, signing_key: &SigningKey) -> [u8; 64] {
     let serialized = serialize_delegation(delegation);
@@ -102,7 +102,9 @@ fn noir_adapter_generates_witness_for_valid_delegation() {
         .filter(|p| std::path::Path::new(p).exists());
     let adapter = NoirAdapter::new(circuit_dir, "nargo", bb_bin.as_deref());
     let result = adapter.prove_delegation(&public_inputs, &private_inputs);
-    let proof = result.unwrap_or_else(|e| panic!("witness generation should succeed for valid delegation: {e:?}"));
+    let proof = result.unwrap_or_else(|e| {
+        panic!("witness generation should succeed for valid delegation: {e:?}")
+    });
 
     if bb_bin.is_some() {
         assert!(

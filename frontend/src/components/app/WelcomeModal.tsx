@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { Vault, Pencil, ShieldCheck, ArrowRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 const cards = [
   {
@@ -25,6 +26,8 @@ const cards = [
 ];
 
 export function WelcomeModal({ onStart, onSkip }: { onStart: () => void; onSkip: () => void }) {
+  const dialogRef = useFocusTrap<HTMLDivElement>(true);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onSkip();
@@ -41,6 +44,7 @@ export function WelcomeModal({ onStart, onSkip }: { onStart: () => void; onSkip:
       aria-labelledby="welcome-title"
     >
       <motion.div
+        ref={dialogRef}
         initial={{ opacity: 0, scale: 0.95, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}

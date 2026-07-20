@@ -38,12 +38,18 @@ impl Strategy {
         if self.raw_text.trim().is_empty() {
             return Err(StrategyValidationError::EmptyRawText);
         }
-        if !matches!(self.risk_profile.as_str(), "Conservative" | "Balanced" | "Advanced") {
-            return Err(StrategyValidationError::InvalidRiskProfile(self.risk_profile.clone()));
+        if !matches!(
+            self.risk_profile.as_str(),
+            "Conservative" | "Balanced" | "Advanced"
+        ) {
+            return Err(StrategyValidationError::InvalidRiskProfile(
+                self.risk_profile.clone(),
+            ));
         }
-        self.intent.intent.validate().map_err(|e| {
-            StrategyValidationError::InvalidIntent(format!("{:?}", e))
-        })?;
+        self.intent
+            .intent
+            .validate()
+            .map_err(|e| StrategyValidationError::InvalidIntent(format!("{:?}", e)))?;
         Ok(())
     }
 }
@@ -93,28 +99,40 @@ mod tests {
     fn strategy_rejects_bad_risk_profile() {
         let mut strategy = sample_strategy();
         strategy.risk_profile = "Wild".to_string();
-        assert!(matches!(strategy.validate(), Err(StrategyValidationError::InvalidRiskProfile(_))));
+        assert!(matches!(
+            strategy.validate(),
+            Err(StrategyValidationError::InvalidRiskProfile(_))
+        ));
     }
 
     #[test]
     fn strategy_rejects_empty_title() {
         let mut strategy = sample_strategy();
         strategy.title = "   ".to_string();
-        assert_eq!(strategy.validate(), Err(StrategyValidationError::EmptyTitle));
+        assert_eq!(
+            strategy.validate(),
+            Err(StrategyValidationError::EmptyTitle)
+        );
     }
 
     #[test]
     fn strategy_rejects_empty_description() {
         let mut strategy = sample_strategy();
         strategy.description = "".to_string();
-        assert_eq!(strategy.validate(), Err(StrategyValidationError::EmptyDescription));
+        assert_eq!(
+            strategy.validate(),
+            Err(StrategyValidationError::EmptyDescription)
+        );
     }
 
     #[test]
     fn strategy_rejects_empty_raw_text() {
         let mut strategy = sample_strategy();
         strategy.raw_text = "\t\n".to_string();
-        assert_eq!(strategy.validate(), Err(StrategyValidationError::EmptyRawText));
+        assert_eq!(
+            strategy.validate(),
+            Err(StrategyValidationError::EmptyRawText)
+        );
     }
 
     #[test]
@@ -128,6 +146,9 @@ mod tests {
             },
             condition: None,
         };
-        assert!(matches!(strategy.validate(), Err(StrategyValidationError::InvalidIntent(_))));
+        assert!(matches!(
+            strategy.validate(),
+            Err(StrategyValidationError::InvalidIntent(_))
+        ));
     }
 }

@@ -309,6 +309,35 @@ docker compose up -d --remove-orphans
 
 ---
 
+## Terminaison TLS (configuration de référence)
+
+La stack Docker Compose reste en HTTP clair : la terminaison TLS est assumée
+par un reverse proxy externe et n'est volontairement pas intégrée à
+`docker-compose.yml`.
+
+Le dépôt fournit une configuration de référence versionnée :
+`deploy/Caddyfile`. Caddy gère automatiquement l'obtention et le
+renouvellement des certificats (Let's Encrypt) pour le domaine configuré,
+sert le frontend (port 3000) et route `/api/*` vers l'API (port 3001), avec
+les headers de sécurité de base (HSTS, `X-Content-Type-Options`,
+`X-Frame-Options`, `Referrer-Policy`). Les endpoints `/health`, `/ready` et
+`/metrics` ne sont pas exposés par ce proxy et restent internes.
+
+Mise en route :
+
+1. Remplacer le domaine placeholder `otter.example.com` dans
+   `deploy/Caddyfile` par le nom de domaine réel et ouvrir les ports 80/443.
+2. Builder le frontend avec `VITE_API_URL=https://<domaine>` pour que les
+   appels d'API transitent par le proxy.
+3. Lancer `caddy run --config deploy/Caddyfile` (ou `caddy reload` après
+   modification).
+
+Tout autre reverse proxy (nginx, Traefik, HAProxy) convient, à condition de
+reproduire ces propriétés : TLS obligatoire en entrée, routage `/api/*` vers
+l'API, headers de sécurité, endpoints d'observabilité non exposés.
+
+---
+
 ## Production hardening (beyond V1)
 
 - Do not store the agent private key in plain `.env`; use `OTTER_PRIVATE_KEY_FILE`,

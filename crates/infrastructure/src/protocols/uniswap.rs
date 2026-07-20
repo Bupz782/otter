@@ -292,4 +292,130 @@ mod tests {
             .is_err()
         );
     }
+
+    #[test]
+    fn new_rejects_invalid_router_address() {
+        let result = UniswapAdapter::new(
+            "http://localhost:8545",
+            "not-an-address",
+            "0xEd1f64733475F1b43a963611B4E0A6A50e39c40d",
+            TEST_USER,
+        );
+        assert!(matches!(result, Err(ProtocolError::OperationFailed(_))));
+    }
+
+    #[test]
+    fn new_rejects_invalid_quoter_address() {
+        let result = UniswapAdapter::new(
+            "http://localhost:8545",
+            "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E",
+            "0xzz",
+            TEST_USER,
+        );
+        assert!(matches!(result, Err(ProtocolError::OperationFailed(_))));
+    }
+
+    #[test]
+    fn new_rejects_invalid_recipient_address() {
+        let result = UniswapAdapter::sepolia("http://localhost:8545", "garbage");
+        assert!(matches!(result, Err(ProtocolError::OperationFailed(_))));
+    }
+
+    #[test]
+    fn dummy_recipient_is_a_valid_non_zero_address() {
+        let address: Address = DUMMY_RECIPIENT.parse().unwrap();
+        assert!(!address.is_zero());
+    }
+
+    #[test]
+    fn network_detection_distinguishes_sepolia_from_mainnet() {
+        let sepolia = UniswapAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
+        assert_eq!(sepolia.network(), Network::Sepolia);
+
+        let mainnet = UniswapAdapter::mainnet("http://localhost:8545", TEST_USER).unwrap();
+        assert_eq!(mainnet.network(), Network::Mainnet);
+    }
+
+    #[test]
+    fn token_pair_rejects_identical_assets() {
+        let result = UniswapAdapter::token_pair(&Asset::Dai, &Asset::Dai, Network::Mainnet);
+        assert!(matches!(result, Err(ProtocolError::InvalidAmount(_))));
+    }
+
+    #[test]
+    fn token_pair_rejects_unsupported_asset() {
+        let result = UniswapAdapter::token_pair(&Asset::Sol, &Asset::Usdc, Network::Sepolia);
+        assert!(matches!(result, Err(ProtocolError::UnsupportedAsset(_))));
+    }
+
+    #[test]
+    fn token_pair_resolves_distinct_addresses() {
+        let (token_in, token_out) =
+            UniswapAdapter::token_pair(&Asset::Eth, &Asset::Usdc, Network::Sepolia).unwrap();
+        assert_ne!(token_in, token_out);
+        assert!(!token_in.is_zero());
+        assert!(!token_out.is_zero());
+    }
+
+    #[test]
+    fn exact_input_single_uses_default_fee_tier_and_recipient() {
+        let uniswap = UniswapAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
+        let call = uniswap
+            .build_exact_input_single(&Asset::Eth, &Asset::Usdc, 1_000_000, 990_000)
+            .unwrap();
+
+        let params = &call.params;
+        assert_eq!(params.fee, DEFAULT_FEE_TIER);
+        assert_eq!(params.recipient, uniswap.recipient);
+        assert_eq!(params.amountIn, U256::from(1_000_000u128));
+        assert_eq!(params.amountOutMinimum, U256::from(990_000u128));
+        assert_eq!(params.deadline, U256::from(u64::MAX));
+        assert_eq!(params.sqrtPriceLimitX96, U256::ZERO);
+        // tokenIn must be the Sepolia WETH address.
+        assert_eq!(
+            params.tokenIn,
+            address_for(&Asset::Eth, Network::Sepolia).unwrap()
+        );
+        assert_eq!(
+            params.tokenOut,
+            address_for(&Asset::Usdc, Network::Sepolia).unwrap()
+        );
+    }
+
+    #[test]
+    fn exact_input_single_supports_u128_max_amount() {
+        let uniswap = UniswapAdapter::mainnet("http://localhost:8545", TEST_USER).unwrap();
+        let call = uniswap
+            .build_exact_input_single(&Asset::Usdc, &Asset::Dai, u128::MAX, 0)
+            .unwrap();
+        assert_eq!(call.params.amountIn, U256::from(u128::MAX));
+    }
+
+    #[test]
+    fn exact_input_single_rejects_same_asset_swap() {
+        let uniswap = UniswapAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
+        let result = uniswap.build_exact_input_single(&Asset::Link, &Asset::Link, 1, 0);
+        assert!(matches!(result, Err(ProtocolError::InvalidAmount(_))));
+    }
+
+    #[test]
+    fn get_quote_rejects_zero_amount_before_any_network_call() {
+        let uniswap = UniswapAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
+        let result = uniswap.get_quote(&Asset::Eth, &Asset::Usdc, 0);
+        assert!(matches!(result, Err(ProtocolError::InvalidAmount(_))));
+    }
+
+    #[test]
+    fn swap_rejects_zero_amount() {
+        let uniswap = UniswapAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
+        let result = uniswap.swap(&Asset::Eth, &Asset::Usdc, 0, 50);
+        assert!(matches!(result, Err(ProtocolError::InvalidAmount(_))));
+    }
+
+    #[test]
+    fn swap_rejects_slippage_above_100_percent() {
+        let uniswap = UniswapAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
+        let result = uniswap.swap(&Asset::Eth, &Asset::Usdc, 1, 10_001);
+        assert!(matches!(result, Err(ProtocolError::InvalidAmount(_))));
+    }
 }

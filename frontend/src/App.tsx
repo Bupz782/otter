@@ -18,9 +18,11 @@ import { AmbientBackground } from "@/components/AmbientBackground";
 import { PageTransition } from "@/components/PageTransition";
 import { ScrollProgress } from "@/components/ScrollProgress";
 import { NoiseOverlay } from "@/components/NoiseOverlay";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export function App() {
   const location = useLocation();
+  useDocumentTitle("Home");
 
   useEffect(() => {
     const main = document.getElementById("main-content");

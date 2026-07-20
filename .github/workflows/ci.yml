@@ -125,6 +125,26 @@ jobs:
       - name: Build
         run: npm run build
 
+  # Audit des vulnérabilités connues (RustSec Advisory Database) sur le
+  # workspace Rust. Tourné à chaque pipeline, indépendamment des fichiers
+  # modifiés : une nouvelle vulnérabilité peut apparaître sans changement
+  # de code. Complété par .github/dependabot.yml (mises à jour hebdo).
+  #
+  # continue-on-error: l'audit du 2026-07-20 signale 6 vulnérabilités non
+  # résolues dans l'arbre de dépendances actuel (dont alloy-dyn-abi
+  # RUSTSEC-2025-0073, rsa RUSTSEC-2023-0071 sans correctif disponible,
+  # rustls-webpki RUSTSEC-2026-0098/0099/0104, sqlx RUSTSEC-2024-0363).
+  # Le job reste visible en échec sans bloquer les pipelines le temps que
+  # ces vulnérabilités soient traitées ; repasser en bloquant ensuite.
+  security-audit:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   docker-smoke:
     needs: [changes, rust-check, contracts-check, circuit-check, frontend-check]
     if: always() && needs.changes.result == 'success' && (needs.rust-check.result == 'success' || needs.rust-check.result == 'skipped') && (needs.contracts-check.result == 'success' || needs.contracts-check.result == 'skipped') && (needs.circuit-check.result == 'success' || needs.circuit-check.result == 'skipped') && (needs.frontend-check.result == 'success' || needs.frontend-check.result == 'skipped')

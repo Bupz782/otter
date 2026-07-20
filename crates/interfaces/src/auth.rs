@@ -1,7 +1,7 @@
 use chrono::{Duration, Utc};
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
-use siwe::{Message, VerificationOpts};
+use siwe::Message;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -130,19 +130,23 @@ impl AuthService {
         // Parse signature.
         let sig_bytes = hex::decode(signature_hex.trim_start_matches("0x"))
             .map_err(|e| AuthError::VerificationFailed(e.to_string()))?;
-        if sig_bytes.len() != 65 {
+        let sig: &[u8; 65] = sig_bytes
+            .as_slice()
+            .try_into()
+            .map_err(|_| AuthError::VerificationFailed("signature must be 65 bytes".to_string()))?;
+
+        // Enforce the message's own time constraints (not-before / expiration).
+        if !msg.valid_now() {
             return Err(AuthError::VerificationFailed(
-                "signature must be 65 bytes".to_string(),
+                "SIWE message expired or not yet valid".to_string(),
             ));
         }
 
-        // Verify without a provider (only signature + message).
-        let rt = tokio::runtime::Runtime::new().map_err(|e| AuthError::Internal(e.to_string()))?;
-        rt.block_on(async {
-            msg.verify(&sig_bytes, &VerificationOpts::default())
-                .await
-                .map_err(|e| AuthError::VerificationFailed(format!("{:?}", e)))
-        })?;
+        // Verify the EIP-191 personal_sign signature locally (no provider
+        // needed). This is synchronous so it is safe to call from async
+        // handlers.
+        msg.verify_eip191(sig)
+            .map_err(|e| AuthError::VerificationFailed(format!("{:?}", e)))?;
 
         // Clean up used challenge.
         self.challenges
@@ -150,7 +154,7 @@ impl AuthService {
             .map_err(|e| AuthError::Internal(e.to_string()))?
             .remove(&msg.nonce);
 
-        let address = format!("{:?}", msg.address);
+        let address = siwe::eip55(&msg.address);
         self.issue_token(&address)
     }
 
@@ -211,5 +215,40 @@ mod tests {
         let token = auth.issue_token("0xAbC").unwrap();
         let user = auth.validate_token(&token).unwrap();
         assert_eq!(user.address, "0xabc");
+    }
+
+    #[test]
+    fn verify_signature_accepts_real_eip191_signature() {
+        use k256::ecdsa::{RecoveryId, Signature, SigningKey};
+        use sha3::{Digest, Keccak256};
+
+        // Well-known Anvil test account #0 private key.
+        let private_key =
+            hex::decode("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+                .unwrap();
+        let signing_key = SigningKey::from_slice(&private_key).unwrap();
+        let encoded = signing_key.verifying_key().to_encoded_point(false);
+        let digest = Keccak256::digest(&encoded.as_bytes()[1..]);
+        let address_bytes: [u8; 20] = digest[12..].try_into().unwrap();
+        let address = siwe::eip55(&address_bytes);
+
+        let auth = AuthService::new("secret".to_string(), 24);
+        let message = auth.generate_challenge(&address).unwrap();
+
+        // EIP-191 personal_sign over the challenge message.
+        let prefixed = format!("\x19Ethereum Signed Message:\n{}{}", message.len(), message);
+        let prehash = Keccak256::digest(prefixed.as_bytes());
+        let (signature, recovery_id): (Signature, RecoveryId) =
+            signing_key.sign_prehash_recoverable(&prehash).unwrap();
+        let mut signature_bytes = signature.to_bytes().to_vec();
+        signature_bytes.push(recovery_id.to_byte() + 27);
+        let signature_hex = format!("0x{}", hex::encode(signature_bytes));
+
+        let token = auth.verify_signature(&message, &signature_hex).unwrap();
+        let user = auth.validate_token(&token).unwrap();
+        assert_eq!(user.address, address.to_lowercase());
+
+        // The challenge is single-use.
+        assert!(auth.verify_signature(&message, &signature_hex).is_err());
     }
 }

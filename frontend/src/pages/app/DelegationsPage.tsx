@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Plus, FileSignature } from "lucide-react";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +59,7 @@ function delegationStatus(delegation: Delegation): StatusPresentation {
 }
 
 export function DelegationsPage() {
+  useDocumentTitle("Delegations");
   const { data: delegations, isLoading, error, refetch } = useDelegations();
 
   return (

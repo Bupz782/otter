@@ -1,6 +1,6 @@
 use domain::models::ConditionalIntent;
 use domain::ports::intent_parser_port::{IntentParserError, IntentParserPort};
-use std::cell::RefCell;
+use std::sync::{Mutex, MutexGuard};
 
 use crate::llm::{IntentOutput, LlmConfig, LocalLlmClient};
 
@@ -9,7 +9,7 @@ use crate::llm::{IntentOutput, LlmConfig, LocalLlmClient};
 /// The client must already be loaded (`client.load()`) before calling `parse`.
 /// Caching is handled inside the underlying `LocalLlmClient`.
 pub struct LlmIntentParser {
-    client: RefCell<LocalLlmClient>,
+    client: Mutex<LocalLlmClient>,
 }
 
 impl LlmIntentParser {
@@ -42,7 +42,7 @@ Rules:
     pub fn new(model_path: impl Into<String>) -> Self {
         let client = LocalLlmClient::new(model_path, Self::SYSTEM_PROMPT);
         Self {
-            client: RefCell::new(client),
+            client: Mutex::new(client),
         }
     }
 
@@ -50,24 +50,27 @@ Rules:
     pub fn with_config(model_path: impl Into<String>, config: LlmConfig) -> Self {
         let client = LocalLlmClient::with_config(model_path, Self::SYSTEM_PROMPT, config);
         Self {
-            client: RefCell::new(client),
+            client: Mutex::new(client),
         }
     }
 
     /// Expose the underlying client (e.g. to load the model).
-    pub fn client(&self) -> std::cell::Ref<'_, LocalLlmClient> {
-        self.client.borrow()
+    pub fn client(&self) -> MutexGuard<'_, LocalLlmClient> {
+        self.client.lock().expect("llm client mutex poisoned")
     }
 
     /// Expose the underlying client mutably.
-    pub fn client_mut(&self) -> std::cell::RefMut<'_, LocalLlmClient> {
-        self.client.borrow_mut()
+    pub fn client_mut(&self) -> MutexGuard<'_, LocalLlmClient> {
+        self.client.lock().expect("llm client mutex poisoned")
     }
 }
 
 impl IntentParserPort for LlmIntentParser {
     fn parse(&self, text: &str) -> Result<ConditionalIntent, IntentParserError> {
-        let mut client = self.client.borrow_mut();
+        let mut client = self
+            .client
+            .lock()
+            .map_err(|_| IntentParserError::LlmError("llm client mutex poisoned".to_string()))?;
 
         if !client.is_loaded() {
             return Err(IntentParserError::LlmError(

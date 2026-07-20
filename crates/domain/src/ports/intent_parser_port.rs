@@ -10,6 +10,12 @@ impl<T: IntentParserPort + ?Sized> IntentParserPort for &T {
     }
 }
 
+impl<T: IntentParserPort + ?Sized> IntentParserPort for std::sync::Arc<T> {
+    fn parse(&self, text: &str) -> Result<ConditionalIntent, IntentParserError> {
+        (**self).parse(text)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum IntentParserError {
     ParsingFailed(String),

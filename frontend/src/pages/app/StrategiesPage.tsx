@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { BookOpen, FilePlus, Sparkles, Trophy } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -17,6 +18,7 @@ const riskVariant: Record<string, "default" | "secondary" | "outline" | "destruc
 };
 
 export function StrategiesPage() {
+  useDocumentTitle("Strategies");
   const navigate = useNavigate();
   const { data: strategies, isLoading: strategiesLoading } = useStrategies();
   const { data: leaderboard, isLoading: leaderboardLoading } = useLeaderboard();

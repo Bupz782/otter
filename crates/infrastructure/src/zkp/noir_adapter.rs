@@ -413,12 +413,17 @@ impl NoirAdapter {
 }
 
 fn unique_id() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
+    // Nanosecond timestamps can collide on platforms with a coarse system
+    // clock; the per-process counter guarantees uniqueness within the process.
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
-    format!("{:x}", now)
+    let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("{:x}_{:x}", now, seq)
 }
 
 fn format_prover_toml(
@@ -540,5 +545,464 @@ mod tests {
         assert!(toml.contains("delegation_hash"));
         assert!(toml.contains("[delegation]"));
         assert!(toml.contains("signature"));
+    }
+
+    fn sample_inputs() -> (PublicDelegationInputs, PrivateDelegationInputs) {
+        let public_inputs = PublicDelegationInputs {
+            delegation_hash: [7u8; 32],
+            proposed_intent: ProposedDelegationIntent {
+                intent_type: field_from_u32(1),
+                amount: field_from_u128(1000),
+                protocol: field_from_u32(1),
+                target_contract: field_from_u32(0),
+            },
+            timestamp: field_from_u64(1234567890),
+            nonce: field_from_u64(42),
+        };
+        let private_inputs = PrivateDelegationInputs {
+            delegation: DelegationMessage {
+                pubkey_x: [0u8; 32],
+                pubkey_y: [1u8; 32],
+                allowed_intents: field_from_u32(0x05),
+                max_amounts: [field_from_u128(1000); 10],
+                allowed_protocols: [field_from_u32(1); 5],
+                expiry: field_from_u64(9999999999),
+                nonce: field_from_u64(42),
+                target_contract: field_from_u32(0),
+            },
+            signature: [9u8; 64],
+        };
+        (public_inputs, private_inputs)
+    }
+
+    /// Create a unique temporary directory acting as the Noir circuit package.
+    fn temp_circuit_dir() -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("otter-noir-test-{}", unique_id()));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// Write an executable shell script standing in for `nargo` or `bb`.
+    fn write_fake_binary(dir: &Path, name: &str, body: &str) -> String {
+        let path = dir.join(name);
+        fs::write(&path, body).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        path.to_string_lossy().to_string()
+    }
+
+    #[test]
+    fn new_initializes_zero_counters() {
+        let adapter = NoirAdapter::new("circuits", "nargo", None::<String>);
+        assert_eq!(adapter.last_witness_ms(), 0);
+        assert_eq!(adapter.last_prove_ms(), 0);
+        assert_eq!(adapter.last_verify_ms(), 0);
+        assert_eq!(adapter.package_name, "delegation_circuit");
+        assert_eq!(adapter.nargo_bin, "nargo");
+        assert!(adapter.bb_bin.is_none());
+    }
+
+    #[test]
+    fn clone_preserves_timing_counters() {
+        let adapter = NoirAdapter::new("circuits", "nargo", Some("bb"));
+        adapter.last_witness_ms.store(11, Ordering::Relaxed);
+        adapter.last_prove_ms.store(22, Ordering::Relaxed);
+        adapter.last_verify_ms.store(33, Ordering::Relaxed);
+
+        let cloned = adapter.clone();
+        assert_eq!(cloned.last_witness_ms(), 11);
+        assert_eq!(cloned.last_prove_ms(), 22);
+        assert_eq!(cloned.last_verify_ms(), 33);
+        assert_eq!(cloned.bb_bin.as_deref(), Some("bb"));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn from_config_reads_environment_variables() {
+        unsafe {
+            std::env::set_var("OTTER_CIRCUIT_DIR", "/tmp/otter-circuits");
+            std::env::set_var("OTTER_NARGO_BIN", "/opt/nargo");
+            std::env::set_var("OTTER_BB_BIN", "/opt/bb");
+        }
+        let config = crate::config::Config::default();
+        let adapter = NoirAdapter::from_config(&config);
+        unsafe {
+            std::env::remove_var("OTTER_CIRCUIT_DIR");
+            std::env::remove_var("OTTER_NARGO_BIN");
+            std::env::remove_var("OTTER_BB_BIN");
+        }
+
+        assert_eq!(adapter.circuit_dir, PathBuf::from("/tmp/otter-circuits"));
+        assert_eq!(adapter.nargo_bin, "/opt/nargo");
+        assert_eq!(adapter.bb_bin.as_deref(), Some("/opt/bb"));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn from_config_uses_defaults_when_env_is_unset() {
+        // Remove the variables explicitly: the developer shell may define them.
+        unsafe {
+            std::env::remove_var("OTTER_CIRCUIT_DIR");
+            std::env::remove_var("OTTER_NARGO_BIN");
+            std::env::remove_var("OTTER_BB_BIN");
+        }
+        let config = crate::config::Config::default();
+        let adapter = NoirAdapter::from_config(&config);
+
+        assert_eq!(adapter.circuit_dir, PathBuf::from("delegation_circuit"));
+        assert_eq!(adapter.nargo_bin, "nargo");
+        assert!(adapter.bb_bin.is_none());
+    }
+
+    #[test]
+    fn format_byte_array_quotes_each_byte_as_hex() {
+        assert_eq!(
+            format_byte_array(&[0x00, 0xab, 0xff]),
+            "[\"0x00\", \"0xab\", \"0xff\"]"
+        );
+        assert_eq!(format_byte_array(&[]), "[]");
+    }
+
+    #[test]
+    fn format_field_array_uses_field_hex_encoding() {
+        let fields = [field_from_u32(1), field_from_u32(2)];
+        let rendered = format_field_array(&fields);
+        let expected = format!(
+            "[{}, {}]",
+            field_to_hex(&fields[0]),
+            field_to_hex(&fields[1])
+        );
+        assert_eq!(rendered, expected);
+    }
+
+    #[test]
+    fn format_proposed_intent_contains_all_fields() {
+        let intent = ProposedDelegationIntent {
+            intent_type: field_from_u32(3),
+            amount: field_from_u128(42),
+            protocol: field_from_u32(2),
+            target_contract: field_from_u32(0),
+        };
+        let rendered = format_proposed_intent(&intent);
+        assert!(rendered.contains("intent_type = "));
+        assert!(rendered.contains("amount = "));
+        assert!(rendered.contains("protocol = "));
+        assert!(rendered.contains("target_contract = "));
+    }
+
+    #[test]
+    fn unique_id_produces_distinct_values() {
+        let first = unique_id();
+        let second = unique_id();
+        assert_ne!(first, second);
+        assert!(!first.is_empty());
+    }
+
+    #[test]
+    fn write_prover_toml_persists_serialized_inputs() {
+        let dir = temp_circuit_dir();
+        let adapter = NoirAdapter::new(&dir, "nargo", None::<String>);
+        let (public_inputs, private_inputs) = sample_inputs();
+
+        let path = adapter
+            .write_prover_toml("otter_prover_test", &public_inputs, &private_inputs)
+            .unwrap();
+
+        let on_disk = fs::read_to_string(&path).unwrap();
+        assert_eq!(on_disk, format_prover_toml(&public_inputs, &private_inputs));
+        assert!(path.ends_with("otter_prover_test.toml"));
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn write_prover_toml_fails_when_circuit_dir_is_missing() {
+        let adapter = NoirAdapter::new("/nonexistent-otter-circuit-zzz", "nargo", None::<String>);
+        let (public_inputs, private_inputs) = sample_inputs();
+
+        let result = adapter.write_prover_toml("p", &public_inputs, &private_inputs);
+        assert!(matches!(result, Err(ZkpError::Io(_))));
+    }
+
+    #[test]
+    fn prove_delegation_fails_when_circuit_dir_is_missing() {
+        let adapter = NoirAdapter::new("/nonexistent-otter-circuit-zzz", "nargo", None::<String>);
+        let (public_inputs, private_inputs) = sample_inputs();
+
+        let result = adapter.prove_delegation(&public_inputs, &private_inputs);
+        assert!(matches!(result, Err(ZkpError::Io(_))));
+    }
+
+    #[test]
+    fn prove_delegation_fails_when_nargo_binary_is_missing() {
+        let dir = temp_circuit_dir();
+        let adapter = NoirAdapter::new(
+            &dir,
+            "otter-definitely-not-a-real-nargo-binary",
+            None::<String>,
+        );
+        let (public_inputs, private_inputs) = sample_inputs();
+
+        let result = adapter.prove_delegation(&public_inputs, &private_inputs);
+        assert!(matches!(result, Err(ZkpError::Io(_))));
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn prove_delegation_maps_nargo_failure_to_witness_error() {
+        let dir = temp_circuit_dir();
+        let fake_nargo = write_fake_binary(
+            &dir,
+            "fake-nargo",
+            "#!/bin/bash\necho 'constraint not satisfied' >&2\nexit 42\n",
+        );
+        let adapter = NoirAdapter::new(&dir, fake_nargo, None::<String>);
+        let (public_inputs, private_inputs) = sample_inputs();
+
+        let result = adapter.prove_delegation(&public_inputs, &private_inputs);
+        match result {
+            Err(ZkpError::WitnessGenerationFailed(stderr)) => {
+                assert!(stderr.contains("constraint not satisfied"));
+            }
+            other => panic!("expected WitnessGenerationFailed, got {other:?}"),
+        }
+        // The lock directory must have been released after the failure.
+        assert!(!dir.join(".nargo_execute_lock").exists());
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn try_bb_prove_returns_none_without_bb_binary() {
+        let dir = temp_circuit_dir();
+        let adapter = NoirAdapter::new(&dir, "nargo", None::<String>);
+
+        let result = adapter.try_bb_prove("witness", "proofs").unwrap();
+        assert!(result.is_none());
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn try_bb_prove_falls_back_when_bb_exits_non_zero() {
+        let dir = temp_circuit_dir();
+        let fake_bb = write_fake_binary(&dir, "fake-bb", "#!/bin/bash\nexit 1\n");
+        let adapter = NoirAdapter::new(&dir, "nargo", Some(fake_bb));
+
+        let result = adapter.try_bb_prove("witness", "proofs").unwrap();
+        assert!(result.is_none(), "a failing bb must fall back to None");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn try_bb_prove_reads_proof_files_on_success() {
+        let dir = temp_circuit_dir();
+        // Fake bb that writes the artifacts the adapter reads back.
+        let fake_bb = write_fake_binary(
+            &dir,
+            "fake-bb",
+            "#!/bin/bash\n\
+             out=\"\"\n\
+             while [ $# -gt 0 ]; do\n\
+             if [ \"$1\" = \"-o\" ]; then out=\"$2\"; fi\n\
+             shift\n\
+             done\n\
+             printf 'fake-proof-bytes' > \"$out/proof\"\n\
+             printf 'fake-public-inputs' > \"$out/public_inputs\"\n\
+             exit 0\n",
+        );
+        let adapter = NoirAdapter::new(&dir, "nargo", Some(fake_bb));
+
+        let (proof, public_inputs) = adapter
+            .try_bb_prove("witness", "proofs")
+            .unwrap()
+            .expect("successful bb must yield proof bytes");
+        assert_eq!(proof, b"fake-proof-bytes");
+        assert_eq!(public_inputs, b"fake-public-inputs");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn try_bb_prove_errors_when_bb_writes_no_artifacts() {
+        let dir = temp_circuit_dir();
+        // bb exits 0 but never writes the proof files: the read must fail.
+        let fake_bb = write_fake_binary(&dir, "fake-bb", "#!/bin/bash\nexit 0\n");
+        let adapter = NoirAdapter::new(&dir, "nargo", Some(fake_bb));
+
+        let result = adapter.try_bb_prove("witness", "proofs");
+        assert!(matches!(result, Err(ZkpError::Io(_))));
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn ensure_vk_requires_bb_backend() {
+        let dir = temp_circuit_dir();
+        let adapter = NoirAdapter::new(&dir, "nargo", None::<String>);
+
+        let result = adapter.ensure_vk();
+        assert!(matches!(result, Err(ZkpError::BackendUnavailable(_))));
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn ensure_vk_reuses_existing_vk_without_invoking_bb() {
+        let dir = temp_circuit_dir();
+        // Pre-create the vk file: ensure_vk must return it without running bb.
+        let vk_dir = dir.join("target/delegation_circuit_evm_no_zk_vk");
+        fs::create_dir_all(&vk_dir).unwrap();
+        fs::write(vk_dir.join("vk"), b"fake-vk").unwrap();
+        // A bb binary that does not exist: any invocation would fail.
+        let adapter = NoirAdapter::new(&dir, "nargo", Some("/nonexistent-bb-zzz".to_string()));
+
+        let vk = adapter.ensure_vk().unwrap();
+        assert!(vk.ends_with("vk"));
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn ensure_vk_maps_bb_failure_to_proof_generation_error() {
+        let dir = temp_circuit_dir();
+        let fake_bb = write_fake_binary(&dir, "fake-bb", "#!/bin/bash\necho 'boom' >&2\nexit 3\n");
+        let adapter = NoirAdapter::new(&dir, "nargo", Some(fake_bb));
+
+        let result = adapter.ensure_vk();
+        match result {
+            Err(ZkpError::ProofGenerationFailed(msg)) => assert!(msg.contains("boom")),
+            other => panic!("expected ProofGenerationFailed, got {other:?}"),
+        }
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn verify_delegation_rejects_mismatched_public_inputs() {
+        let adapter = NoirAdapter::new("circuits", "nargo", None::<String>);
+        let (public_inputs, _) = sample_inputs();
+        let proof = DelegationProof {
+            proof: vec![1, 2, 3],
+            public_inputs: vec![0xde, 0xad],
+        };
+
+        let verified = adapter.verify_delegation(&proof, &public_inputs).unwrap();
+        assert!(!verified);
+    }
+
+    #[test]
+    fn verify_delegation_rejects_empty_proof_bytes() {
+        let adapter = NoirAdapter::new("circuits", "nargo", None::<String>);
+        let (public_inputs, _) = sample_inputs();
+        let proof = DelegationProof {
+            proof: Vec::new(),
+            public_inputs: serialize_public_inputs(&public_inputs),
+        };
+
+        let result = adapter.verify_delegation(&proof, &public_inputs);
+        assert!(matches!(result, Err(ZkpError::BackendUnavailable(_))));
+    }
+
+    #[test]
+    fn verify_delegation_requires_configured_bb_binary() {
+        let adapter = NoirAdapter::new("circuits", "nargo", None::<String>);
+        let (public_inputs, _) = sample_inputs();
+        let proof = DelegationProof {
+            proof: vec![1, 2, 3],
+            public_inputs: serialize_public_inputs(&public_inputs),
+        };
+
+        let result = adapter.verify_delegation(&proof, &public_inputs);
+        assert!(matches!(result, Err(ZkpError::BackendUnavailable(_))));
+    }
+
+    fn adapter_with_fake_bb(script: &str) -> (NoirAdapter, PathBuf) {
+        let dir = temp_circuit_dir();
+        // Pre-create the vk so ensure_vk does not need a working bb.
+        let vk_dir = dir.join("target/delegation_circuit_evm_no_zk_vk");
+        fs::create_dir_all(&vk_dir).unwrap();
+        fs::write(vk_dir.join("vk"), b"fake-vk").unwrap();
+        let fake_bb = write_fake_binary(&dir, "fake-bb", script);
+        (NoirAdapter::new(&dir, "nargo", Some(fake_bb)), dir)
+    }
+
+    #[test]
+    fn verify_delegation_returns_true_when_bb_accepts() {
+        let (adapter, dir) = adapter_with_fake_bb("#!/bin/bash\nexit 0\n");
+        let (public_inputs, _) = sample_inputs();
+        let proof = DelegationProof {
+            proof: vec![1, 2, 3],
+            public_inputs: serialize_public_inputs(&public_inputs),
+        };
+
+        let verified = adapter.verify_delegation(&proof, &public_inputs).unwrap();
+        assert!(verified);
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn verify_delegation_returns_false_when_bb_rejects() {
+        let (adapter, dir) =
+            adapter_with_fake_bb("#!/bin/bash\necho 'invalid proof' >&2\nexit 1\n");
+        let (public_inputs, _) = sample_inputs();
+        let proof = DelegationProof {
+            proof: vec![1, 2, 3],
+            public_inputs: serialize_public_inputs(&public_inputs),
+        };
+
+        let verified = adapter.verify_delegation(&proof, &public_inputs).unwrap();
+        assert!(!verified);
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn prove_delegation_returns_witness_validated_fallback_without_bb() {
+        let dir = temp_circuit_dir();
+        // Fake nargo succeeds: the adapter must fall back to a witness-only
+        // proof when no bb binary is configured.
+        let fake_nargo = write_fake_binary(&dir, "fake-nargo", "#!/bin/bash\nexit 0\n");
+        let adapter = NoirAdapter::new(&dir, fake_nargo, None::<String>);
+        let (public_inputs, private_inputs) = sample_inputs();
+
+        let proof = adapter
+            .prove_delegation(&public_inputs, &private_inputs)
+            .unwrap();
+        assert!(proof.proof.is_empty(), "no bb means no proof bytes");
+        assert_eq!(proof.public_inputs, serialize_public_inputs(&public_inputs));
+        // The temporary prover file must have been cleaned up.
+        let leftover = fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .any(|e| e.file_name().to_string_lossy().starts_with("otter_prover_"));
+        assert!(!leftover, "prover TOML was not cleaned up");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn prove_delegation_falls_back_when_bb_errors() {
+        let dir = temp_circuit_dir();
+        let fake_nargo = write_fake_binary(&dir, "fake-nargo", "#!/bin/bash\nexit 0\n");
+        // bb exits 0 but writes no artifacts: try_bb_prove returns an error and
+        // the adapter must still produce the witness-validated fallback proof.
+        let fake_bb = write_fake_binary(&dir, "fake-bb", "#!/bin/bash\nexit 0\n");
+        let adapter = NoirAdapter::new(&dir, fake_nargo, Some(fake_bb));
+        let (public_inputs, private_inputs) = sample_inputs();
+
+        let proof = adapter
+            .prove_delegation(&public_inputs, &private_inputs)
+            .unwrap();
+        assert!(proof.proof.is_empty());
+        assert_eq!(proof.public_inputs, serialize_public_inputs(&public_inputs));
+
+        fs::remove_dir_all(&dir).ok();
     }
 }

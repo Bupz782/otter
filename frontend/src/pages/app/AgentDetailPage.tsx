@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useParams, Link } from "react-router-dom";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { ArrowLeft, TrendingUp, ShieldCheck, Coins, Activity, Plus } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ function FadeIn({
 }
 
 export function AgentDetailPage() {
+  useDocumentTitle("Agent");
   const { agentId } = useParams<{ agentId: string }>();
   const { data: agent, isLoading, error, refetch } = useAgent(agentId);
 

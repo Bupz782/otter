@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { LogOut, RotateCcw } from "lucide-react";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { motion } from "framer-motion";
 import { useAccount } from "wagmi";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ function FadeIn({
 }
 
 export function SettingsPage() {
+  useDocumentTitle("Settings");
   const { address, isConnected, chain } = useAccount();
   const { isAuthenticated } = useAuthToken();
   const { restart } = useOnboardingContext();

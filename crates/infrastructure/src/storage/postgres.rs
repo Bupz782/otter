@@ -530,29 +530,40 @@ impl StoragePort for PgStorage {
                     .try_get("total_volume")
                     .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
                 Ok(Some(StrategyRecord {
-                    id: r.try_get("id")
+                    id: r
+                        .try_get("id")
                         .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
-                    title: r.try_get("title")
+                    title: r
+                        .try_get("title")
                         .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
-                    description: r.try_get("description")
+                    description: r
+                        .try_get("description")
                         .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
-                    raw_text: r.try_get("raw_text")
+                    raw_text: r
+                        .try_get("raw_text")
                         .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
-                    intent_json: r.try_get("intent_json")
+                    intent_json: r
+                        .try_get("intent_json")
                         .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
-                    creator_address: r.try_get("creator_address")
+                    creator_address: r
+                        .try_get("creator_address")
                         .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
-                    agent_id: r.try_get("agent_id")
+                    agent_id: r
+                        .try_get("agent_id")
                         .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
-                    risk_profile: r.try_get("risk_profile")
+                    risk_profile: r
+                        .try_get("risk_profile")
                         .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
                     copies: copies as u64,
                     total_volume: total_volume as u64,
-                    apy: r.try_get("apy")
+                    apy: r
+                        .try_get("apy")
                         .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
-                    created_at: r.try_get("created_at")
+                    created_at: r
+                        .try_get("created_at")
                         .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
-                    updated_at: r.try_get("updated_at")
+                    updated_at: r
+                        .try_get("updated_at")
                         .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
                 }))
             }
@@ -561,14 +572,12 @@ impl StoragePort for PgStorage {
     }
 
     async fn increment_strategy_copies(&self, id: &str) -> Result<(), StorageError> {
-        sqlx::query(
-            "UPDATE strategies SET copies = copies + 1, updated_at = $1 WHERE id = $2",
-        )
-        .bind(migrations::unix_now())
-        .bind(id)
-        .execute(&self.pool)
-        .await
-        .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+        sqlx::query("UPDATE strategies SET copies = copies + 1, updated_at = $1 WHERE id = $2")
+            .bind(migrations::unix_now())
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
 
         Ok(())
     }

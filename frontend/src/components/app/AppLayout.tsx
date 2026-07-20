@@ -7,6 +7,7 @@ import { AmbientBackgroundApp } from "./AmbientBackgroundApp";
 import { OnboardingProvider } from "./OnboardingProvider";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 function RouteFallback() {
   return (
@@ -29,6 +30,7 @@ function RouteFallback() {
 export function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const drawerRef = useFocusTrap<HTMLDivElement>(mobileOpen);
 
   // Close the mobile drawer whenever the route changes.
   useEffect(() => {
@@ -47,11 +49,18 @@ export function AppLayout() {
   return (
     <OnboardingProvider>
       <div className="relative flex min-h-screen bg-background text-foreground">
+        <a
+          href="#main-content"
+          className="sr-only fixed left-4 top-4 z-[200] rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground focus:not-sr-only focus:outline-none focus:ring-2 focus:ring-ring"
+        >
+          Skip to main content
+        </a>
         <AmbientBackgroundApp />
         <AppSidebar />
 
         {mobileOpen && (
           <div
+            ref={drawerRef}
             className="fixed inset-0 z-50 flex md:hidden"
             role="dialog"
             aria-modal="true"
@@ -79,7 +88,7 @@ export function AppLayout() {
 
         <div className="relative z-10 flex flex-1 flex-col md:ml-64">
           <AppHeader onMenuClick={() => setMobileOpen(true)} />
-          <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 md:px-8">
+          <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 outline-none md:px-8">
             <Suspense fallback={<RouteFallback />}>
               <Outlet />
             </Suspense>

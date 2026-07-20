@@ -102,10 +102,14 @@ transit ou au repos : algorithmes faibles, clés mal gérées, secrets exposés.
 
 **Points résiduels / axes d'amélioration.**
 
-- **TLS non géré dans le dépôt** : le serveur écoute en HTTP clair
+- **TLS non géré dans le code** : le serveur écoute en HTTP clair
   (`axum::serve` sur `0.0.0.0:<port>` — `crates/interfaces/src/bin/otter_api.rs:779-791`,
   aucune dépendance `rustls`). Le chiffrement en transit relève d'un reverse
-  proxy externe, non fourni ici.
+  proxy externe. Une configuration TLS de référence est désormais versionnée
+  (`deploy/Caddyfile` : terminaison TLS automatique via Caddy/Let's Encrypt,
+  routage du frontend et de `/api/*`, headers de sécurité — cf.
+  `DEPLOYMENT.md`, section « Terminaison TLS ») ; son déploiement effectif
+  reste hors du périmètre du dépôt.
 - Le secret JWT est **généré aléatoirement à chaque démarrage** s'il n'est pas
   configuré (acceptable en dev uniquement, signalé dans le code)
   — `crates/interfaces/src/auth.rs:52-61` et
@@ -217,6 +221,12 @@ d'erreur verbeux, fonctionnalités inutiles exposées.
   Test dédié — `crates/interfaces/src/bin/otter_api.rs:1986-2014`.
 - *Endpoints d'observabilité séparés.* Seuls `/health`, `/ready` et
   `/metrics` sont publics — `crates/interfaces/src/bin/otter_api.rs:380-381`.
+- *Configuration TLS de référence versionnée.* `deploy/Caddyfile` fournit un
+  reverse proxy Caddy avec terminaison TLS automatique (Let's Encrypt),
+  routage du frontend et de `/api/*` vers l'API, et headers de sécurité de
+  base (HSTS, `X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy`). Les endpoints `/health`, `/ready` et `/metrics` ne sont
+  pas exposés par ce proxy. Cf. `DEPLOYMENT.md`, section « Terminaison TLS ».
 - *Configuration externalisée et documentée.* `.env.example` documente la
   précédence des sources de clés et interdit explicitement de committer une
   clé réelle — `.env.example:11-19`. Les secrets CI (clés SSH de déploiement,
@@ -258,13 +268,29 @@ connues ou non maintenues.
   bloque la CI sur tout avertissement — `.github/workflows/ci.yml:46-47`.
 - *Verrouillage des dépendances Rust.* `Cargo.lock` est commité à la racine,
   garantissant des builds reproductibles.
+- *Audit automatisé des dépendances Rust en CI.* Un job `security-audit`
+  exécute `cargo audit` (via `rustsec/audit-check@v2`, base RustSec) sur le
+  workspace à chaque pipeline — `.github/workflows/ci.yml`, job
+  `security-audit`. Il est actuellement configuré en `continue-on-error`
+  (voir points résiduels ci-dessous).
+- *Mises à jour automatisées.* Dependabot ouvre chaque semaine des PR de
+  mise à jour pour les écosystèmes cargo (racine), npm (`frontend/`),
+  github-actions et docker — `.github/dependabot.yml`.
 
 **Points résiduels / axes d'amélioration.**
 
-- **Aucun audit automatisé des dépendances** : ni `cargo audit`, ni
-  `cargo deny`, ni Dependabot/Renovate ne sont configurés dans
-  `.github/workflows/`. C'est l'axe d'amélioration le plus direct (ajouter un
-  job `cargo audit` en CI).
+- **Vulnérabilités connues non résolues.** L'audit du 2026-07-20
+  (`cargo audit` sur `Cargo.lock`, 571 dépendances) signale 6
+  vulnérabilités : `alloy-dyn-abi` 0.7.7 (RUSTSEC-2025-0073, DoS,
+  sévérité 7.5), `rsa` 0.9.10 (RUSTSEC-2023-0071, attaque Marvin, **sans
+  correctif disponible**), `rustls-webpki` 0.101.7 (RUSTSEC-2026-0098,
+  RUSTSEC-2026-0099, RUSTSEC-2026-0104) et `sqlx` 0.7.4
+  (RUSTSEC-2024-0363) — plus 5 avertissements (crates non maintenues
+  `derivative`, `paste`, `proc-macro-error` ; `lru` unsound ; `spin`
+  yanké). C'est pourquoi le job `security-audit` est en
+  `continue-on-error: true` : il reste visible en échec sans bloquer les
+  pipelines. Ces vulnérabilités restent à traiter (mises à jour ou
+  remplacement), puis le job doit repasser en bloquant.
 - Pas de scan de vulnérabilités sur les dépendances Solidity (le vérifieur et
   OpenZeppelin sont intégrés via `contracts/lib/`) ni d'audit externe du
   contrat ou du circuit ZK dans cette version.
@@ -427,11 +453,11 @@ cloud, etc.).
 | Risque OWASP 2021 | Mesure principale | Preuve (fichier) | Statut |
 |---|---|---|---|
 | A01 — Contrôles d'accès | Middleware JWT sur routes protégées ; `onlyOwner` ; preuve ZK obligatoire avant exécution | `crates/interfaces/src/bin/otter_api.rs:383-402,431-464` ; `contracts/src/DelegationVault.sol:95-99,176-210` | Implémenté (RBAC et multisig absents) |
-| A02 — Crypto | SIWE + JWT HS256 ; ECDSA/blake2s/ZK on-chain ; `SecretProvider` (fichier 0600, Vault, KMS, keystore) | `crates/interfaces/src/auth.rs` ; `delegation_circuit/src/main.nr:140-146` ; `crates/interfaces/src/secrets.rs` | Partiel : TLS hors dépôt, secret JWT aléatoire en dev |
+| A02 — Crypto | SIWE + JWT HS256 ; ECDSA/blake2s/ZK on-chain ; `SecretProvider` (fichier 0600, Vault, KMS, keystore) ; config TLS de référence versionnée | `crates/interfaces/src/auth.rs` ; `delegation_circuit/src/main.nr:140-146` ; `crates/interfaces/src/secrets.rs` ; `deploy/Caddyfile` | Partiel : terminaison TLS externe (config de référence fournie), secret JWT aléatoire en dev |
 | A03 — Injection | SQL paramétré (rusqlite/sqlx) ; serde typé ; `MAX_INTENT_TEXT_LEN = 2000` | `crates/infrastructure/src/storage/sqlite.rs:144-160` ; `crates/interfaces/src/bin/otter_api.rs:1034-1047` | Implémenté (prompt injection LLM non traitée) |
 | A04 — Conception | Limites on-chain + double vérification (circuit + contrat) ; anti-rejeu nonce | `contracts/src/DelegationVault.sol:193-204` ; `delegation_circuit/src/main.nr:148-168` | Implémenté (pas de circuit breaker) |
-| A05 — Configuration | CORS whitelist ; rate limiting/IP (défaut 100/min) ; secrets CI dans GitHub Secrets | `crates/interfaces/src/bin/otter_api.rs:411-429,476-508` ; `.env.example:11-19` | Partiel : défauts permissifs en dev (auth off, CORS `*`) |
-| A06 — Composants | OpenZeppelin ; versions épinglées ; clippy `-D warnings` en CI | `contracts/src/DelegationVault.sol:5-7` ; `.github/workflows/ci.yml:46-47` | Partiel : pas de `cargo audit` ni Dependabot |
+| A05 — Configuration | CORS whitelist ; rate limiting/IP (défaut 100/min) ; secrets CI dans GitHub Secrets ; config TLS de référence avec headers de sécurité | `crates/interfaces/src/bin/otter_api.rs:411-429,476-508` ; `.env.example:11-19` ; `deploy/Caddyfile` | Partiel : défauts permissifs en dev (auth off, CORS `*`) |
+| A06 — Composants | OpenZeppelin ; versions épinglées ; clippy `-D warnings` en CI ; job `cargo audit` en CI ; Dependabot hebdomadaire | `contracts/src/DelegationVault.sol:5-7` ; `.github/workflows/ci.yml` (job `security-audit`) ; `.github/dependabot.yml` | Partiel : audit CI en `continue-on-error` (6 vulnérabilités connues à traiter, dont `rsa` sans correctif) |
 | A07 — Authentification | EIP-4361 sans mot de passe ; challenges 16 octets/5 min à usage unique ; JWT court | `crates/interfaces/src/auth.rs:69-155,170-184` | Implémenté (challenges en mémoire, pas de révocation) |
 | A08 — Intégrité | Preuve ZK liant toutes les entrées ; hash blake2s recalculé ; `Cargo.lock` commité | `delegation_circuit/src/main.nr:135-146` ; `contracts/src/DelegationVault.sol:179-182` | Partiel : artefacts non signés, pas de SBOM |
 | A09 — Journalisation | `tracing` structuré ; `/health` `/ready` `/metrics` ; événements on-chain | `crates/interfaces/src/bin/otter_api.rs:380-381` ; `contracts/src/DelegationVault.sol:62-74` | Partiel : pas d'alerte sur les événements de sécurité |

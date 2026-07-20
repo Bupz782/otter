@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Bot, Lock, ArrowRight, BookOpen, Trophy } from "lucide-react";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,7 @@ function agentStats(agent: Agent): { label: string; value: string }[] {
 }
 
 export function AgentsPage() {
+  useDocumentTitle("Agents");
   const { data: agents, isLoading, error, refetch } = useAgents();
   const {
     data: strategies,

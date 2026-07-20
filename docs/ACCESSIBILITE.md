@@ -81,9 +81,9 @@ sont des icônes SVG (lucide-react) et un canvas WebGL décoratif.
 - Le canvas WebGL décoratif est explicitement ignoré :
   `frontend/src/components/WebGLSpiral.tsx:151` (`aria-hidden="true"`).
 - Les icônes porteuses de sens sont accompagnées d'un libellé accessible sur le contrôle
-  parent : `aria-label="Close"` (`frontend/src/components/app/WelcomeModal.tsx:52`),
+  parent : `aria-label="Close"` (`frontend/src/components/app/WelcomeModal.tsx:56`),
   `aria-label={copied ? "Copied" : "Copy transaction hash"}`
-  (`frontend/src/pages/app/IntentDetailPage.tsx:217`).
+  (`frontend/src/pages/app/IntentDetailPage.tsx:219`).
 
 *Limite : pas de `<img>` donc le critère « alternative d'image » n'a pas de cas d'école
 à tester ; si des images porteuses d'information sont ajoutées, le critère devra être
@@ -107,7 +107,15 @@ de contraste ont été calculés (formule WCAG) à partir des valeurs hexadécim
 | `#c8a46c` (accent) sur `#050505` | 8,72:1 | Oui |
 | `#fb7185` (erreurs, `text-rose-400`) sur `#050505` | 7,57:1 | Oui |
 | `#34d399` (succès, `text-emerald-400`) sur `#050505` | 10,60:1 | Oui |
-| `#71717a` (gris secondaire) sur `#050505` | **4,22:1** | sous le seuil pour texte courant (OK pour grand texte, seuil 3:1) |
+| `#777777` (gris secondaire, `--otter-gray-200`) sur `#050505` | 4,55:1 | Oui |
+
+Le gris secondaire `--otter-gray-200`, auparavant `#71717a` (4,22:1, sous le seuil AA
+pour le texte courant), a été remplacé par `#777777` (4,55:1, calcul WCAG vérifié par
+script) : la valeur reste nettement plus sombre que `#a1a1aa` (7,95:1), ce qui préserve
+la hiérarchie visuelle (`frontend/src/styles/tokens.css:9`). Constat d'usage : cette
+primitive n'est actuellement référencée par aucun mapping `--color-*` de
+`frontend/src/index.css` — le texte secondaire réel utilise `muted-foreground`
+(`#a1a1aa`, 7,95:1) ; la correction sécurise le token pour tout usage présent ou futur.
 
 Mapping des tokens : `frontend/src/index.css:9-38` (variables `--color-*` du thème
 Tailwind 4 pointant vers les primitives Otter).
@@ -115,7 +123,7 @@ Tailwind 4 pointant vers les primitives Otter).
 L'information n'est pas véhiculée par la couleur seule : les erreurs de formulaire sont
 des textes explicites en plus de la couleur rose (`role="alert"`, cf. §2.11), et les
 états de copie affichent un texte (« Copied ») en plus du changement de couleur
-(`frontend/src/pages/app/IntentDetailPage.tsx:225`).
+(`frontend/src/pages/app/IntentDetailPage.tsx:228`).
 
 *Limite : le calcul couvre les couleurs principales, pas chaque combinaison de classes
 utilisée (opacités `bg-background/80`, superpositions de calques, états hover). Un audit
@@ -139,15 +147,15 @@ de données sont structurées avec des rôles de liste (cf. §2.9).
 - Les boutons iconiques sans texte visible portent un `aria-label` :
   `aria-label="Toggle menu"` (`frontend/src/components/Navigation.tsx:80`),
   `aria-label="View transaction on block explorer"`
-  (`frontend/src/pages/app/IntentDetailPage.tsx:233`),
+  (`frontend/src/pages/app/IntentDetailPage.tsx:235`),
   `aria-label="Open navigation"` / `aria-label="Close navigation"`
-  (`frontend/src/components/app/AppHeader.tsx:91`,
-  `frontend/src/components/app/AppLayout.tsx:70`).
+  (`frontend/src/components/app/AppHeader.tsx:93`,
+  `frontend/src/components/app/AppLayout.tsx:79`).
 - Les liens sociaux du pied de page ont un libellé :
   `aria-label={social.label}` (`frontend/src/components/Footer.tsx:31`).
 - L'état du lien courant est signalé : `aria-current={isCurrent ? "page" : undefined}`
-  dans le fil d'Ariane (`frontend/src/components/app/AppHeader.tsx:108`) et
-  `aria-pressed` pour les filtres (`frontend/src/pages/app/IntentsPage.tsx:86`).
+  dans le fil d'Ariane (`frontend/src/components/app/AppHeader.tsx:110`) et
+  `aria-pressed` pour les filtres (`frontend/src/pages/app/IntentsPage.tsx:88`).
 
 ### 2.7 Scripts
 
@@ -156,43 +164,59 @@ natifs focusables (`<button>`, `<input>`), ce qui garantit l'usage au clavier de
 
 - Groupe de boutons radios custom implémenté avec des `<button type="button">` natifs
   + sémantique ARIA : `role="radiogroup"` / `role="radio"` / `aria-checked`
-  (`frontend/src/pages/app/CreateDelegationPage.tsx:136-142`,
-  `frontend/src/pages/app/CreateIntentPage.tsx:388-396`).
+  (`frontend/src/pages/app/CreateDelegationPage.tsx:159`,
+  `frontend/src/pages/app/CreateIntentPage.tsx:398`).
 - Case à cocher custom : `role="checkbox"` + `aria-checked`
   (`frontend/src/components/ui/checkbox.tsx:17-18`).
 - Fermeture des couches superposées au clavier via `Escape` : modale de bienvenue
-  (`frontend/src/components/app/WelcomeModal.tsx:29-33`), tiroir de navigation mobile
-  (`frontend/src/components/app/AppLayout.tsx:40-44`).
+  (`frontend/src/components/app/WelcomeModal.tsx:33`), tiroir de navigation mobile
+  (`frontend/src/components/app/AppLayout.tsx:43`).
 - États des disclosures : `aria-expanded` + `aria-controls` (FAQ,
   `frontend/src/components/Faq.tsx:79-80` ; détails de preuve,
-  `frontend/src/pages/app/ProofsPage.tsx:86-87`).
+  `frontend/src/pages/app/ProofsPage.tsx:87-88`).
 - Menus : `aria-haspopup="menu"`, `role="menu"`, `role="menuitem"`
-  (`frontend/src/components/app/AppHeader.tsx:146-191`).
+  (`frontend/src/components/app/AppHeader.tsx:148-193`).
+- **Focus trap maison, sans dépendance** (`frontend/src/hooks/useFocusTrap.ts`) : focus
+  initial sur le premier élément interactif, cyclage Tab/Shift+Tab dans la boîte de
+  dialogue, restitution du focus à l'élément déclencheur à la fermeture. Appliqué aux
+  dialogues modaux maison : modale de bienvenue
+  (`frontend/src/components/app/WelcomeModal.tsx:29`), modale d'aide
+  « What's an intent? » (`frontend/src/components/app/AppHeader.tsx:51`) et tiroir de
+  navigation mobile (`frontend/src/components/app/AppLayout.tsx:33`). Comportement
+  couvert par des tests (`frontend/src/components/app/WelcomeModal.test.tsx`).
 - Primitives **Radix UI** (`@radix-ui/react-separator`, `@radix-ui/react-slot`,
   `frontend/package.json:16-17`), bibliothèque conçue pour l'accessibilité (gestion du
   focus, navigation clavier, attributs ARIA par construction).
 
 *Limite honnête : l'usage de Radix est restreint à deux primitives de bas niveau ; les
-dialogues, menus et tooltips sont des composants **maison**. Ils gèrent `Escape` et les
-attributs ARIA, mais ne capturent pas le focus dans la modale (pas de focus trap ni de
-retour du focus à la fermeture dans `WelcomeModal.tsx`), et le radiogroup ne gère pas la
-navigation fléchée entre radios exigée par le pattern ARIA « radio group ».*
+dialogues, menus et tooltips sont des composants **maison**. Le radiogroup custom ne
+gère pas la navigation fléchée entre radios exigée par le pattern ARIA « radio group ».
+Le tooltip de la visite guidée (`frontend/src/components/app/OnboardingTooltip.tsx`)
+est un dialogue **non modal** : il ne piège volontairement pas le focus, l'utilisateur
+devant pouvoir atteindre l'interface que la visite commente.*
 
 ### 2.8 Éléments obligatoires
 
-**Conforme (partiel).**
+**Conforme.**
 
 - Doctype et langue : `<!doctype html>` et `<html lang="en">`
   (`frontend/index.html:1-2`).
-- Titre de page et description : `<title>Otter · Trustless DeFi intents</title>` et
-  `<meta name="description">` (`frontend/index.html:10-14`).
+- **Titre de page dynamique** : chaque route met à jour `document.title` au format
+  « \<Page\> — Otter » via le hook `useDocumentTitle`
+  (`frontend/src/hooks/useDocumentTitle.ts`), appelé dans la page publique
+  (`frontend/src/App.tsx:25`) et dans les douze pages applicatives (ex.
+  `frontend/src/pages/app/DashboardPage.tsx:78`,
+  `frontend/src/pages/app/SettingsPage.tsx:41`). Le `<title>` statique de
+  `frontend/index.html:10` sert de valeur initiale. Comportement couvert par un test
+  (`frontend/src/hooks/useDocumentTitle.test.ts`).
+- Description : `<meta name="description">` (`frontend/index.html:11-14`).
 - Attribut `dir` non requis (contenu LTR), encodage UTF-8 déclaré
   (`frontend/index.html:4`).
 
-*Limite : le `<title>` est **unique et statique** pour toute l'application monopage —
-aucune mise à jour de `document.title` à la navigation (aucune occurrence dans
-`frontend/src/`). Non conforme au critère RGAA 8.5/8.6 (titre de page pertinent par
-page). À corriger (voir §4).*
+*Note sur la langue : `lang="en"` est **conforme** — le contenu visible de l'interface
+est rédigé en anglais, l'attribut reflète donc la langue réelle du contenu (critères
+RGAA 8.3/8.4). Le « corriger » en `lang="fr"` serait une erreur : il déclarerait une
+langue que le contenu n'utilise pas.*
 
 ### 2.9 Structuration de l'information
 
@@ -201,13 +225,13 @@ page). À corriger (voir §4).*
 - Hiérarchie de titres : `h1` unique par vue — page d'accueil
   (`frontend/src/components/HeroSection.tsx:39`), pages applicatives via le composant
   `PageHeader` (`frontend/src/components/app/PageHeader.tsx:20`) ; `h2`/`h3` pour les
-  sous-sections (ex. modale : `frontend/src/components/app/WelcomeModal.tsx:58,78`).
+  sous-sections (ex. modale : `frontend/src/components/app/WelcomeModal.tsx:60,80`).
 - Listes sémantiques : `role="list"` / `role="listitem"` pour le stepper
   (`frontend/src/components/app/Stepper.tsx:13,20`) et la timeline
   (`frontend/src/components/app/KineticTimeline.tsx:34,41`).
 - Regroupements de navigation nommés : `aria-label="App navigation"`
   (`frontend/src/components/app/AppSidebar.tsx:156`), `aria-label="Breadcrumb"`
-  (`frontend/src/components/app/AppHeader.tsx:95`), section nommée
+  (`frontend/src/components/app/AppHeader.tsx:97`), section nommée
   `aria-label="Supported protocols and networks"`
   (`frontend/src/components/PoweredBy.tsx:18`).
 
@@ -229,21 +253,21 @@ page). À corriger (voir §4).*
 **Conforme (partiel) — c'est la thématique la mieux couverte.**
 
 - **Étiquettes explicites** associées par `htmlFor`/`id` :
-  `frontend/src/pages/app/CreateDelegationPage.tsx:173,264`,
-  `frontend/src/pages/app/CreateIntentPage.tsx:295-332` ; étiquette visuellement
+  `frontend/src/pages/app/CreateDelegationPage.tsx:196,287`,
+  `frontend/src/pages/app/CreateIntentPage.tsx:305-342` ; étiquette visuellement
   masquée (`sr-only`) pour le champ e-mail (`frontend/src/components/Waitlist.tsx:102`).
 - **Validation et erreurs accessibles** :
   - `aria-invalid` sur les champs en erreur
-    (`frontend/src/pages/app/CreateDelegationPage.tsx:180,269`,
+    (`frontend/src/pages/app/CreateDelegationPage.tsx:203,292`,
     `frontend/src/components/Waitlist.tsx:117`),
   - messages d'erreur annoncés via `role="alert"`
-    (`frontend/src/pages/app/CreateDelegationPage.tsx:193,226,252,275,321`,
-    `frontend/src/pages/app/CreateIntentPage.tsx:250,445,534`,
+    (`frontend/src/pages/app/CreateDelegationPage.tsx:216,249,275,298,344`,
+    `frontend/src/pages/app/CreateIntentPage.tsx:260,455,544`,
     `frontend/src/components/Waitlist.tsx:152`),
   - association champ ↔ message d'erreur par `aria-describedby`
     (`frontend/src/components/Waitlist.tsx:99,118`),
   - retour de soumission annoncé : `role="status"`
-    (`frontend/src/pages/app/SettingsPage.tsx:96`), `aria-live="polite"`
+    (`frontend/src/pages/app/SettingsPage.tsx:98`), `aria-live="polite"`
     (`frontend/src/components/Waitlist.tsx:82`).
 - Les erreurs sont textuelles (pas uniquement colorées), conformément au critère 3.1.
 
@@ -251,25 +275,24 @@ page). À corriger (voir §4).*
 
 **Conforme (partiel).**
 
-- **Lien d'évitement** « Skip to main content » présent, visible au focus
-  (`sr-only … focus:not-sr-only`), ciblant `<main id="main-content">`
-  (`frontend/src/App.tsx:40-45,52`).
+- **Lien d'évitement** « Skip to main content » présent sur les deux shells, visible au
+  focus (`sr-only … focus:not-sr-only`), ciblant `<main id="main-content">` : page
+  publique (`frontend/src/App.tsx:42-47,54`) et shell applicatif
+  (`frontend/src/components/app/AppLayout.tsx:52-57,91`).
 - Gestion du focus à la navigation côté client : le `<main>` reçoit le focus à chaque
-  changement de route (`frontend/src/App.tsx:25-30`), avec `tabIndex={-1}` et
-  `outline-none` (`frontend/src/App.tsx:52`).
+  changement de route (`frontend/src/App.tsx:28-31`), avec `tabIndex={-1}` et
+  `outline-none` (`frontend/src/App.tsx:54`).
 - Zones repérables : `<main>`, `<nav>` étiquetées, fil d'Ariane avec
-  `aria-current="page"` (`frontend/src/components/app/AppHeader.tsx:95-108`),
+  `aria-current="page"` (`frontend/src/components/app/AppHeader.tsx:97-110`),
   indication d'étape courante `aria-current="step"`
   (`frontend/src/components/app/Stepper.tsx:23`).
 - Indicateurs d'état non purement colorés : pastilles de statut masquées
   (`aria-hidden`) et accompagnées de texte
   (`frontend/src/components/app/AppSidebar.tsx:131,152`,
-  `frontend/src/components/app/AppHeader.tsx:135`).
+  `frontend/src/components/app/AppHeader.tsx:137`).
 
-*Limites : le lien d'évitement n'existe que sur la page publique (`App.tsx`) ; le shell
-applicatif `AppLayout.tsx` ne possède **pas** de skip link vers son propre `<main>`
-(`frontend/src/components/app/AppLayout.tsx:82`). Pas de plan du site. L'ordre de
-tabulation dans les couches superposées n'est pas verrouillé (cf. §2.7).*
+*Limites : pas de plan du site. L'ordre de tabulation dans les menus déroulants maison
+n'est pas verrouillé (cf. §2.7).*
 
 ### 2.13 Consultation
 
@@ -288,7 +311,7 @@ tabulation dans les couches superposées n'est pas verrouillé (cf. §2.7).*
 - Pas d'ouverture de fenêtre intempestive ; les liens externes portent un libellé
   explicite (cf. §2.6).
 - Chargement annoncé : `aria-busy="true"` + `aria-label="Loading page"` sur l'état de
-  chargement des routes (`frontend/src/components/app/AppLayout.tsx:13`).
+  chargement des routes (`frontend/src/components/app/AppLayout.tsx:14`).
 
 *Limite : l'animation marquee de la page publique (`.animate-marquee-linear`,
 `frontend/src/index.css:107-119`) n'offre pas de contrôle pause/stop à l'utilisateur —
@@ -303,17 +326,17 @@ mouvement déclenché automatiquement de plus de 5 s.*
 |---|---|---|---|
 | Images | Conforme | `aria-hidden` sur icônes/canvas (`WebGLSpiral.tsx:151`) | Réévaluer si ajout d'images informatives |
 | Cadres | N/A | Aucun `<iframe>` | — |
-| Couleurs | 🟡 Partiel | Ratios calculés : 7,5:1 à 18,5:1 sur les couleurs principales | Audit de contraste exhaustif (états hover, opacités) ; corriger `#71717a` (4,22:1 < 4,5:1) pour le texte courant |
+| Couleurs | Partiel | Ratios calculés : 4,55:1 à 18,5:1 sur les couleurs principales (`tokens.css:9`) | Audit de contraste exhaustif (états hover, opacités) |
 | Multimédia | N/A | Aucun média temporel | — |
 | Tableaux | N/A | Aucun `<table>` | — |
 | Liens | Conforme | `aria-label` sur boutons iconiques, `aria-current` (`AppHeader.tsx:108`) | — |
-| Scripts | 🟡 Partiel | Boutons natifs, `Escape`, ARIA complet sur radios/disclosures/menus | Focus trap + retour du focus dans les modales ; navigation fléchée dans les radiogroups |
-| Éléments obligatoires | 🟡 Partiel | `lang="en"`, doctype, titre (`index.html:1-10`) | `document.title` dynamique par route |
+| Scripts | Partiel | Boutons natifs, `Escape`, focus trap maison (`useFocusTrap.ts`), ARIA complet sur radios/disclosures/menus | Navigation fléchée dans les radiogroups |
+| Éléments obligatoires | Conforme | `lang="en"`, doctype, titre dynamique par route (`useDocumentTitle.ts`) | — |
 | Structuration | Conforme | `h1` unique, `role="list"/"listitem"`, navs étiquetées | — |
-| Présentation | 🟡 Partiel | CSS externe, ordre DOM logique | Test zoom 200 % et `forced-colors` |
+| Présentation | Partiel | CSS externe, ordre DOM logique | Test zoom 200 % et `forced-colors` |
 | Formulaires | Conforme | `htmlFor`, `aria-invalid`, `role="alert"`, `aria-describedby` | Tests avec lecteur d'écran |
-| Navigation | 🟡 Partiel | Skip link + focus management (`App.tsx:40-52`), `aria-current` | Skip link dans `AppLayout`, plan du site |
-| Consultation | 🟡 Partiel | `prefers-reduced-motion` global (`main.tsx:72`, `index.css:149`) | Contrôle pause/stop pour le marquee |
+| Navigation | Partiel | Skip links sur les deux shells (`App.tsx:42`, `AppLayout.tsx:52`) + focus management, `aria-current` | Plan du site |
+| Consultation | Partiel | `prefers-reduced-motion` global (`main.tsx:72`, `index.css:149`) | Contrôle pause/stop pour le marquee |
 
 ---
 
@@ -321,37 +344,29 @@ mouvement déclenché automatiquement de plus de 5 s.*
 
 Points **non couverts** ou partiellement couverts à date, par ordre de priorité :
 
-1. **Titre de page dynamique** (critère RGAA 8.5) — ajouter un hook mettant à jour
-   `document.title` à chaque route (le titre est aujourd'hui identique sur toute
-   l'application).
-2. **Gestion du focus dans les dialogues maison** (`WelcomeModal.tsx`, tiroir mobile
-   d'`AppLayout.tsx`, menus d'`AppHeader.tsx`) — implémenter un focus trap, placer le
-   focus à l'ouverture et le restituer à l'élément déclencheur à la fermeture. Le plus
-   simple : remplacer ces composants par les primitives Radix UI (`Dialog`, `DropdownMenu`)
-   qui fournissent ce comportement par construction, la dépendance étant déjà présente.
-3. **Radiogroups custom** (`CreateDelegationPage.tsx:136`, `CreateIntentPage.tsx:388`) —
+1. **Radiogroups custom** (`CreateDelegationPage.tsx:159`, `CreateIntentPage.tsx:398`) —
    ajouter la navigation au clavier par flèches et le roving tabindex conformément au
    pattern ARIA « radio group ».
-4. **Skip link dans le shell applicatif** — le lien d'évitement n'existe que sur la page
-   publique ; l'ajouter dans `AppLayout.tsx` vers le `<main>` interne.
-5. **Audit de contraste exhaustif** — le calcul ne couvre que les couleurs principales
+2. **Audit de contraste exhaustif** — le calcul ne couvre que les couleurs principales
    en état de repos. Mesurer toutes les combinaisons réelles (états hover/focus/disabled,
-   textes sur fonds translucides `bg-background/80`, badges de statut). Corriger notamment
-   le gris `#71717a` (4,22:1) qui ne passe pas le seuil 4,5:1 pour le texte courant.
-6. **Contrôle du marquee** (`index.css:107-119`) — ajouter un bouton pause/stop ou
+   textes sur fonds translucides `bg-background/80`, badges de statut).
+3. **Contrôle du marquee** (`index.css:107-119`) — ajouter un bouton pause/stop ou
    conditionner l'animation à `prefers-reduced-motion` comme les autres animations.
-7. **Tests clavier systématiques** — parcours complet de chaque page à la seule
+4. **Tests clavier systématiques** — parcours complet de chaque page à la seule
    tabulation, avec vérification de la visibilité du focus sur tous les composants
    (le style `outline-none` sur `<main>` est compensé par les `focus:ring-*` des
    composants, mais cela reste à vérifier page par page).
-8. **Tests avec lecteurs d'écran** — aucun test réel NVDA/VoiceOver n'a été mené à ce
+5. **Tests avec lecteurs d'écran** — aucun test réel NVDA/VoiceOver n'a été mené à ce
    stade ; la conformité ARIA n'a été vérifiée que par inspection statique du code.
-9. **Tests zoom 200 % et mode contraste élevé** (`forced-colors: active`).
-10. **Plan du site / page d'aide à la navigation** (critère RGAA 12.3).
-11. **Déclaration d'accessibilité** — à rédiger après un audit RGAA formel (obligatoire
-    pour les organismes assujettis ; non produite ici puisque le projet est un prototype).
+6. **Tests zoom 200 % et mode contraste élevé** (`forced-colors: active`).
+7. **Plan du site / page d'aide à la navigation** (critère RGAA 12.3).
+8. **Déclaration d'accessibilité** — à rédiger après un audit RGAA formel (obligatoire
+   pour les organismes assujettis ; non produite ici puisque le projet est un prototype).
 
 ---
 
-*Document rédigé à partir d'une revue du code source au 20/07/2026. Toute évolution du
-frontend doit déclencher une réévaluation des thématiques concernées.*
+*Document rédigé à partir d'une revue du code source au 20/07/2026. Révision du
+20/07/2026 : corrections intégrées (contraste du gris secondaire `#777777`, titres de
+page dynamiques, skip link du shell applicatif, focus trap des dialogues maison) et
+sections de conformité mises à jour en conséquence. Toute évolution du frontend doit
+déclencher une réévaluation des thématiques concernées.*

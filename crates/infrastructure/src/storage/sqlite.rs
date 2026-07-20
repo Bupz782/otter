@@ -124,7 +124,10 @@ fn add_column_if_missing(
         .map_err(|e| StorageError::InitFailed(e.to_string()))?;
     if !exists {
         conn.execute(
-            &format!("ALTER TABLE {} ADD COLUMN {} {}", table, column, column_type),
+            &format!(
+                "ALTER TABLE {} ADD COLUMN {} {}",
+                table, column, column_type
+            ),
             [],
         )
         .map_err(|e| StorageError::InitFailed(e.to_string()))?;
@@ -466,7 +469,9 @@ impl StoragePort for SqliteStorage {
         let conn = self.conn.clone();
         let record = record.clone();
         tokio::task::spawn_blocking(move || {
-            let conn = conn.lock().map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            let conn = conn
+                .lock()
+                .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
             conn.execute(
                 "INSERT OR REPLACE INTO strategies
                  (id, title, description, raw_text, intent_json, creator_address, agent_id,
@@ -574,13 +579,13 @@ impl StoragePort for SqliteStorage {
         .map_err(|e| StorageError::ReadFailed(e.to_string()))?
     }
 
-    async fn increment_strategy_copies(&self,
-        id: &str,
-    ) -> Result<(), StorageError> {
+    async fn increment_strategy_copies(&self, id: &str) -> Result<(), StorageError> {
         let conn = self.conn.clone();
         let id = id.to_string();
         tokio::task::spawn_blocking(move || {
-            let conn = conn.lock().map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            let conn = conn
+                .lock()
+                .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
             conn.execute(
                 "UPDATE strategies SET copies = copies + 1, updated_at = ?1 WHERE id = ?2",
                 rusqlite::params![migrations::unix_now(), id],
@@ -710,11 +715,289 @@ mod tests {
     #[tokio::test]
     async fn increment_strategy_copies_bumps_count() {
         let storage = SqliteStorage::in_memory().unwrap();
-        storage.save_strategy(&sample_strategy("forkable")).await.unwrap();
+        storage
+            .save_strategy(&sample_strategy("forkable"))
+            .await
+            .unwrap();
 
         storage.increment_strategy_copies("forkable").await.unwrap();
         let found = storage.get_strategy("forkable").await.unwrap().unwrap();
         assert_eq!(found.copies, 1);
         assert!(found.updated_at >= found.created_at);
+    }
+
+    #[tokio::test]
+    async fn save_intent_upserts_on_same_id() {
+        let storage = SqliteStorage::in_memory().unwrap();
+        let mut record = sample_record("intent-1");
+        storage.save_intent(&record).await.unwrap();
+
+        record.text = "updated text".to_string();
+        record.state = "executed".to_string();
+        record.user_address = Some("0xUser".to_string());
+        storage.save_intent(&record).await.unwrap();
+
+        let intents = storage.list_intents().await.unwrap();
+        assert_eq!(intents.len(), 1, "upsert must not duplicate the record");
+        assert_eq!(intents[0].text, "updated text");
+        assert_eq!(intents[0].state, "executed");
+        assert_eq!(intents[0].user_address.as_deref(), Some("0xUser"));
+    }
+
+    #[tokio::test]
+    async fn list_intents_orders_by_updated_at_desc() {
+        let storage = SqliteStorage::in_memory().unwrap();
+        let mut older = sample_record("older");
+        older.updated_at = 100;
+        let mut newer = sample_record("newer");
+        newer.updated_at = 200;
+        // Insert newest first to prove ordering comes from the query.
+        storage.save_intent(&newer).await.unwrap();
+        storage.save_intent(&older).await.unwrap();
+
+        let intents = storage.list_intents().await.unwrap();
+        assert_eq!(intents.len(), 2);
+        assert_eq!(intents[0].id, "newer");
+        assert_eq!(intents[1].id, "older");
+    }
+
+    #[tokio::test]
+    async fn intent_condition_round_trips_through_json() {
+        let storage = SqliteStorage::in_memory().unwrap();
+        storage.save_intent(&sample_record("cond")).await.unwrap();
+
+        let found = storage.get_intent("cond").await.unwrap().unwrap();
+        assert_eq!(found.intent, sample_record("cond").intent);
+    }
+
+    #[tokio::test]
+    async fn delete_missing_intent_returns_not_found() {
+        let storage = SqliteStorage::in_memory().unwrap();
+        let err = storage.delete_intent("ghost").await.unwrap_err();
+        assert!(
+            matches!(err, StorageError::NotFound(ref id) if id == "ghost"),
+            "expected NotFound, got {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn list_intents_fails_on_corrupt_intent_json() {
+        let storage = SqliteStorage::in_memory().unwrap();
+        {
+            let conn = storage.conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO intents (id, text, intent_json, state, created_at, updated_at)
+                 VALUES ('bad', 't', 'this is not json', 'active', 0, 0)",
+                [],
+            )
+            .unwrap();
+        }
+
+        let err = storage.list_intents().await.unwrap_err();
+        assert!(matches!(err, StorageError::ReadFailed(_)));
+
+        let err = storage.get_intent("bad").await.unwrap_err();
+        assert!(matches!(err, StorageError::ReadFailed(_)));
+    }
+
+    fn sample_delegation(hash: &str) -> DelegationRecord {
+        DelegationRecord {
+            hash: hash.to_string(),
+            payload_json: r#"{"pubkey_x":[0;32]}"#.to_string(),
+            signature: "0xsig".to_string(),
+            created_at: now_secs(),
+            user_address: Some("0xUser".to_string()),
+        }
+    }
+
+    #[tokio::test]
+    async fn save_and_get_delegation_round_trip() {
+        let storage = SqliteStorage::in_memory().unwrap();
+        storage
+            .save_delegation(&sample_delegation("h1"))
+            .await
+            .unwrap();
+
+        let found = storage.get_delegation("h1").await.unwrap().unwrap();
+        assert_eq!(found.hash, "h1");
+        assert_eq!(found.signature, "0xsig");
+        assert_eq!(found.user_address.as_deref(), Some("0xUser"));
+        assert!(storage.get_delegation("missing").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn save_delegation_upserts_on_same_hash() {
+        let storage = SqliteStorage::in_memory().unwrap();
+        let mut record = sample_delegation("h1");
+        storage.save_delegation(&record).await.unwrap();
+        record.signature = "0xnewsig".to_string();
+        storage.save_delegation(&record).await.unwrap();
+
+        let delegations = storage.list_delegations().await.unwrap();
+        assert_eq!(delegations.len(), 1);
+        assert_eq!(delegations[0].signature, "0xnewsig");
+    }
+
+    #[tokio::test]
+    async fn list_delegations_orders_by_created_at_desc() {
+        let storage = SqliteStorage::in_memory().unwrap();
+        let mut older = sample_delegation("old");
+        older.created_at = 10;
+        let mut newer = sample_delegation("new");
+        newer.created_at = 20;
+        storage.save_delegation(&newer).await.unwrap();
+        storage.save_delegation(&older).await.unwrap();
+
+        let delegations = storage.list_delegations().await.unwrap();
+        assert_eq!(delegations[0].hash, "new");
+        assert_eq!(delegations[1].hash, "old");
+    }
+
+    fn sample_execution(id: &str, intent_id: &str) -> ExecutionRecord {
+        ExecutionRecord {
+            id: id.to_string(),
+            intent_id: intent_id.to_string(),
+            tx_hash: "0xdeadbeef".to_string(),
+            status: "success".to_string(),
+            gas_used: 21_000,
+            created_at: now_secs(),
+        }
+    }
+
+    #[tokio::test]
+    async fn save_and_list_executions_round_trip() {
+        let storage = SqliteStorage::in_memory().unwrap();
+        let mut record = sample_execution("exec-1", "intent-1");
+        record.gas_used = u64::from(u32::MAX) + 1; // larger than u32 to probe i64 storage
+        storage.save_execution(&record).await.unwrap();
+
+        let executions = storage.list_executions().await.unwrap();
+        assert_eq!(executions.len(), 1);
+        assert_eq!(executions[0].id, "exec-1");
+        assert_eq!(executions[0].gas_used, u64::from(u32::MAX) + 1);
+        assert_eq!(executions[0].tx_hash, "0xdeadbeef");
+    }
+
+    #[tokio::test]
+    async fn get_executions_for_intent_filters_by_intent() {
+        let storage = SqliteStorage::in_memory().unwrap();
+        let mut first = sample_execution("e1", "intent-a");
+        first.created_at = 10;
+        let mut second = sample_execution("e2", "intent-a");
+        second.created_at = 20;
+        storage.save_execution(&first).await.unwrap();
+        storage.save_execution(&second).await.unwrap();
+        storage
+            .save_execution(&sample_execution("e3", "intent-b"))
+            .await
+            .unwrap();
+
+        let executions = storage.get_executions_for_intent("intent-a").await.unwrap();
+        assert_eq!(executions.len(), 2);
+        // Most recent first.
+        assert_eq!(executions[0].id, "e2");
+        assert_eq!(executions[1].id, "e1");
+        assert!(
+            storage
+                .get_executions_for_intent("unknown")
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn save_strategy_upserts_and_preserves_fields() {
+        let storage = SqliteStorage::in_memory().unwrap();
+        let mut record = sample_strategy("s1");
+        record.total_volume = 1_000_000;
+        storage.save_strategy(&record).await.unwrap();
+
+        record.title = "Renamed".to_string();
+        record.apy = 0.25;
+        storage.save_strategy(&record).await.unwrap();
+
+        let strategies = storage.list_strategies().await.unwrap();
+        assert_eq!(strategies.len(), 1);
+        assert_eq!(strategies[0].title, "Renamed");
+        assert_eq!(strategies[0].total_volume, 1_000_000);
+        assert!((strategies[0].apy - 0.25).abs() < f64::EPSILON);
+        assert_eq!(strategies[0].creator_address.as_deref(), Some("0xCreator"));
+    }
+
+    #[tokio::test]
+    async fn list_strategies_orders_by_updated_at_desc() {
+        let storage = SqliteStorage::in_memory().unwrap();
+        let mut older = sample_strategy("old");
+        older.updated_at = 1;
+        let mut newer = sample_strategy("new");
+        newer.updated_at = 2;
+        storage.save_strategy(&newer).await.unwrap();
+        storage.save_strategy(&older).await.unwrap();
+
+        let strategies = storage.list_strategies().await.unwrap();
+        assert_eq!(strategies[0].id, "new");
+        assert_eq!(strategies[1].id, "old");
+    }
+
+    #[tokio::test]
+    async fn increment_strategy_copies_on_missing_id_is_a_no_op() {
+        let storage = SqliteStorage::in_memory().unwrap();
+        // The current implementation does not error when the id is absent.
+        storage.increment_strategy_copies("ghost").await.unwrap();
+        assert!(storage.get_strategy("ghost").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn concurrent_saves_do_not_lose_records() {
+        use std::sync::Arc;
+        let storage = Arc::new(SqliteStorage::in_memory().unwrap());
+
+        let mut handles = Vec::new();
+        for i in 0..10 {
+            let storage = Arc::clone(&storage);
+            handles.push(tokio::spawn(async move {
+                storage
+                    .save_intent(&sample_record(&format!("intent-{i}")))
+                    .await
+                    .unwrap();
+            }));
+        }
+        for handle in handles {
+            handle.await.unwrap();
+        }
+
+        assert_eq!(storage.list_intents().await.unwrap().len(), 10);
+    }
+
+    #[test]
+    fn opening_database_in_missing_directory_fails() {
+        // SqliteStorage has no Debug impl, so use matches! instead of unwrap_err.
+        let result = SqliteStorage::new("/nonexistent-dir-otter-zzz/nested/test.db");
+        assert!(matches!(result, Err(StorageError::InitFailed(_))));
+    }
+
+    #[tokio::test]
+    async fn migrations_are_idempotent_on_reopen() {
+        let path = std::env::temp_dir()
+            .join(format!("otter-sqlite-test-{}.db", rand::random::<u64>()))
+            .to_string_lossy()
+            .to_string();
+
+        {
+            let storage = SqliteStorage::new(&path).unwrap();
+            storage
+                .save_intent(&sample_record("persist"))
+                .await
+                .unwrap();
+        }
+        // Reopening must skip already-applied migrations and keep the data.
+        {
+            let storage = SqliteStorage::new(&path).unwrap();
+            let found = storage.get_intent("persist").await.unwrap().unwrap();
+            assert_eq!(found.id, "persist");
+        }
+
+        std::fs::remove_file(&path).ok();
     }
 }

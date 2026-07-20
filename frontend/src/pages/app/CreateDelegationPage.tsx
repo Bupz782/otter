@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { ArrowLeft, Check, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ const chains = ["Ethereum", "Arbitrum"];
 const numericInputClass = "rounded-lg border-border bg-secondary/60";
 
 export function CreateDelegationPage() {
+  useDocumentTitle("New Delegation");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { isAuthenticated } = useAuthToken();

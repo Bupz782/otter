@@ -347,4 +347,144 @@ mod tests {
             expected
         );
     }
+
+    #[test]
+    fn new_rejects_invalid_pool_address() {
+        let result = AaveAdapter::new("http://localhost:8545", "not-an-address", TEST_USER);
+        assert!(matches!(result, Err(ProtocolError::OperationFailed(_))));
+    }
+
+    #[test]
+    fn new_rejects_invalid_on_behalf_of_address() {
+        let result = AaveAdapter::new(
+            "http://localhost:8545",
+            "0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951",
+            "0xzz",
+        );
+        assert!(matches!(result, Err(ProtocolError::OperationFailed(_))));
+    }
+
+    #[test]
+    fn network_detection_distinguishes_sepolia_from_mainnet() {
+        let sepolia = AaveAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
+        assert_eq!(sepolia.network(), Network::Sepolia);
+
+        let mainnet = AaveAdapter::mainnet("http://localhost:8545", TEST_USER).unwrap();
+        assert_eq!(mainnet.network(), Network::Mainnet);
+    }
+
+    #[test]
+    fn dummy_on_behalf_of_is_a_valid_non_zero_address() {
+        let address: Address = DUMMY_ON_BEHALF_OF.parse().unwrap();
+        assert!(!address.is_zero());
+    }
+
+    #[test]
+    fn supply_rejects_zero_amount() {
+        let aave = AaveAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
+        let result = aave.supply(&Asset::Usdc, 0);
+        assert!(matches!(result, Err(ProtocolError::InvalidAmount(_))));
+    }
+
+    #[test]
+    fn withdraw_rejects_zero_amount() {
+        let aave = AaveAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
+        let result = aave.withdraw(&Asset::Usdc, 0);
+        assert!(matches!(result, Err(ProtocolError::InvalidAmount(_))));
+    }
+
+    #[test]
+    fn borrow_rejects_zero_amount() {
+        let aave = AaveAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
+        let result = aave.borrow(&Asset::Usdc, 0, &Asset::Eth, 1_000);
+        assert!(matches!(result, Err(ProtocolError::InvalidAmount(_))));
+    }
+
+    #[test]
+    fn repay_rejects_zero_amount() {
+        let aave = AaveAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
+        let result = aave.repay(&Asset::Usdc, 0);
+        assert!(matches!(result, Err(ProtocolError::InvalidAmount(_))));
+    }
+
+    #[test]
+    fn withdraw_encodes_selector_and_layout() {
+        let aave = AaveAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
+        let amount = 1_000_000u128;
+        let tx = aave.withdraw(&Asset::Usdc, amount).unwrap();
+
+        assert_eq!(&tx.data[0..4], IPool::withdrawCall::SELECTOR);
+        // selector + asset + amount + to
+        assert_eq!(tx.data.len(), 4 + 3 * 32);
+        // The amount word is the second argument.
+        let amount_word = &tx.data[4 + 32..4 + 64];
+        assert_eq!(amount_word, U256::from(amount).to_be_bytes::<32>());
+        // The recipient is the configured onBehalfOf address.
+        let to_word = &tx.data[4 + 64..4 + 96];
+        assert_eq!(&to_word[12..], aave.on_behalf_of.as_slice());
+        assert_eq!(tx.gas_limit, 300_000);
+        assert_eq!(tx.value, 0);
+    }
+
+    #[test]
+    fn repay_encodes_selector_and_variable_rate_mode() {
+        let aave = AaveAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
+        let tx = aave.repay(&Asset::Dai, 500).unwrap();
+
+        assert_eq!(&tx.data[0..4], IPool::repayCall::SELECTOR);
+        // selector + asset + amount + interestRateMode + onBehalfOf
+        assert_eq!(tx.data.len(), 4 + 4 * 32);
+        // interestRateMode (3rd argument) must be 2 (variable rate).
+        let mode_word = &tx.data[4 + 64..4 + 96];
+        assert_eq!(mode_word, U256::from(2).to_be_bytes::<32>());
+    }
+
+    #[test]
+    fn borrow_uses_350k_gas_limit() {
+        let aave = AaveAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
+        let tx = aave.borrow(&Asset::Usdc, 1, &Asset::Eth, 1).unwrap();
+        assert_eq!(tx.gas_limit, 350_000);
+    }
+
+    #[test]
+    fn supply_supports_u128_max_amount() {
+        let aave = AaveAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
+        let tx = aave.supply(&Asset::Wbtc, u128::MAX).unwrap();
+        let amount_word = &tx.data[4 + 32..4 + 64];
+        assert_eq!(amount_word, U256::from(u128::MAX).to_be_bytes::<32>());
+    }
+
+    #[test]
+    fn supply_rejects_unsupported_asset() {
+        let aave = AaveAdapter::sepolia("http://localhost:8545", TEST_USER).unwrap();
+        let result = aave.supply(&Asset::Sol, 1_000);
+        assert!(matches!(result, Err(ProtocolError::UnsupportedAsset(_))));
+    }
+
+    #[test]
+    fn address_for_resolves_every_supported_asset_on_both_networks() {
+        for network in [Network::Mainnet, Network::Sepolia] {
+            for asset in [
+                Asset::Eth,
+                Asset::Usdc,
+                Asset::Dai,
+                Asset::Wbtc,
+                Asset::Link,
+            ] {
+                let address = address_for(&asset, network)
+                    .unwrap_or_else(|e| panic!("{asset:?} on {network:?}: {e}"));
+                assert!(!address.is_zero(), "{asset:?} on {network:?} is zero");
+            }
+        }
+    }
+
+    #[test]
+    fn address_for_rejects_sol_on_all_networks() {
+        for network in [Network::Mainnet, Network::Sepolia] {
+            assert!(matches!(
+                address_for(&Asset::Sol, network),
+                Err(ProtocolError::UnsupportedAsset(_))
+            ));
+        }
+    }
 }

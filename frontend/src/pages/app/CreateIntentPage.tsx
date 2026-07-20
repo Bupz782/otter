@@ -1,5 +1,6 @@
 import { useState, useEffect, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { Sparkles, Check, Loader2, ArrowRight, ShieldCheck, Bot } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,7 @@ function mapMockToParsedIntent(mock: MockIntent): ParsedIntent {
 }
 
 export function CreateIntentPage() {
+  useDocumentTitle("Create Intent");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { isAuthenticated } = useAuthToken();

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { ArrowLeft, Loader2, Check, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -18,6 +19,7 @@ import type { Strategy } from "@/types/app";
 const riskProfiles: Strategy["riskProfile"][] = ["Conservative", "Balanced", "Advanced"];
 
 export function CreateStrategyPage() {
+  useDocumentTitle("Create Strategy");
   const navigate = useNavigate();
   const { data: agents, isLoading: agentsLoading } = useAgents();
   const { mutate: create, isLoading: creating, data: created } = useCreateStrategy();

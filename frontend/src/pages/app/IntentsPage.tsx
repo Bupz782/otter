@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { Plus, Lightbulb, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +51,7 @@ const filters: { label: string; value: IntentStatus | "all" }[] = [
 ];
 
 export function IntentsPage() {
+  useDocumentTitle("Intents");
   const [statusFilter, setStatusFilter] = useState<IntentStatus | undefined>(undefined);
   const {
     data: intents,

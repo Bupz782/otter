@@ -1,0 +1,39 @@
+# Configuration TLS de référence pour Otter (reverse proxy Caddy).
+#
+# Caddy obtient et renouvelle automatiquement les certificats TLS
+# (Let's Encrypt) pour le domaine indiqué. La terminaison TLS est donc
+# assurée ici, en amont de la stack Docker qui reste en HTTP clair en
+# interne — ce choix est assumé (cf. DEPLOYMENT.md).
+#
+# Prérequis :
+#   - remplacer « otter.example.com » par le nom de domaine réel ;
+#   - ouvrir les ports 80 et 443 vers cette machine ;
+#   - la stack Otter tourne en local (docker compose) : frontend sur le
+#     port 3000, API sur le port 3001 ;
+#   - positionner VITE_API_URL=https://otter.example.com au build du
+#     frontend pour que les appels d'API passent par ce proxy.
+#
+# Lancement : caddy run --config deploy/Caddyfile
+# Rechargement après modification : caddy reload --config deploy/Caddyfile
+
+otter.example.com {
+	# API backend (port 3001). Routé avant le frontend. Seul le préfixe
+	# /api/* est exposé : /health, /ready et /metrics restent internes.
+	handle /api/* {
+		reverse_proxy localhost:3001
+	}
+
+	# Frontend React servi par nginx (port 3000).
+	handle {
+		reverse_proxy localhost:3000
+	}
+
+	# Headers de sécurité de base, appliqués à toutes les réponses.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}

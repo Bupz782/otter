@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ShieldCheck, CheckCircle2, XCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { motion, AnimatePresence } from "framer-motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -149,6 +150,7 @@ function ProofRow({
 }
 
 export function ProofsPage() {
+  useDocumentTitle("Proofs");
   const { data: proofs, isLoading, error, refetch } = useProofs();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 

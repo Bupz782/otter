@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useParams, Link } from "react-router-dom";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { ArrowLeft, Copy, Check, ExternalLink, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,7 @@ function idleDetail(status: IntentStatus): string {
 }
 
 export function IntentDetailPage() {
+  useDocumentTitle("Intent");
   const { id } = useParams<{ id: string }>();
   const { data: intent, isLoading: intentLoading, error, refetch, isDemo } = useIntent(id);
   const {

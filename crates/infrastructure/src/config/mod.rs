@@ -424,12 +424,58 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
+
+    fn temp_config_path() -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("otter-config-test-{}.toml", rand::random::<u64>()))
+    }
+
+    fn write_temp_config(contents: &str) -> std::path::PathBuf {
+        let path = temp_config_path();
+        std::fs::write(&path, contents).unwrap();
+        path
+    }
+
+    /// Remove every `OTTER_`/`RUST_LOG` variable that could leak from the
+    /// developer shell or another test into `Config::from_env`.
+    fn clear_otter_env() {
+        let keys: Vec<String> = std::env::vars()
+            .map(|(key, _)| key)
+            .filter(|key| key.starts_with("OTTER_") || key == "RUST_LOG")
+            .collect();
+        for key in keys {
+            unsafe { std::env::remove_var(&key) };
+        }
+    }
 
     #[test]
+    #[serial]
     fn default_config_is_valid() {
+        clear_otter_env();
         let config = Config::default();
+        assert_eq!(config.agent_name, "otter-agent");
+        assert_eq!(config.rpc_url, "http://localhost:8545");
         assert_eq!(config.chain_id, 1);
+        assert_eq!(config.model_path, "models/Qwen3-8B-Q4_K_M.gguf");
         assert_eq!(config.monitoring_interval_secs, 60);
+        assert_eq!(config.log_level, "info");
+        assert_eq!(config.log_format, "text");
+        assert_eq!(config.database_url, "otter.db");
+        assert_eq!(config.api_port, 3001);
+        assert_eq!(config.nonce_store_path, "otter-nonce.txt");
+        assert_eq!(config.jwt_ttl_hours, 24);
+        assert_eq!(config.cors_allowed_origins, "*");
+        assert_eq!(config.rate_limit_per_minute, 100);
+        assert!(!config.delegate_on_create);
+        assert!(!config.execution_enabled);
+        assert!(!config.metrics_enabled);
+        assert!(!config.auth_enabled);
+        assert!(config.network.is_none());
+        assert!(config.vault_address.is_none());
+        assert!(config.private_key.is_none());
+        assert!(config.jwt_secret.is_empty());
+        // The default config must pass validation (execution disabled).
+        config.validate().unwrap();
     }
 
     #[test]
@@ -447,5 +493,344 @@ log_level = "debug"
         assert_eq!(config.agent_name, "prod-agent");
         assert_eq!(config.chain_id, 421614);
         assert_eq!(config.monitoring_interval_secs, 30);
+    }
+
+    #[test]
+    #[serial]
+    fn from_file_applies_serde_defaults_for_missing_fields() {
+        clear_otter_env();
+        let path = write_temp_config(
+            r#"
+agent_name = "minimal"
+rpc_url = "http://localhost:8545"
+chain_id = 11155111
+model_path = "model.gguf"
+"#,
+        );
+
+        let config = Config::from_file(&path).unwrap();
+        std::fs::remove_file(&path).ok();
+
+        assert_eq!(config.agent_name, "minimal");
+        assert_eq!(config.chain_id, 11155111);
+        // Fields absent from the file fall back to the serde defaults.
+        assert_eq!(config.monitoring_interval_secs, 60);
+        assert_eq!(config.api_port, 3001);
+        assert_eq!(config.log_level, "info");
+        assert_eq!(config.database_url, "otter.db");
+        assert_eq!(config.nonce_store_path, "otter-nonce.txt");
+        assert!(!config.execution_enabled);
+        assert!(config.private_key_file.is_none());
+        assert!(config.keystore_file.is_none());
+        assert!(config.aws_kms_key_id.is_none());
+        assert!(config.vault_addr.is_none());
+    }
+
+    #[test]
+    #[serial]
+    fn from_file_parses_optional_sections() {
+        clear_otter_env();
+        let path = write_temp_config(
+            r#"
+agent_name = "full"
+rpc_url = "http://localhost:8545"
+chain_id = 1
+model_path = "model.gguf"
+network = "sepolia"
+vault_address = "0xVault"
+private_key = "0xdeadbeef"
+circuit_dir = "delegation_circuit"
+bb_bin = "/usr/local/bin/bb"
+delegate_on_create = true
+execution_enabled = true
+metrics_enabled = true
+auth_enabled = true
+jwt_secret = "s3cret"
+jwt_ttl_hours = 12
+cors_allowed_origins = "https://app.example.com"
+rate_limit_per_minute = 42
+private_key_source = "vault"
+aws_kms_key_id = "alias/otter"
+aws_kms_region = "eu-west-1"
+vault_addr = "https://vault.example.com:8200"
+vault_mount = "secret"
+vault_path = "otter/agent"
+vault_key = "private_key"
+"#,
+        );
+
+        let config = Config::from_file(&path).unwrap();
+        std::fs::remove_file(&path).ok();
+
+        assert_eq!(config.network.as_deref(), Some("sepolia"));
+        assert_eq!(config.vault_address.as_deref(), Some("0xVault"));
+        assert_eq!(config.private_key.as_deref(), Some("0xdeadbeef"));
+        assert_eq!(config.circuit_dir.as_deref(), Some("delegation_circuit"));
+        assert_eq!(config.bb_bin.as_deref(), Some("/usr/local/bin/bb"));
+        assert!(config.delegate_on_create);
+        assert!(config.execution_enabled);
+        assert!(config.metrics_enabled);
+        assert!(config.auth_enabled);
+        assert_eq!(config.jwt_secret, "s3cret");
+        assert_eq!(config.jwt_ttl_hours, 12);
+        assert_eq!(config.cors_allowed_origins, "https://app.example.com");
+        assert_eq!(config.rate_limit_per_minute, 42);
+        assert_eq!(config.private_key_source.as_deref(), Some("vault"));
+        assert_eq!(config.aws_kms_key_id.as_deref(), Some("alias/otter"));
+        assert_eq!(config.aws_kms_region.as_deref(), Some("eu-west-1"));
+        assert_eq!(
+            config.vault_addr.as_deref(),
+            Some("https://vault.example.com:8200")
+        );
+        assert_eq!(config.vault_mount.as_deref(), Some("secret"));
+        assert_eq!(config.vault_path.as_deref(), Some("otter/agent"));
+        assert_eq!(config.vault_key.as_deref(), Some("private_key"));
+    }
+
+    #[test]
+    fn from_file_fails_when_file_is_missing() {
+        let err = Config::from_file("/nonexistent/otter-config-zzz.toml").unwrap_err();
+        assert!(matches!(err, ConfigError::ReadFailed(_)));
+    }
+
+    #[test]
+    fn from_file_fails_on_invalid_toml() {
+        let path = write_temp_config("this is = = not valid toml [[[");
+        let err = Config::from_file(&path).unwrap_err();
+        std::fs::remove_file(&path).ok();
+        assert!(matches!(err, ConfigError::ParseFailed(_)));
+    }
+
+    #[test]
+    fn from_file_fails_on_wrong_field_type() {
+        let path = write_temp_config(
+            r#"
+agent_name = "x"
+rpc_url = "http://localhost:8545"
+chain_id = "not-a-number"
+model_path = "model.gguf"
+"#,
+        );
+        let err = Config::from_file(&path).unwrap_err();
+        std::fs::remove_file(&path).ok();
+        assert!(matches!(err, ConfigError::ParseFailed(_)));
+    }
+
+    #[test]
+    fn from_file_fails_when_required_field_is_missing() {
+        // `agent_name` has no serde default; omitting it must fail.
+        let path = write_temp_config(
+            r#"
+rpc_url = "http://localhost:8545"
+chain_id = 1
+model_path = "model.gguf"
+"#,
+        );
+        let err = Config::from_file(&path).unwrap_err();
+        std::fs::remove_file(&path).ok();
+        assert!(matches!(err, ConfigError::ParseFailed(_)));
+    }
+
+    #[test]
+    #[serial]
+    fn env_overrides_scalars_and_strings() {
+        clear_otter_env();
+        unsafe {
+            std::env::set_var("OTTER_AGENT_NAME", "env-agent");
+            std::env::set_var("OTTER_RPC_URL", "http://env:8545");
+            std::env::set_var("OTTER_CHAIN_ID", "8453");
+            std::env::set_var("OTTER_MODEL_PATH", "env-model.gguf");
+            std::env::set_var("OTTER_MONITORING_INTERVAL_SECS", "15");
+            std::env::set_var("OTTER_LOG_FORMAT", "json");
+            std::env::set_var("OTTER_DATABASE_URL", "postgres://localhost/otter");
+            std::env::set_var("OTTER_API_PORT", "8080");
+            std::env::set_var("OTTER_NETWORK", "mainnet");
+            std::env::set_var("OTTER_VAULT_ADDRESS", "0xEnvVault");
+            std::env::set_var("OTTER_PRIVATE_KEY", "0xenvkey");
+            std::env::set_var("OTTER_NONCE_STORE_PATH", "/tmp/nonce.txt");
+            std::env::set_var("OTTER_PRIVATE_KEY_FILE", "/tmp/key.hex");
+            std::env::set_var("OTTER_KEYSTORE_FILE", "/tmp/keystore.json");
+            std::env::set_var("OTTER_KEYSTORE_PASSWORD", "pw");
+            std::env::set_var("OTTER_PRIVATE_KEY_SOURCE", "keystore");
+            std::env::set_var("OTTER_AWS_KMS_KEY_ID", "alias/env");
+            std::env::set_var("OTTER_AWS_KMS_REGION", "us-east-1");
+            std::env::set_var("OTTER_VAULT_ADDR", "https://vault:8200");
+            std::env::set_var("OTTER_VAULT_MOUNT", "kv");
+            std::env::set_var("OTTER_VAULT_PATH", "otter/env");
+            std::env::set_var("OTTER_VAULT_KEY", "pk");
+            std::env::set_var("OTTER_JWT_SECRET", "env-secret");
+            std::env::set_var("OTTER_JWT_TTL_HOURS", "1");
+            std::env::set_var("OTTER_CORS_ALLOWED_ORIGINS", "https://a.com,https://b.com");
+            std::env::set_var("OTTER_RATE_LIMIT_PER_MINUTE", "7");
+            std::env::set_var("OTTER_CIRCUIT_DIR", "/tmp/circuits");
+            std::env::set_var("OTTER_BB_BIN", "/opt/bb");
+        }
+
+        let config = Config::from_env();
+        clear_otter_env();
+
+        assert_eq!(config.agent_name, "env-agent");
+        assert_eq!(config.rpc_url, "http://env:8545");
+        assert_eq!(config.chain_id, 8453);
+        assert_eq!(config.model_path, "env-model.gguf");
+        assert_eq!(config.monitoring_interval_secs, 15);
+        assert_eq!(config.log_format, "json");
+        assert_eq!(config.database_url, "postgres://localhost/otter");
+        assert_eq!(config.api_port, 8080);
+        assert_eq!(config.network.as_deref(), Some("mainnet"));
+        assert_eq!(config.vault_address.as_deref(), Some("0xEnvVault"));
+        assert_eq!(config.private_key.as_deref(), Some("0xenvkey"));
+        assert_eq!(config.nonce_store_path, "/tmp/nonce.txt");
+        assert_eq!(config.private_key_file.as_deref(), Some("/tmp/key.hex"));
+        assert_eq!(config.keystore_file.as_deref(), Some("/tmp/keystore.json"));
+        assert_eq!(config.keystore_password.as_deref(), Some("pw"));
+        assert_eq!(config.private_key_source.as_deref(), Some("keystore"));
+        assert_eq!(config.aws_kms_key_id.as_deref(), Some("alias/env"));
+        assert_eq!(config.aws_kms_region.as_deref(), Some("us-east-1"));
+        assert_eq!(config.vault_addr.as_deref(), Some("https://vault:8200"));
+        assert_eq!(config.vault_mount.as_deref(), Some("kv"));
+        assert_eq!(config.vault_path.as_deref(), Some("otter/env"));
+        assert_eq!(config.vault_key.as_deref(), Some("pk"));
+        assert_eq!(config.jwt_secret, "env-secret");
+        assert_eq!(config.jwt_ttl_hours, 1);
+        assert_eq!(config.cors_allowed_origins, "https://a.com,https://b.com");
+        assert_eq!(config.rate_limit_per_minute, 7);
+        assert_eq!(config.circuit_dir.as_deref(), Some("/tmp/circuits"));
+        assert_eq!(config.bb_bin.as_deref(), Some("/opt/bb"));
+    }
+
+    #[test]
+    #[serial]
+    fn env_overrides_booleans() {
+        clear_otter_env();
+        unsafe {
+            std::env::set_var("OTTER_DELEGATE_ON_CREATE", "true");
+            std::env::set_var("OTTER_EXECUTION_ENABLED", "true");
+            std::env::set_var("OTTER_METRICS_ENABLED", "true");
+            std::env::set_var("OTTER_AUTH_ENABLED", "true");
+        }
+
+        let config = Config::from_env();
+        clear_otter_env();
+
+        assert!(config.delegate_on_create);
+        assert!(config.execution_enabled);
+        assert!(config.metrics_enabled);
+        assert!(config.auth_enabled);
+    }
+
+    #[test]
+    #[serial]
+    fn invalid_numeric_env_values_are_ignored() {
+        clear_otter_env();
+        unsafe {
+            std::env::set_var("OTTER_CHAIN_ID", "not-a-number");
+            std::env::set_var("OTTER_API_PORT", "99999999");
+            std::env::set_var("OTTER_MONITORING_INTERVAL_SECS", "-5");
+            std::env::set_var("OTTER_JWT_TTL_HOURS", "abc");
+            std::env::set_var("OTTER_RATE_LIMIT_PER_MINUTE", "fast");
+            std::env::set_var("OTTER_AUTH_ENABLED", "maybe");
+        }
+
+        let config = Config::from_env();
+        clear_otter_env();
+
+        // Unparsable values leave the defaults untouched.
+        assert_eq!(config.chain_id, 1);
+        assert_eq!(config.api_port, 3001);
+        assert_eq!(config.monitoring_interval_secs, 60);
+        assert_eq!(config.jwt_ttl_hours, 24);
+        assert_eq!(config.rate_limit_per_minute, 100);
+        assert!(!config.auth_enabled);
+    }
+
+    #[test]
+    #[serial]
+    fn rust_log_takes_precedence_over_otter_log_level() {
+        clear_otter_env();
+        unsafe {
+            std::env::set_var("OTTER_LOG_LEVEL", "debug");
+        }
+        let config = Config::from_env();
+        assert_eq!(config.log_level, "debug");
+
+        unsafe {
+            std::env::set_var("RUST_LOG", "trace");
+        }
+        let config = Config::from_env();
+        clear_otter_env();
+        // RUST_LOG is applied after OTTER_LOG_LEVEL and wins.
+        assert_eq!(config.log_level, "trace");
+    }
+
+    #[test]
+    fn validate_rejects_execution_without_vault_address() {
+        let config = Config {
+            execution_enabled: true,
+            private_key: Some("0xkey".to_string()),
+            network: Some("sepolia".to_string()),
+            ..Config::default()
+        };
+
+        let err = config.validate().unwrap_err();
+        assert!(err.to_string().contains("vault_address"));
+    }
+
+    #[test]
+    fn validate_rejects_execution_without_any_key_source() {
+        let config = Config {
+            execution_enabled: true,
+            vault_address: Some("0xVault".to_string()),
+            network: Some("sepolia".to_string()),
+            ..Config::default()
+        };
+
+        let err = config.validate().unwrap_err();
+        assert!(err.to_string().contains("private_key"));
+    }
+
+    #[test]
+    fn validate_rejects_execution_without_network() {
+        let config = Config {
+            execution_enabled: true,
+            vault_address: Some("0xVault".to_string()),
+            private_key: Some("0xkey".to_string()),
+            ..Config::default()
+        };
+
+        let err = config.validate().unwrap_err();
+        assert!(err.to_string().contains("network"));
+    }
+
+    #[test]
+    fn validate_accepts_execution_with_keystore_instead_of_raw_key() {
+        let config = Config {
+            execution_enabled: true,
+            vault_address: Some("0xVault".to_string()),
+            keystore_file: Some("/tmp/keystore.json".to_string()),
+            network: Some("sepolia".to_string()),
+            ..Config::default()
+        };
+
+        config.validate().unwrap();
+    }
+
+    #[test]
+    fn validate_accepts_execution_with_key_file() {
+        let config = Config {
+            execution_enabled: true,
+            vault_address: Some("0xVault".to_string()),
+            private_key_file: Some("/tmp/key.hex".to_string()),
+            network: Some("mainnet".to_string()),
+            ..Config::default()
+        };
+
+        config.validate().unwrap();
+    }
+
+    #[test]
+    fn validate_passes_when_execution_disabled_without_onchain_fields() {
+        let config = Config::default();
+        config.validate().unwrap();
     }
 }
