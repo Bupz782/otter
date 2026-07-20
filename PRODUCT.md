@@ -1,6 +1,6 @@
 # Otter — Product Specification
 
-> **Previously known as "Metis"**
+> **Previously known as "Otter"**
 >
 > *Describe your DeFi strategy in plain English. Delegate with cryptographic limits. The agent executes across chains, captures MEV, and pays you. Share your strategy. Copy others. Every action is proven valid. The vault is proven solvent. The proof is forever.*
 
@@ -30,7 +30,7 @@ Otter is a **trustless DeFi automation protocol** where users describe strategie
 3. UI shows live parsing feedback:
    - **Detected:** Lend 1000 USDC on Aave
    - **Condition:** if yield > 3%
-   - **Current yield:** 2.8% ⏳ *Waiting...*
+   - **Current yield:** 2.8% — *en attente...*
 4. User can edit the parsed JSON manually if the LLM misinterpreted
 
 ### 2.3 Delegate & Sign
@@ -226,14 +226,14 @@ User sees live updates:
 
 | | Gelato | Aperture | UniswapX | Otter |
 |--|--------|----------|----------|-------|
-| Natural Language | ❌ | ✅ | ❌ | ✅ |
-| Automation | ✅ | ❌ | ❌ | ✅ |
-| Delegation | ❌ | ❌ | ❌ | ✅ |
-| Cryptographic Enforcement | ❌ | ❌ | ✅ (signed intents) | ✅ (ZKP) |
-| MEV Rebates | ❌ | ❌ | ❌ | ✅ |
-| Proof-of-Solvency | ❌ | ❌ | ❌ | ✅ |
-| Social / Copy | ❌ | ❌ | ❌ | ✅ |
-| Multi-Chain | ✅ | ❌ | ❌ | ✅ |
+| Natural Language | Non | Oui | Non | Oui |
+| Automation | Oui | Non | | Oui |
+| Delegation | Non | | Non | Oui |
+| Cryptographic Enforcement | Non | | Oui (signed intents) | Oui (ZKP) |
+| MEV Rebates | Non | | Non | Oui |
+| Proof-of-Solvency | Non | | Non | Oui |
+| Social / Copy | Non | | Non | Oui |
+| Multi-Chain | Oui | Non | | Oui |
 
 **Otter's moat:** The only platform combining user-defined natural language intents, persistent cryptographic delegation, MEV rebates, proof-of-solvency, and social strategy sharing.
 
@@ -241,7 +241,7 @@ User sees live updates:
 
 ## 8. What's In Scope (MVP)
 
-### Vague 0 — Setup ✅
+### Vague 0 — Setup [FAIT]
 - Workspace, CI/CD, hexagonal architecture
 
 ### Vague 1 — Intent Parsing

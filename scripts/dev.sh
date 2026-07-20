@@ -143,8 +143,8 @@ FRONTEND_PID=$!
 # Start API with cargo watch in the foreground so the script blocks until the user stops it.
 echo "==> Starting API (cargo watch)..."
 if command -v cargo-watch >/dev/null 2>&1; then
-    cargo watch -x "run --bin metis_api"
+    cargo watch -x "run --bin otter_api"
 else
-    echo "WARN: cargo-watch not found; falling back to 'cargo run --bin metis_api'. Install cargo-watch for auto-reload." >&2
-    cargo run --bin metis_api
+    echo "WARN: cargo-watch not found; falling back to 'cargo run --bin otter_api'. Install cargo-watch for auto-reload." >&2
+    cargo run --bin otter_api
 fi

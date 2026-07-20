@@ -127,7 +127,7 @@ L'application est pensée pour Sepolia (chain ID `11155111`). La configuration
 par défaut de `.env.example` utilise le RPC public
 `https://ethereum-sepolia-rpc.publicnode.com`.
 
-> ⚠️ Les adresses de contrats de la démo V1 documentées dans `DEPLOYMENT.md`
+> Les adresses de contrats de la démo V1 documentées dans `DEPLOYMENT.md`
 > sont **obsolètes** : le circuit Noir a changé (ajout de `target_contract`),
 > ce qui a modifié la clé de vérification. Un nouveau déploiement des contrats
 > est nécessaire et l'adresse du vault doit être renseignée dans
@@ -385,7 +385,7 @@ Trois sections :
 
 ## 5. API REST (utilisateurs avancés)
 
-L'API Rust (`metis_api`) écoute par défaut sur le port **3001**. Les routes
+L'API Rust (`otter_api`) écoute par défaut sur le port **3001**. Les routes
 métier sont préfixées par `/api/v1`.
 
 ### 5.1 Authentification
@@ -470,25 +470,25 @@ Un flux WebSocket d'événements temps réel est disponible sur `/api/v1/ws`.
 
 ---
 
-## 6. Ligne de commande `metis_cli`
+## 6. Ligne de commande `otter_cli`
 
 Le binaire CLI permet de piloter le moteur sans l'interface web. Commandes
-réelles (`metis_cli --help` les liste) :
+réelles (`otter_cli --help` les liste) :
 
 ```bash
 # Analyser une intention et afficher le résultat structuré
-cargo run -p interfaces --bin metis_cli -- parse "lend 1000 USDC on Aave"
+cargo run -p interfaces --bin otter_cli -- parse "lend 1000 USDC on Aave"
 
 # Construire le plan d'exécution
-cargo run -p interfaces --bin metis_cli -- plan "swap 1 ETH for USDC on Uniswap"
+cargo run -p interfaces --bin otter_cli -- plan "swap 1 ETH for USDC on Uniswap"
 
 # Lancer le démon de surveillance d'une condition (réseau Sepolia par défaut)
-cargo run -p interfaces --bin metis_cli -- start \
+cargo run -p interfaces --bin otter_cli -- start \
   "lend 1000 USDC on Aave if yield > 3" \
   --network sepolia --interval 60
 
 # Afficher l'état du démon et les intentions actives
-cargo run -p interfaces --bin metis_cli -- status
+cargo run -p interfaces --bin otter_cli -- status
 ```
 
 **Exécution complète.** La commande `execute` enchaîne analyse → condition →
@@ -498,10 +498,10 @@ preuve Noir/Barretenberg et appelle `executeWithProof` sur le vault :
 
 ```bash
 # Mode simulé (aucune blockchain requise)
-cargo run -p interfaces --bin metis_cli -- execute "swap 1000 USDC for ETH on Uniswap"
+cargo run -p interfaces --bin otter_cli -- execute "swap 1000 USDC for ETH on Uniswap"
 
 # Mode on-chain (nœud local Anvil, vault déployé)
-cargo run -p interfaces --bin metis_cli -- execute \
+cargo run -p interfaces --bin otter_cli -- execute \
   "swap 1000 USDC for ETH on Uniswap" \
   --rpc-url http://localhost:8545 \
   --private-key 0x... \
@@ -515,13 +515,13 @@ L'option `--delegate` enregistre la délégation on-chain avant l'exécution.
 
 ```bash
 # Générer une preuve (écrit proof.bin et public_inputs.bin)
-cargo run -p interfaces --bin metis_cli -- prove \
+cargo run -p interfaces --bin otter_cli -- prove \
   "lend 1000 USDC on Aave" \
   --private-key 0x... \
   --output-dir ./tmp
 
 # Vérifier une preuve on-chain (appel en lecture contre le vérificateur du vault)
-cargo run -p interfaces --bin metis_cli -- verify-onchain \
+cargo run -p interfaces --bin otter_cli -- verify-onchain \
   --proof ./tmp/proof.bin \
   --public-inputs ./tmp/public_inputs.bin \
   --rpc-url http://localhost:8545 \

@@ -32,8 +32,8 @@ déclenche la chaîne de publication complète :
 Les images sont publiées sur le GitHub Container Registry (GHCR) sous :
 
 ```
-ghcr.io/<propriétaire>/metis/api:<étiquette>
-ghcr.io/<propriétaire>/metis/frontend:<étiquette>
+ghcr.io/<propriétaire>/otter/api:<étiquette>
+ghcr.io/<propriétaire>/otter/frontend:<étiquette>
 ```
 
 Chaque image est donc traçable par **trois étiquettes** : version semver
@@ -107,8 +107,8 @@ DEPLOYER_PRIVATE_KEY=0x... ./scripts/dev.sh
 4. génération de `.env.local` (racine) et `frontend/.env.local` avec toutes
    les variables `OTTER_*` locales ;
 5. démarrage du frontend Vite (`npm run dev`) ;
-6. démarrage de l'API avec `cargo watch -x "run --bin metis_api"` (rechargement
-   automatique ; repli sur `cargo run --bin metis_api` si `cargo-watch` est
+6. démarrage de l'API avec `cargo watch -x "run --bin otter_api"` (rechargement
+   automatique ; repli sur `cargo run --bin otter_api` si `cargo-watch` est
    absent).
 
 > **Prérequis outillage** : si les outils ne sont pas installés ou si les
@@ -125,8 +125,8 @@ les images sont désignées par les variables `OTTER_API_IMAGE` et
 étiquette puis à tirer et recréer les conteneurs :
 
 ```bash
-export OTTER_API_IMAGE=ghcr.io/<propriétaire>/metis/api:v1.2.3
-export OTTER_FRONTEND_IMAGE=ghcr.io/<propriétaire>/metis/frontend:v1.2.3
+export OTTER_API_IMAGE=ghcr.io/<propriétaire>/otter/api:v1.2.3
+export OTTER_FRONTEND_IMAGE=ghcr.io/<propriétaire>/otter/frontend:v1.2.3
 docker compose pull
 docker compose up -d --remove-orphans
 docker compose ps
@@ -331,8 +331,8 @@ repointer les variables d'environnement vers le tag précédent et à recréer
 les conteneurs :
 
 ```bash
-export OTTER_API_IMAGE=ghcr.io/<propriétaire>/metis/api:v1.2.2
-export OTTER_FRONTEND_IMAGE=ghcr.io/<propriétaire>/metis/frontend:v1.2.2
+export OTTER_API_IMAGE=ghcr.io/<propriétaire>/otter/api:v1.2.2
+export OTTER_FRONTEND_IMAGE=ghcr.io/<propriétaire>/otter/frontend:v1.2.2
 docker compose pull
 docker compose up -d --remove-orphans
 ```
@@ -406,7 +406,7 @@ de succès.
 
 ### 6.2 Endpoints de santé et métriques
 
-L'API (`crates/interfaces/src/bin/metis_api.rs`) expose :
+L'API (`crates/interfaces/src/bin/otter_api.rs`) expose :
 
 | Endpoint | Rôle |
 |---|---|

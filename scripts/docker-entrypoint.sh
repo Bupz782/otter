@@ -9,7 +9,7 @@ set -euo pipefail
 
 # If the container is invoked to run a tool rather than the API binary, skip
 # the runtime setup and execute it directly (e.g. nargo --version, bb --version).
-if [[ "${1:-}" != "metis_api" ]]; then
+if [[ "${1:-}" != "otter_api" ]]; then
     exec "$@"
 fi
 
@@ -56,5 +56,5 @@ if [[ "${OTTER_EXECUTION_ENABLED:-false}" == "true" ]]; then
     fi
 fi
 
-echo "Starting metis_api..."
+echo "Starting otter_api..."
 exec "$@"

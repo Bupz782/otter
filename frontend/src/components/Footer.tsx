@@ -9,7 +9,7 @@ const links = [
   { label: "Waitlist", href: "#waitlist" },
 ];
 
-const socials = [{ icon: Github, label: "GitHub", href: "https://github.com/Bupz782/metis" }];
+const socials = [{ icon: Github, label: "GitHub", href: "https://github.com/Bupz782/otter" }];
 
 export function Footer() {
   return (

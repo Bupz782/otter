@@ -3,8 +3,8 @@
 
 | | |
 |---|---|
-| **Projet** | Otter (anciennement « Metis ») — protocole d'automatisation DeFi *trustless* |
-| **Dépôt public** | *(URL du dépôt GitHub public — à renseigner)* |
+| **Projet** | Otter (anciennement « Otter ») — protocole d'automatisation DeFi *trustless* |
+| **Dépôt public** | https://github.com/Bupz782/otter |
 | **Bloc** | BC02 — Concevoir et développer des applications logicielles |
 | **Date de rendu** | 23 juillet 2026 |
 | **Version du logiciel** | v0.1.0 (branche `main`) |
@@ -60,7 +60,7 @@ Pour rendre la chaîne concrète, voici le parcours tel qu'il est implémenté a
 
 ### 1.3 Périmètre fonctionnel et user stories
 
-Les besoins sont formalisés dans `BACKLOG.md` : **481 user stories en français**, organisées en 10 vagues (epics) avec statuts par story (✅ terminé, 🚧 en cours, ⏳ planifié, ⬛ coupé, 🔮 futur) et tags de périmètre MVP/Future/Cut. Le prototype livré couvre les stories ✅, notamment :
+Les besoins sont formalisés dans `BACKLOG.md` : **481 user stories en français**, organisées en 10 vagues (epics) avec statuts par story ([FAIT] terminé, [EN COURS] en cours, [EN ATTENTE] planifié, [CUT] coupé, [FUTUR] futur) et tags de périmètre MVP/Future/Cut. Le prototype livré couvre les stories [FAIT], notamment :
 
 - **US-006** — structure hexagonale du backend ;
 - **US-020** — création d'intention en langage naturel ;
@@ -75,16 +75,16 @@ Le projet a été conduit selon une **démarche itérative en vagues**, chaque v
 
 | Vague | Objectif | Durée estimée | État |
 |---|---|---|---|
-| 0 — Setup & Architecture Foundation | environnement de dev, squelette hexagonal, CI/CD basique | 2 semaines | ✅ réalisée |
-| 1 — Intent Parsing & LLM | modèle d'intention, parseur regex, intégration LLM, planificateur, CLI | 6 semaines | ✅ réalisée |
-| 2 — ZKP : délégation avec vérification d'intention | circuit Noir, vérification de signature, contrat vérificateur | 8 semaines | ✅ réalisée |
-| 5 — Blockchain & adaptateurs protocoles | abstractions EVM, wallet, Aave/Uniswap, vault, MEV, solvabilité | 8 semaines | ✅ réalisée |
-| 6 — Orchestrateur & flux intégré | machine à états, bus d'événements, boucle de monitoring, gestion d'erreurs | 10 semaines | ✅ réalisée |
-| 6.5 — DAPP Frontend | connexion wallet, saisie d'intention, délégation, dashboard, temps réel | 8 semaines | ✅ réalisée |
-| 7 — Production-Ready | API REST, auth & sécurité, observabilité, persistance, Docker, CI/CD, docs | 6 semaines | ✅ réalisée |
-| 8 — Fonctionnalités avancées | multi-utilisateur, social, cross-chain, simulation | 6 semaines | 🔮 future |
-| 9 — Recherche & whitepaper | formalisation cryptographique, publication | 4 semaines | 🔮 future |
-| 10 — Open Source & communauté | release publique, onboarding contributeurs | continu | 🔮 future |
+| 0 — Setup & Architecture Foundation | environnement de dev, squelette hexagonal, CI/CD basique | 2 semaines | réalisée |
+| 1 — Intent Parsing & LLM | modèle d'intention, parseur regex, intégration LLM, planificateur, CLI | 6 semaines | réalisée |
+| 2 — ZKP : délégation avec vérification d'intention | circuit Noir, vérification de signature, contrat vérificateur | 8 semaines | réalisée |
+| 5 — Blockchain & adaptateurs protocoles | abstractions EVM, wallet, Aave/Uniswap, vault, MEV, solvabilité | 8 semaines | réalisée |
+| 6 — Orchestrateur & flux intégré | machine à états, bus d'événements, boucle de monitoring, gestion d'erreurs | 10 semaines | réalisée |
+| 6.5 — DAPP Frontend | connexion wallet, saisie d'intention, délégation, dashboard, temps réel | 8 semaines | réalisée |
+| 7 — Production-Ready | API REST, auth & sécurité, observabilité, persistance, Docker, CI/CD, docs | 6 semaines | réalisée |
+| 8 — Fonctionnalités avancées | multi-utilisateur, social, cross-chain, simulation | 6 semaines | future |
+| 9 — Recherche & whitepaper | formalisation cryptographique, publication | 4 semaines | future |
+| 10 — Open Source & communauté | release publique, onboarding contributeurs | continu | future |
 
 La méthode suivie à chaque itération : **user story → conception (ports/use cases) → implémentation → tests → intégration CI → recette**. Les choix structurants sont documentés au moment de leur conception (ex. `docs/superpowers/specs/2026-07-08-ci-devops-deployment-design.md` et le plan associé pour le pipeline CI/CD). L'avancement global est suivi dans la « Progress Overview » du `BACKLOG.md`.
 
@@ -106,12 +106,12 @@ La méthode suivie à chaque itération : **user story → conception (ports/use
 ### 1.6 Cartographie du dépôt
 
 ```
-metis/
+otter/
 ├── crates/                  # Backend Rust (architecture hexagonale)
 │   ├── domain/              # Modèles + ports (traits)
 │   ├── application/         # Use cases, orchestrateur, bus d'événements
 │   ├── infrastructure/      # Adaptateurs : LLM, EVM, SQLite/Postgres, ZKP
-│   └── interfaces/          # API REST Axum (metis_api), CLI (metis_cli)
+│   └── interfaces/          # API REST Axum (otter_api), CLI (otter_cli)
 ├── frontend/                # Application web React/Vite/TypeScript
 ├── contracts/               # Smart contracts Solidity (Foundry)
 ├── delegation_circuit/      # Circuit ZK Noir
@@ -144,14 +144,14 @@ L'environnement de développement est intégralement reproductible et ses versio
 | Prouveur ZK | Barretenberg `bb` version épinglée | `.bb-version` + `scripts/bbup-install.sh` |
 | Toolchain Solidity | Foundry (`forge`, `anvil`) | `contracts/foundry.toml` |
 | Runtime frontend | Node.js 20+, npm | `frontend/Dockerfile` (node:20-alpine), `scripts/dev-setup.sh` |
-| Serveur d'application | Axum (Rust) — API REST `metis_api` port 3001 | `crates/interfaces/src/bin/metis_api.rs` |
+| Serveur d'application | Axum (Rust) — API REST `otter_api` port 3001 | `crates/interfaces/src/bin/otter_api.rs` |
 | Serveur web statique | nginx (frontend buildé) port 3000 | `frontend/nginx.conf` |
 | Base de données | PostgreSQL 15 / SQLite | `docker-compose.yml`, `crates/infrastructure/src/storage/` |
 | Blockchain locale | Anvil (testnet local Foundry) | `scripts/dev.sh` |
 | Gestion de sources | Git + GitHub (Conventional Commits) | historique `main`, `.github/workflows/` |
 | Conteneurs | Docker + Docker Compose | `Dockerfile`, `frontend/Dockerfile`, `docker-compose.yml` |
 
-La commande `./scripts/dev.sh` monte l'environnement complet en local : Anvil → PostgreSQL → déploiement des contrats via Forge → génération de `.env.local` → serveur Vite (frontend) + `cargo watch -x "run --bin metis_api"` (rechargement à chaud du backend). `scripts/dev-setup.sh` vérifie les prérequis (Node ≥ 20, versions Noir/bb).
+La commande `./scripts/dev.sh` monte l'environnement complet en local : Anvil → PostgreSQL → déploiement des contrats via Forge → génération de `.env.local` → serveur Vite (frontend) + `cargo watch -x "run --bin otter_api"` (rechargement à chaud du backend). `scripts/dev-setup.sh` vérifie les prérequis (Node ≥ 20, versions Noir/bb).
 
 ### Protocole de déploiement continu
 
@@ -218,9 +218,9 @@ Pour illustrer le protocole, voici le trajet réel d'une modification de code, p
 | Fraîcheur des prix oracle | alerte si non mis à jour | règle dédiée `alerting.yml` |
 | Balance ETH de l'agent | alerte < 0,01 ETH | `OtterAgentLowBalance` |
 
-L'observabilité est intégrée au serveur d'application : endpoint `/metrics` au format Prometheus (`metis_api.rs:1577` — compteurs `otter_price_updates_total`, `otter_executions_total`, `otter_gas_used_total`…), endpoints `/health`, `/health/live`, `/ready` (utilisés par les healthchecks Docker), et logs structurés JSON via `tracing`.
+L'observabilité est intégrée au serveur d'application : endpoint `/metrics` au format Prometheus (`otter_api.rs:1577` — compteurs `otter_price_updates_total`, `otter_executions_total`, `otter_gas_used_total`…), endpoints `/health`, `/health/live`, `/ready` (utilisés par les healthchecks Docker), et logs structurés JSON via `tracing`.
 
-**Vérification des critères d'évaluation** : le protocole de déploiement continu est explicité (4 séquences ci-dessus) ✔ — l'environnement de développement est détaillé (éditeur, compilateurs, runtimes) ✔ — les composants sont identifiés (compilateur rustc/nargo/forge, serveur d'application Axum, gestion de sources Git/GitHub) ✔ — le protocole définit les différentes séquences de déploiement ✔ — les critères de qualité et de performance répondent aux exigences d'un logiciel financier (zéro warning, tests bloquants, alertes de production) ✔.
+**Vérification des critères d'évaluation** : le protocole de déploiement continu est explicité (4 séquences ci-dessus) — l'environnement de développement est détaillé (éditeur, compilateurs, runtimes) — les composants sont identifiés (compilateur rustc/nargo/forge, serveur d'application Axum, gestion de sources Git/GitHub) — le protocole définit les différentes séquences de déploiement — les critères de qualité et de performance répondent aux exigences d'un logiciel financier (zéro warning, tests bloquants, alertes de production).
 
 ---
 
@@ -278,7 +278,7 @@ Commit (Conventional Commits) → Push / Pull Request
 - **Barrières de non-régression** : chaque bogue corrigé est adossé à un test rejoué en CI (voir C2.3.2) ; la politique « zéro warning » empêche l'accumulation de dette.
 - **Synchronisation du backlog** : `scripts/sync-issues.sh` + `scripts/setup-labels.sh` synchronisent `BACKLOG.md` (481 user stories) vers GitHub Issues, reliant chaque intégration à une story tracée.
 
-**Vérification des critères d'évaluation** : le protocole d'intégration continue est explicité clairement ✔ — il définit les séquences d'intégration (routage → 4 séquences par stack → assemblage Docker) ✔ — les codes sources sont fusionnés et testés régulièrement (à chaque push/PR) ✔ — le dispositif réduit les risques de régression (tests bloquants, zéro warning, tests de non-régression) ✔.
+**Vérification des critères d'évaluation** : le protocole d'intégration continue est explicité clairement — il définit les séquences d'intégration (routage → 4 séquences par stack → assemblage Docker) — les codes sources sont fusionnés et testés régulièrement (à chaque push/PR) — le dispositif réduit les risques de régression (tests bloquants, zéro warning, tests de non-régression).
 
 ---
 
@@ -292,7 +292,7 @@ Le backend Rust est structuré en **architecture hexagonale** (clean architectur
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ interfaces   (metis_api REST Axum, metis_cli)           │  ← entrées/sorties
+│ interfaces   (otter_api REST Axum, otter_cli)           │  ← entrées/sorties
 ├─────────────────────────────────────────────────────────┤
 │ application  (use cases, orchestrateur, event bus)      │  ← orchestration
 ├─────────────────────────────────────────────────────────┤
@@ -308,7 +308,7 @@ Le backend Rust est structuré en **architecture hexagonale** (clean architectur
 - **`crates/domain`** : modèles (`execution_plan.rs`, `intent.rs`, `transaction.rs`) et **ports** — traits abstraits `StoragePort`, `ZkpPort`, `PriceOraclePort`, `WalletPort`, `BlockchainPort`, `IntentParserPort` (`crates/domain/src/ports/`). Le domaine ne dépend de rien : il est testable et stable.
 - **`crates/application`** : use cases (`test_plan_use_case.rs`, `test_strategy_planner.rs`, `test_evaluate_use_case.rs` en exemples exécutables), orchestrateur d'agent, bus d'événements.
 - **`crates/infrastructure`** : adaptateurs concrets — parseur LLM local (`llm/`), parseur regex et hybride (`parsers/`), blockchain (`blockchain/alloy_evm.rs`, oracles Chainlink), double adaptateur de persistance **SQLite/PostgreSQL interchangeable** (`storage/`), prouveur Noir (`zkp/noir_adapter.rs`), fournisseurs de secrets (`interfaces/src/secrets.rs`).
-- **`crates/interfaces`** : API REST Axum (`metis_api`) et CLI (`metis_cli`), deux façons d'entrer dans le même cœur applicatif.
+- **`crates/interfaces`** : API REST Axum (`otter_api`) et CLI (`otter_cli`), deux façons d'entrer dans le même cœur applicatif.
 
 **Bénéfice maintenabilité** : chaque technologie est remplaçable sans toucher au métier (démontré par le double adaptateur SQLite/Postgres et par les mocks `mock_evm.rs`, `mock_oracle.rs`, `mock_adapter.rs` utilisés par les tests). L'architecture est attestée par la story US-006 du `BACKLOG.md`.
 
@@ -348,8 +348,8 @@ Le prototype est **fonctionnel et utilisable en autonomie** ; il met en œuvre u
    - `/app/proofs` — preuves ZK générées ;
    - `/app/settings` — paramètres.
    Composants d'interface présents et fonctionnels : fenêtres modales (`WelcomeModal`), boutons et formulaires avec validation (`CreateDelegationPage` — messages d'erreur exacts « Limits must be numbers above 0. »), menus et navigation (`AppSidebar`, `AppHeader`), stepper accessible, tooltips d'onboarding, connexion wallet RainbowKit + signature SIWE.
-2. **API REST** (`metis_api`, port 3001) — routes réelles : `auth/challenge`, `auth/verify`, `intents` (+ `parse`, `plan/:id`), `delegation` (+ `hash`), `agents`, `strategies`, `portfolio`, `proofs`, `leaderboard`, `executions`, `orchestrator/state`, `health`, `ready`, `metrics`, `ws` (WebSocket temps réel).
-3. **CLI** (`metis_cli`) — commandes `parse`, `plan`, `start`, `status`, `execute`, `prove`, `verify-onchain` : un développeur peut piloter tout le cycle sans l'interface web.
+2. **API REST** (`otter_api`, port 3001) — routes réelles : `auth/challenge`, `auth/verify`, `intents` (+ `parse`, `plan/:id`), `delegation` (+ `hash`), `agents`, `strategies`, `portfolio`, `proofs`, `leaderboard`, `executions`, `orchestrator/state`, `health`, `ready`, `metrics`, `ws` (WebSocket temps réel).
+3. **CLI** (`otter_cli`) — commandes `parse`, `plan`, `start`, `status`, `execute`, `prove`, `verify-onchain` : un développeur peut piloter tout le cycle sans l'interface web.
 4. **Contrats déployés** — preuve de déploiement sur testnet **Sepolia** avec adresses de contrats et hash de transaction consignés dans `DEPLOYMENT.md`.
 5. **Démonstration E2E ZK** — `lab/zkp_e2e.sh` et le quick start du `README.md` permettent de rejouer le flux complet : intention → délégation → preuve → vérification on-chain.
 
@@ -357,7 +357,7 @@ Le prototype est **fonctionnel et utilisable en autonomie** ; il met en œuvre u
 
 **Exigences de sécurité du prototype** : authentification par signature de wallet, délégations à limites cryptographiques, preuve ZK obligatoire avant exécution — détaillé en C2.2.3.
 
-**Vérification des critères d'évaluation** : bonnes pratiques respectées (frameworks Axum/React/Foundry, paradigmes hexagonal/IoC/async) ✔ — prototype fonctionnel répondant aux besoins (5 livrables utilisables) ✔ — ensemble cohérent de fonctionnalités principales et user stories (BACKLOG ✅) ✔ — composants d'interface présents et fonctionnels (fenêtres, boutons, menus, formulaires, stepper) ✔ — exigences de sécurité satisfaites ✔.
+**Vérification des critères d'évaluation** : bonnes pratiques respectées (frameworks Axum/React/Foundry, paradigmes hexagonal/IoC/async) — prototype fonctionnel répondant aux besoins (5 livrables utilisables) — ensemble cohérent de fonctionnalités principales et user stories (BACKLOG, stories [FAIT]) — composants d'interface présents et fonctionnels (fenêtres, boutons, menus, formulaires, stepper) — exigences de sécurité satisfaites.
 
 ---
 
@@ -383,7 +383,7 @@ Le harnais couvre les quatre stacks du projet, avec **prévention des régressio
 - **Domaine** (`crates/domain`, 10 tests) : cycle de vie des intentions (machine à états), plans d'exécution, transactions.
 - **Application** (14 tests) : use cases de planification et d'évaluation, orchestrateur.
 - **Infrastructure** (94 tests) : parseurs (`regex_parser.rs` : 184/197 lignes couvertes — le cœur du parsing d'intention), oracles, stockage SQLite, adaptateur ZK Noir, prompts LLM, cache.
-- **Interfaces** (10 tests) : authentification SIWE/JWT (`auth.rs:194-215`), rate limiting et validation d'entrées (`metis_api.rs:1986`), CORS, gestion des secrets.
+- **Interfaces** (10 tests) : authentification SIWE/JWT (`auth.rs:194-215`), rate limiting et validation d'entrées (`otter_api.rs:1986`), CORS, gestion des secrets.
 - **Contrats** : `DelegationVault.t.sol` (8 tests : dépôts, retraits, exécution avec preuve, limites, anti-rejeu), `DelegationVerifier.t.sol`, test d'intégration avec **fixtures de preuves réelles** (`contracts/test/fixtures/proof.bin`).
 - **Frontend** : mapping des réponses API et cas d'erreur (`api.test.ts`, 13 cas), normalisation des statuts (`status.test.ts`), logique de délégation — split de signature EIP-4361, construction du message, packing des protocoles (`delegation.test.ts`), composant `Stepper` et ses attributs ARIA (`Stepper.test.tsx`).
 
@@ -412,7 +412,7 @@ Lecture honnête de ce chiffre : il exclut les tests d'intégration (qui requiè
 
 Les tests sont **bloquants en CI** (C2.1.2) : aucune fusion possible si un seul test échoue. Les tests d'intégration ZK (`zkp_noir.rs`, `zkp_e2e_anvil.rs`, `protocol_integration.rs` sur Sepolia) garantissent que la chaîne critique preuve → vérification → exécution ne régresse pas. Côté frontend, le bogue historique de mapping d'intention (BUG-07, commit `23a778c`) a donné lieu à des tests de non-régression désormais permanents.
 
-**Vérification du critère d'évaluation** : les tests unitaires couvrent la majorité du code développé — 183+ tests automatisés sur 4 stacks, couverture mesurée et rapportée, parties critiques couvertes à plus de 90 % ✔.
+**Vérification du critère d'évaluation** : les tests unitaires couvrent la majorité du code développé — 183+ tests automatisés sur 4 stacks, couverture mesurée et rapportée, parties critiques couvertes à plus de 90 %.
 
 ---
 
@@ -428,18 +428,18 @@ Le document `docs/SECURITE.md` détaille chaque risque A01→A10 avec ses preuve
 
 | Risque OWASP | Mesures implémentées | Preuves |
 |---|---|---|
-| **A01 — Broken Access Control** | Routes protégées par middleware JWT ; isolation multi-utilisateur (intents 404 entre utilisateurs, suppression 403) ; contrats `Ownable`/`onlyOwner` ; **preuve ZK obligatoire avant exécution** | `metis_api.rs:383-464`, `DelegationVault.sol:95-99,176-210` |
+| **A01 — Broken Access Control** | Routes protégées par middleware JWT ; isolation multi-utilisateur (intents 404 entre utilisateurs, suppression 403) ; contrats `Ownable`/`onlyOwner` ; **preuve ZK obligatoire avant exécution** | `otter_api.rs:383-464`, `DelegationVault.sol:95-99,176-210` |
 | **A02 — Cryptographic Failures** | Auth par signature ECDSA (SIWE/EIP-4361) — **aucun mot de passe stocké** ; keystore Ethereum chiffré ; secrets via HashiCorp Vault / AWS KMS ; TLS par reverse proxy (hors dépôt) | `auth.rs`, `secrets.rs`, `.env.example` |
-| **A03 — Injection** | SQL 100 % paramétré (sqlx/rusqlite, aucune concaténation sur entrées utilisateur) ; désérialisation typée serde ; `MAX_INTENT_TEXT_LEN = 2000` ; validation hex/cardinalités | `metis_api.rs:1034-1079`, `crates/infrastructure` |
+| **A03 — Injection** | SQL 100 % paramétré (sqlx/rusqlite, aucune concaténation sur entrées utilisateur) ; désérialisation typée serde ; `MAX_INTENT_TEXT_LEN = 2000` ; validation hex/cardinalités | `otter_api.rs:1034-1079`, `crates/infrastructure` |
 | **A04 — Insecure Design** | Délégations à limites cryptographiques (montant, protocole, expiration) ; nonces anti-rejeu on-chain ; vérification ZK par conception | `DelegationVault.sol:197-204`, `delegation_circuit/src/main.nr:148-168` |
-| **A05 — Security Misconfiguration** | CORS en liste blanche configurable ; validation de config au démarrage (fail-fast) ; headers nginx ; images Docker épinglées | `metis_api.rs:411-429`, `scripts/docker-entrypoint.sh` |
+| **A05 — Security Misconfiguration** | CORS en liste blanche configurable ; validation de config au démarrage (fail-fast) ; headers nginx ; images Docker épinglées | `otter_api.rs:411-429`, `scripts/docker-entrypoint.sh` |
 | **A06 — Vulnerable Components** | Dépendances épinglées (lockfiles Cargo/npm, toolchain pinnée) ; *axe d'amélioration : cargo audit / Dependabot à ajouter* | `Cargo.lock`, `rust-toolchain.toml` |
 | **A07 — Auth Failures** | Challenge SIWE à nonce aléatoire 16 octets, expiration 5 min, **consommé après usage** ; JWT HS256 à TTL configurable ; pas de session cookie | `auth.rs:72-74,147-151,159` |
 | **A08 — Data Integrity Failures** | Images Docker taguées par sha + semver ; artefacts CI reproductibles ; versions Noir/bb épinglées | `.github/workflows/docker.yml`, `.noir-version` |
-| **A09 — Logging Failures** | Logs structurés JSON (`tracing`) ; métriques Prometheus `/metrics` ; 8 alertes (`alerting.yml`) dont échecs de vérification on-chain | `observability/logging.rs`, `metis_api.rs:1577` |
+| **A09 — Logging Failures** | Logs structurés JSON (`tracing`) ; métriques Prometheus `/metrics` ; 8 alertes (`alerting.yml`) dont échecs de vérification on-chain | `observability/logging.rs`, `otter_api.rs:1577` |
 | **A10 — SSRF** | Endpoints RPC/LLM configurés par l'opérateur, jamais par l'utilisateur ; pas de fetch d'URL fournie en entrée | `config.example.toml` |
 
-Mesures transverses : **rate limiting** par IP (429 au-delà de 100 req/min, `metis_api.rs:476-508`), échappement React par défaut (aucun `dangerouslySetInnerHTML` dans `frontend/src` — anti-XSS), JWT en header `Authorization` (pas de cookie → CSRF non applicable), secrets jamais commités (`.env.example` l'interdit explicitement ; clés CI dans GitHub Secrets).
+Mesures transverses : **rate limiting** par IP (429 au-delà de 100 req/min, `otter_api.rs:476-508`), échappement React par défaut (aucun `dangerouslySetInnerHTML` dans `frontend/src` — anti-XSS), JWT en header `Authorization` (pas de cookie → CSRF non applicable), secrets jamais commités (`.env.example` l'interdit explicitement ; clés CI dans GitHub Secrets).
 
 **Points résiduels assumés** (tracés dans le plan de correction) : terminaison TLS déléguée à l'infrastructure d'accueil, secret JWT aléatoire en développement (avec warning explicite), `cargo audit` à intégrer à la CI.
 
@@ -457,7 +457,7 @@ Mesures transverses : **rate limiting** par IP (429 au-delà de 100 req/min, `me
 
 **Plan d'amélioration honnête** (tracé dans `docs/ACCESSIBILITE.md`) : corriger le contraste du gris secondaire, `lang="fr"` et titres de page dynamiques, skip link dans le shell applicatif, focus trap des modales maison (ou migration vers Radix UI Dialog), tests clavier et lecteur d'écran systématiques. L'audit est une auto-évaluation par inspection statique, pas un audit RGAA formel.
 
-**Vérification des critères d'évaluation** : les mesures couvrent les 10 failles OWASP (tableau ci-dessus + `docs/SECURITE.md`) ✔ — le référentiel d'accessibilité est présenté et justifié (RGAA 4.1 + Opquast) ✔ — le prototype répond aux exigences du référentiel sur les points audités, avec un plan d'amélioration tracé pour les écarts ✔.
+**Vérification des critères d'évaluation** : les mesures couvrent les 10 failles OWASP (tableau ci-dessus + `docs/SECURITE.md`) — le référentiel d'accessibilité est présenté et justifié (RGAA 4.1 + Opquast) — le prototype répond aux exigences du référentiel sur les points audités, avec un plan d'amélioration tracé pour les écarts.
 
 ---
 
@@ -469,7 +469,7 @@ Mesures transverses : **rate limiting** par IP (429 au-delà de 100 req/min, `me
 
 - **Git + GitHub** : historique complet sur `main` (~80 commits), convention **Conventional Commits** (`feat(scope):`, `fix(scope):`, `ci:`, `chore:`) rendant chaque évolution auto-documentée.
 - **Versionnement sémantique** : le pipeline est câblé sur les tags `v*` — `docker.yml` extrait la version (`type=semver,pattern={{version}}`) et publie les images `ghcr.io/.../api` et `/frontend` taguées `X.Y.Z`, branche et sha court ; `deploy-testnet.yml` se déclenche sur ces tags. La première release `v0.1.0` accompagne ce rendu.
-- **Traçabilité des évolutions** : `BACKLOG.md` (481 user stories avec statuts ✅/🚧/⏳/⬛/🔮) synchronisé vers GitHub Issues (`scripts/sync-issues.sh`) ; chaque correctif est relié à son commit dans `docs/PLAN_CORRECTION_BOGUES.md`.
+- **Traçabilité des évolutions** : `BACKLOG.md` (481 user stories avec statuts [FAIT]/[EN COURS]/[EN ATTENTE]/[CUT]/[FUTUR]) synchronisé vers GitHub Issues (`scripts/sync-issues.sh`) ; chaque correctif est relié à son commit dans `docs/PLAN_CORRECTION_BOGUES.md`.
 
 ### Historique des versions (jalons)
 
@@ -501,7 +501,7 @@ Le déploiement est **continu et progressif** (détail des séquences en C2.1.1)
 
 La version livrée est **manipulable en autonomie** : `docker compose up` (ou `./scripts/dev.sh`) suffit à lancer la stack complète ; le `README.md` fournit le quick start (build, CLI, API avec exemples curl, démo E2E ZK) ; les manuels d'utilisation et de mise à jour (C2.4.1) couvrent l'exploitation. Fiabilité : CI verte, 183+ tests automatisés, smoke tests systématiques. Viabilité : déploiement Sepolia documenté avec adresses réelles (`DEPLOYMENT.md`), rollback documenté.
 
-**Vérification des critères d'évaluation** : système de gestion des versions utilisé (Git, Conventional Commits, semver via tags `v*`) ✔ — évolutions du prototype tracées (BACKLOG, Issues, registre de bogues) ✔ — logiciel fonctionnel et manipulable en autonomie (Docker Compose + manuels) ✔.
+**Vérification des critères d'évaluation** : système de gestion des versions utilisé (Git, Conventional Commits, semver via tags `v*`) — évolutions du prototype tracées (BACKLOG, Issues, registre de bogues) — logiciel fonctionnel et manipulable en autonomie (Docker Compose + manuels).
 
 ---
 
@@ -511,7 +511,7 @@ La version livrée est **manipulable en autonomie** : `docker compose up` (ou `.
 
 ### Contenu du cahier
 
-Le cahier de recettes couvre **l'ensemble des fonctionnalités attendues** (user stories ✅ du `BACKLOG.md`) en **78 scénarios**, chacun avec préconditions, étapes, **résultat attendu, résultat obtenu et statut** :
+Le cahier de recettes couvre **l'ensemble des fonctionnalités attendues** (user stories du `BACKLOG.md`) en **78 scénarios**, chacun avec préconditions, étapes, **résultat attendu, résultat obtenu et statut** :
 
 | Type | Nombre | Exemples |
 |---|---|---|
@@ -521,7 +521,7 @@ Le cahier de recettes couvre **l'ensemble des fonctionnalités attendues** (user
 
 ### Exécution conforme au plan
 
-- **60 scénarios automatisés** : chacun référence le test qui le couvre (ex. « ✅ Conforme (automatisé : `contracts/test/DelegationVault.t.sol::testExecuteWithProof`) ») — la recette est **rejouable à l'identique** via la CI ;
+- **60 scénarios automatisés** : chacun référence le test qui le couvre (ex. « Conforme (automatisé : `contracts/test/DelegationVault.t.sol::testExecuteWithProof`) ») — la recette est **rejouable à l'identique** via la CI ;
 - **18 scénarios manuels** : parcours frontend et déploiement, exécutés sur la stack `scripts/dev.sh` ;
 - **0 scénario non exécuté**.
 
@@ -531,17 +531,17 @@ Quelques scénarios reproduits tels quels depuis le cahier (le document complet 
 
 | ID | Fonctionnalité | Étapes | Résultat attendu | Statut |
 |---|---|---|---|---|
-| REC-F-001 | Génération d'un challenge SIWE (US-419) | `POST /api/v1/auth/challenge` `{"address":"0x…"}` | HTTP 200, message EIP-4361 avec nonce aléatoire et expiration 5 min | ✅ automatisé (`auth_challenge_returns_siwe_message`) |
-| REC-F-006 | Parsing d'une condition « if yield > 3 » | `POST /api/v1/intents/parse` `{"text":"lend 100 USDC on Aave if yield > 3"}` | `ConditionalIntent` avec `Comparison { metric: Yield, comparator: GreaterThan, value: 3 }` | ✅ automatisé (`regex_parser.rs`) |
-| REC-F-022 | Génération de la preuve Noir | `metis-cli prove "lend 100 USDC on Aave" --private-key 0x…` | `proof.bin` + `public_inputs.bin` ; witness attestant hash, signature, limites, nonce | ✅ automatisé (`zkp_noir.rs`) |
-| REC-F-024 | Exécution via `executeWithProof` | appel avec intent autorisé | preuve vérifiée, limites contrôlées, nonce marqué utilisé, événement `Executed` | ✅ automatisé (`DelegationVault.t.sol::test_executeWithProof_succeeds`) |
-| REC-F-027 | Pipeline E2E parse → preuve → exécution | `cargo test -p infrastructure --test e2e_anvil_flow` (Anvil requis) | délégation on-chain, preuve réelle, exécution confirmée | ✅ automatisé (conditionnel : skip sans Anvil) |
+| REC-F-001 | Génération d'un challenge SIWE (US-419) | `POST /api/v1/auth/challenge` `{"address":"0x…"}` | HTTP 200, message EIP-4361 avec nonce aléatoire et expiration 5 min | automatisé (`auth_challenge_returns_siwe_message`) |
+| REC-F-006 | Parsing d'une condition « if yield > 3 » | `POST /api/v1/intents/parse` `{"text":"lend 100 USDC on Aave if yield > 3"}` | `ConditionalIntent` avec `Comparison { metric: Yield, comparator: GreaterThan, value: 3 }` | automatisé (`regex_parser.rs`) |
+| REC-F-022 | Génération de la preuve Noir | `otter_cli prove "lend 100 USDC on Aave" --private-key 0x…` | `proof.bin` + `public_inputs.bin` ; witness attestant hash, signature, limites, nonce | automatisé (`zkp_noir.rs`) |
+| REC-F-024 | Exécution via `executeWithProof` | appel avec intent autorisé | preuve vérifiée, limites contrôlées, nonce marqué utilisé, événement `Executed` | automatisé (`DelegationVault.t.sol::test_executeWithProof_succeeds`) |
+| REC-F-027 | Pipeline E2E parse → preuve → exécution | `cargo test -p infrastructure --test e2e_anvil_flow` (Anvil requis) | délégation on-chain, preuve réelle, exécution confirmée | automatisé (conditionnel : skip sans Anvil) |
 
 ### Anomalies détectées
 
 La recette a révélé **7 anomalies (A1–A7)**, de gravité faible à moyenne, consignées dans le cahier (§6.3) et tracées dans le plan de correction (C2.3.2) — ex. : `POST /intents/parse` ne validait pas la longueur du texte (A1), données de démonstration embarquées sur certains endpoints (A2), vérification SIWE E2E non automatisée (A7). Aucune anomalie bloquante : la chaîne critique (authentification, délégation signée, preuve ZK, anti-rejeu) est intégralement vérifiée.
 
-**Vérification des critères d'évaluation** : le cahier reprend l'ensemble des fonctionnalités attendues ✔ — les tests fonctionnels, structurels et de sécurité exécutés sont conformes au plan défini ✔.
+**Vérification des critères d'évaluation** : le cahier reprend l'ensemble des fonctionnalités attendues — les tests fonctionnels, structurels et de sécurité exécutés sont conformes au plan défini.
 
 ---
 
@@ -585,7 +585,7 @@ Pour chaque faiblesse détectée (§3 du plan) : constat → risque → action c
 
 Les **7 anomalies de la recette (A1–A7)** sont reprises au §5 du plan avec qualification et traitement (ex. A1 : factoriser `validate_intent_text` dans un middleware partagé ; A6 : plan de correction créé — **résolu**).
 
-**Vérification des critères d'évaluation** : les bogues sont détectés, qualifiés et traités (registre adossé à l'historique git) ✔ — une analyse des points d'amélioration est réalisée pour chaque test en échec ✔ — les corrections sont conformes et garantissent le bon fonctionnement (tests de non-régression + CI bloquante) ✔.
+**Vérification des critères d'évaluation** : les bogues sont détectés, qualifiés et traités (registre adossé à l'historique git) — une analyse des points d'amélioration est réalisée pour chaque test en échec — les corrections sont conformes et garantissent le bon fonctionnement (tests de non-régression + CI bloquante).
 
 ---
 
@@ -601,7 +601,7 @@ La documentation d'exploitation assure la traçabilité pour le suivi des équip
 
 ### Manuel d'utilisation → `docs/MANUEL_UTILISATION.md`
 
-Rédigé pour un utilisateur non-développeur : concepts vulgarisés (intention, plan, délégation, exécution, preuve ZK) ; prérequis (navigateur, wallet, réseau Sepolia, faucet) ; installation (Docker Compose) ; **guide pas à pas des 10 écrans réels** avec les messages d'erreur exacts de l'application ; API REST avec exemples curl (authentification incluse) ; CLI `metis_cli` (7 commandes documentées) ; FAQ et tableau de dépannage ; catalogue des alertes. Les limitations réelles y sont honnêtement signalées (révocation de délégation non implémentée, adresses V1 obsolètes).
+Rédigé pour un utilisateur non-développeur : concepts vulgarisés (intention, plan, délégation, exécution, preuve ZK) ; prérequis (navigateur, wallet, réseau Sepolia, faucet) ; installation (Docker Compose) ; **guide pas à pas des 10 écrans réels** avec les messages d'erreur exacts de l'application ; API REST avec exemples curl (authentification incluse) ; CLI `otter_cli` (7 commandes documentées) ; FAQ et tableau de dépannage ; catalogue des alertes. Les limitations réelles y sont honnêtement signalées (révocation de délégation non implémentée, adresses V1 obsolètes).
 
 ### Manuel de mise à jour → `docs/MANUEL_MISE_A_JOUR.md`
 
@@ -621,7 +621,7 @@ Rédigé pour un utilisateur non-développeur : concepts vulgarisés (intention,
 
 Ces choix sont également documentés dans `README.md` (tech stack + schéma d'architecture) et `PRODUCT.md` (spécification produit). Documents complémentaires : `FLOW.md` (flows utilisateur), `docs/SECURITE.md`, `docs/ACCESSIBILITE.md`, `docs/CAHIER_DE_RECETTES.md`, `docs/PLAN_CORRECTION_BOGUES.md`, `lab/LEARNING.md`.
 
-**Vérification des critères d'évaluation** : les trois manuels sont rédigés avec clarté et versionnés ✔ — la documentation décrit les choix de technologies et de langages ✔.
+**Vérification des critères d'évaluation** : les trois manuels sont rédigés avec clarté et versionnés — la documentation décrit les choix de technologies et de langages.
 
 ---
 
@@ -633,9 +633,9 @@ Ces choix sont également documentés dans `README.md` (tech stack + schéma d'a
 | C2.1.1 | Critères de qualité et de performance | `ci.yml` (clippy/fmt/eslint), `tarpaulin.toml`, `coverage/tarpaulin-report.html`, `alerting.yml`, `scripts/load_test.py`, `/metrics` |
 | C2.1.2 | Protocole d'intégration continue | `.github/workflows/ci.yml` (5 jobs, séquences par stack) |
 | C2.2.1 | Architecture structurée | `Cargo.toml` (4 crates), `crates/domain/src/ports/`, `BACKLOG.md` US-006 |
-| C2.2.1 | Prototypes réalisés | `frontend/` (10 pages), `metis_api`, `metis_cli`, contrats Sepolia (`DEPLOYMENT.md`), `lab/zkp_e2e.sh` |
+| C2.2.1 | Prototypes réalisés | `frontend/` (10 pages), `otter_api`, `otter_cli`, contrats Sepolia (`DEPLOYMENT.md`), `lab/zkp_e2e.sh` |
 | C2.2.2 | Tests unitaires | `crates/**` (155 tests), `contracts/test/` (13), `delegation_circuit/src/main.nr` (3), `frontend/src/**/*.test.*` (28), `coverage/` |
-| C2.2.3 | Mesures de sécurité (OWASP) | `docs/SECURITE.md` + `auth.rs`, `secrets.rs`, `DelegationVault.sol`, rate limiting/CORS dans `metis_api.rs` |
+| C2.2.3 | Mesures de sécurité (OWASP) | `docs/SECURITE.md` + `auth.rs`, `secrets.rs`, `DelegationVault.sol`, rate limiting/CORS dans `otter_api.rs` |
 | C2.2.3 | Accessibilité (RGAA) | `docs/ACCESSIBILITE.md` + 108 attributs ARIA dans `frontend/src/`, `Stepper.test.tsx` |
 | C2.2.4 | Historique des versions | Git (Conventional Commits), tags semver `v*`, `BACKLOG.md` (481 US) |
 | C2.2.4 | Dernière version fonctionnelle | `docker-compose.yml`, `README.md` quick start, smoke tests |

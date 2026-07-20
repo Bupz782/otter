@@ -14,7 +14,7 @@ import type {
  * returns these when unauthenticated (flagged via `isDemo`), so the app is
  * fully explorable before connect. Agents and strategies mirror the backend
  * seed set (default_agents/default_strategies in
- * crates/interfaces/src/bin/metis_api.rs) so demo mode matches the live
+ * crates/interfaces/src/bin/otter_api.rs) so demo mode matches the live
  * experience. Nothing here is ever sent to the API; ids are namespaced with
  * the `demo-` prefix.
  *

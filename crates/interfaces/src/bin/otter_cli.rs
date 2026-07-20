@@ -25,7 +25,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 fn print_usage() {
     eprintln!(
-        "Usage: metis-cli <command> [options]
+        "Usage: otter_cli <command> [options]
 
 Commands:
   parse <intent>         Parse a natural-language intent and print the structured result.
@@ -79,14 +79,14 @@ verify-onchain options:
                          Also read from OTTER_PRIVATE_KEY.
 
 Examples:
-  metis-cli parse \"lend 1000 USDC on Aave\"
-  metis-cli plan \"swap 1 ETH for USDC on Uniswap\"
+  otter_cli parse \"lend 1000 USDC on Aave\"
+  otter_cli plan \"swap 1 ETH for USDC on Uniswap\"
 
   # Mock execution
-  metis-cli execute \"swap 1000 USDC for ETH on Uniswap\"
+  otter_cli execute \"swap 1000 USDC for ETH on Uniswap\"
 
   # Local Anvil end-to-end (start anvil first, then deploy the vault)
-  metis-cli execute \"swap 1 ETH for USDC on Uniswap if price > 2_000_000_000\" \\
+  otter_cli execute \"swap 1 ETH for USDC on Uniswap if price > 2_000_000_000\" \\
       --rpc-url http://localhost:8545 \\
       --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \\
       --vault 0x... \\
@@ -721,7 +721,7 @@ fn run_status() {
         }
         None => {
             println!(
-                "No daemon state found at {}. Run `metis start` first.",
+                "No daemon state found at {}. Run `otter start` first.",
                 path.display()
             );
         }

@@ -381,7 +381,7 @@
   COPY delegation_circuit ./delegation_circuit
   COPY crates/infrastructure/migrations ./crates/infrastructure/migrations
 
-  RUN cargo build --release -p interfaces --bin metis_api
+  RUN cargo build --release -p interfaces --bin otter_api
 
   # -----------------------------------------------------------------------------
   # Stage 2: Noir tooling
@@ -424,7 +424,7 @@
   VOLUME ["/data"]
   EXPOSE 3001
 
-  COPY --from=builder /app/target/release/metis_api /usr/local/bin/metis_api
+  COPY --from=builder /app/target/release/otter_api /usr/local/bin/otter_api
   COPY --from=builder /app/delegation_circuit /app/delegation_circuit
   COPY --from=builder /app/crates/infrastructure/migrations /app/migrations
   COPY --from=noir /usr/local/bin/nargo /usr/local/bin/nargo
@@ -434,7 +434,7 @@
   RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
   ENTRYPOINT ["docker-entrypoint.sh"]
-  CMD ["metis_api"]
+  CMD ["otter_api"]
   ```
 
   Note: `bbup` install URL and binary path may need adjustment based on Aztec's current distribution. Verify the paths during implementation.
@@ -477,8 +477,8 @@
   fi
 
   # Run migrations if a runner binary exists or do it via embedded migration logic
-  # Placeholder: if metis_api supports a migrate subcommand, call it here
-  # /usr/local/bin/metis_api migrate --migrations-dir /app/migrations || true
+  # Placeholder: if otter_api supports a migrate subcommand, call it here
+  # /usr/local/bin/otter_api migrate --migrations-dir /app/migrations || true
 
   # Validate ZKP tooling if execution is enabled
   if [[ "${OTTER_EXECUTION_ENABLED:-false}" == "true" ]]; then
@@ -496,7 +496,7 @@
       fi
   fi
 
-  echo "Starting metis_api..."
+  echo "Starting otter_api..."
   exec "$@"
   ```
 
@@ -831,9 +831,9 @@
   # Start API with cargo watch if available
   echo "==> Starting API..."
   if command -v cargo-watch >/dev/null 2>&1; then
-      cargo watch -x "run --bin metis_api"
+      cargo watch -x "run --bin otter_api"
   else
-      cargo run --bin metis_api
+      cargo run --bin otter_api
   fi
 
   # Cleanup

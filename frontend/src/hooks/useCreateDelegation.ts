@@ -76,7 +76,7 @@ export function useCreateDelegation() {
 
       // Note: allowedChains is kept on the local object only. The backend
       // message format has no chains field (SetDelegationRequest in
-      // crates/interfaces/src/bin/metis_api.rs), so chains are neither signed
+      // crates/interfaces/src/bin/otter_api.rs), so chains are neither signed
       // nor sent. They are not enforced anywhere yet.
       const delegation: Delegation = {
         id: result.delegation_hash,

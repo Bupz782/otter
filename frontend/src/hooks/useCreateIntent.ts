@@ -16,7 +16,7 @@ export function useCreateIntent() {
     setError(null);
     try {
       // The backend accepts only the raw text (CreateIntentRequest in
-      // crates/interfaces/src/bin/metis_api.rs) and re-parses it server-side.
+      // crates/interfaces/src/bin/otter_api.rs) and re-parses it server-side.
       // `parsed` and `delegationId` drive client-side checks and the confirm
       // summary; sending them is a backend follow-up.
       const { id } = await api.intents.create(payload.rawText);

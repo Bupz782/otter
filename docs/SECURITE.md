@@ -1,7 +1,7 @@
 # Mesures de sécurité — Projet Otter
 
 Document de présentation des mesures de sécurité implémentées dans le dépôt
-`metis` (projet **Otter** : automatisation DeFi trustless — vault on-chain,
+`otter` (projet **Otter** : automatisation DeFi trustless — vault on-chain,
 délégations signées ECDSA, preuves ZK Noir vérifiées on-chain, backend
 Rust/Axum hexagonal, frontend React).
 
@@ -27,10 +27,10 @@ privilèges, accès à des ressources d'autrui, contournement de restrictions).
   regroupées dans un routeur « protégé » auquel est appliqué un middleware
   d'authentification systématique (`auth_middleware`) : toute requête sans
   en-tête `Authorization: Bearer <jwt>` valide reçoit un `401 Unauthorized`.
-  — `crates/interfaces/src/bin/metis_api.rs:383-402` (routeur protégé),
-  `crates/interfaces/src/bin/metis_api.rs:431-464` (middleware).
+  — `crates/interfaces/src/bin/otter_api.rs:383-402` (routeur protégé),
+  `crates/interfaces/src/bin/otter_api.rs:431-464` (middleware).
   Un test d'intégration vérifie le rejet `401` sans jeton et l'acceptation
-  avec jeton valide — `crates/interfaces/src/bin/metis_api.rs:1954-1983`.
+  avec jeton valide — `crates/interfaces/src/bin/otter_api.rs:1954-1983`.
 - *Côté smart contract.* Le contrat `DelegationVault` hérite d'`Ownable`
   (OpenZeppelin) et restreint la fonction sensible `setProtocolRouter`
   (whitelist des routeurs de protocoles) via le modificateur `onlyOwner`
@@ -103,7 +103,7 @@ transit ou au repos : algorithmes faibles, clés mal gérées, secrets exposés.
 **Points résiduels / axes d'amélioration.**
 
 - **TLS non géré dans le dépôt** : le serveur écoute en HTTP clair
-  (`axum::serve` sur `0.0.0.0:<port>` — `crates/interfaces/src/bin/metis_api.rs:779-791`,
+  (`axum::serve` sur `0.0.0.0:<port>` — `crates/interfaces/src/bin/otter_api.rs:779-791`,
   aucune dépendance `rustls`). Le chiffrement en transit relève d'un reverse
   proxy externe, non fourni ici.
 - Le secret JWT est **généré aléatoirement à chaque démarrage** s'il n'est pas
@@ -136,13 +136,13 @@ ou requêtes (SQL, interpréteur de commandes, etc.).
   données externes.
 - *Désérialisation typée.* Toutes les entrées HTTP passent par des structures
   `serde` typées (`Json<ChallengeRequest>`, etc.), ce qui rejette les charges
-  malformées avant tout traitement — `crates/interfaces/src/bin/metis_api.rs:510-536`.
+  malformées avant tout traitement — `crates/interfaces/src/bin/otter_api.rs:510-536`.
 - *Validation métier des entrées.* Longueur maximale du texte d'intention
   (`MAX_INTENT_TEXT_LEN = 2000`, rejet au-delà et rejet des textes vides)
-  — `crates/interfaces/src/bin/metis_api.rs:1034-1047`. Validation des champs
+  — `crates/interfaces/src/bin/otter_api.rs:1034-1047`. Validation des champs
   de délégation : cardinalités exactes (10 montants, 5 protocoles) et format
   hexadécimal de chaque champ (`validate_hex_field`)
-  — `crates/interfaces/src/bin/metis_api.rs:1049-1079`.
+  — `crates/interfaces/src/bin/otter_api.rs:1049-1079`.
 - *Smart contract.* Pas d'`eval` ni d'appel dynamique : les transferts
   ERC-20 passent par `SafeERC20` d'OpenZeppelin
   — `contracts/src/DelegationVault.sol:5,17,145,168,249`, et les transferts
@@ -207,16 +207,16 @@ d'erreur verbeux, fonctionnalités inutiles exposées.
 
 - *CORS à liste blanche configurable.* `build_cors` accepte une liste
   d'origines explicites (séparées par des virgules) ; le joker `*` existe mais
-  doit être choisi délibérément — `crates/interfaces/src/bin/metis_api.rs:411-429`.
-  Tests : origine autorisée acceptée (`metis_api.rs:2017-2035`) et origine non
-  configurée rejetée (`metis_api.rs:2037-2044` et suivantes).
+  doit être choisi délibérément — `crates/interfaces/src/bin/otter_api.rs:411-429`.
+  Tests : origine autorisée acceptée (`otter_api.rs:2017-2035`) et origine non
+  configurée rejetée (`otter_api.rs:2037-2044` et suivantes).
 - *Rate limiting par IP.* Middleware maison à fenêtre glissante de 60 s,
   seuil configurable (`rate_limit_per_minute`, défaut 100, 0 = désactivé),
-  réponse `429 Too Many Requests` — `crates/interfaces/src/bin/metis_api.rs:476-508`
+  réponse `429 Too Many Requests` — `crates/interfaces/src/bin/otter_api.rs:476-508`
   et `crates/infrastructure/src/config/mod.rs:146-148,163-165`.
-  Test dédié — `crates/interfaces/src/bin/metis_api.rs:1986-2014`.
+  Test dédié — `crates/interfaces/src/bin/otter_api.rs:1986-2014`.
 - *Endpoints d'observabilité séparés.* Seuls `/health`, `/ready` et
-  `/metrics` sont publics — `crates/interfaces/src/bin/metis_api.rs:380-381`.
+  `/metrics` sont publics — `crates/interfaces/src/bin/otter_api.rs:380-381`.
 - *Configuration externalisée et documentée.* `.env.example` documente la
   précédence des sources de clés et interdit explicitement de committer une
   clé réelle — `.env.example:11-19`. Les secrets CI (clés SSH de déploiement,
@@ -234,7 +234,7 @@ d'erreur verbeux, fonctionnalités inutiles exposées.
   plusieurs réplicas ni contre une attaque distribuée (une IP = un compteur,
   un attaquant avec beaucoup d'IP le contourne).
 - Les erreurs internes sont parfois renvoyées au client sous forme textuelle
-  (`format!("invalid token: {}", err)` — `metis_api.rs:460`), ce qui peut
+  (`format!("invalid token: {}", err)` — `otter_api.rs:460`), ce qui peut
   divulguer des détails d'implémentation.
 
 ---
@@ -290,10 +290,10 @@ faibles, sessions mal gérées, rejeu de jetons.
   d'émission (`iat`), TTL configurable — `crates/interfaces/src/auth.rs:170-184`.
 - *Jeton transmis en en-tête, pas en cookie.* Le JWT est porté par
   `Authorization: Bearer`, ce qui le soustrait aux attaques CSRF classiques
-  (voir A01/A05) — `crates/interfaces/src/bin/metis_api.rs:442-445`.
+  (voir A01/A05) — `crates/interfaces/src/bin/otter_api.rs:442-445`.
 - *Tests unitaires.* Génération de challenge et cycle émission/validation de
   jeton — `crates/interfaces/src/auth.rs:194-215` ; test d'accès 401/200 en
-  intégration — `crates/interfaces/src/bin/metis_api.rs:1954-1983`.
+  intégration — `crates/interfaces/src/bin/otter_api.rs:1954-1983`.
 
 **Points résiduels / axes d'amélioration.**
 
@@ -360,7 +360,7 @@ et la réponse aux incidents.
   `crates/interfaces/src/secrets.rs:372-374`). Format JSON activable pour la
   production via `OTTER_LOG_FORMAT` — `.env.example:45-47`.
 - *Endpoints de santé et de métriques.* `/health`, `/ready` et `/metrics`
-  exposés par l'API — `crates/interfaces/src/bin/metis_api.rs:380-381` ; un
+  exposés par l'API — `crates/interfaces/src/bin/otter_api.rs:380-381` ; un
   fichier de configuration d'alerting (`alerting.yml`) est présent à la racine
   du dépôt.
 - *Traçabilité on-chain.* Toutes les opérations sensibles du contrat émettent
@@ -369,7 +369,7 @@ et la réponse aux incidents.
   une surveillance et un audit a posteriori.
 - *Journalisation des erreurs de persistance.* Les échecs de sauvegarde
   d'état sont tracés avec l'identifiant d'intention
-  — `crates/interfaces/src/bin/metis_api.rs:1000-1002,1013-1017`.
+  — `crates/interfaces/src/bin/otter_api.rs:1000-1002,1013-1017`.
 
 **Points résiduels / axes d'amélioration.**
 
@@ -377,7 +377,7 @@ et la réponse aux incidents.
   d'authentification répétés, 429, `InvalidProof`) : ces événements sont
   journalisés au mieux au niveau debug/info, sans corrélation ni seuil
   d'alerte.
-- Les échecs d'authentification renvoyés au client (`metis_api.rs:460`) ne
+- Les échecs d'authentification renvoyés au client (`otter_api.rs:460`) ne
   sont pas journalisés côté serveur.
 - Pas d'audit formel de ce qui est loggué : risque théorique de fuite de
   données sensibles dans les logs (aucun secret n'est loggué dans le code
@@ -404,7 +404,7 @@ cloud, etc.).
   borne l'équivalent « sortant » des appels externes.
 - *Validation des champs de délégation.* Les adresses et montants fournis à
   l'API sont validés en format (hex) et en cardinalité avant tout usage
-  — `crates/interfaces/src/bin/metis_api.rs:1049-1079`.
+  — `crates/interfaces/src/bin/otter_api.rs:1049-1079`.
 
 **Points résiduels / axes d'amélioration.**
 
@@ -426,15 +426,15 @@ cloud, etc.).
 
 | Risque OWASP 2021 | Mesure principale | Preuve (fichier) | Statut |
 |---|---|---|---|
-| A01 — Contrôles d'accès | Middleware JWT sur routes protégées ; `onlyOwner` ; preuve ZK obligatoire avant exécution | `crates/interfaces/src/bin/metis_api.rs:383-402,431-464` ; `contracts/src/DelegationVault.sol:95-99,176-210` | Implémenté (RBAC et multisig absents) |
+| A01 — Contrôles d'accès | Middleware JWT sur routes protégées ; `onlyOwner` ; preuve ZK obligatoire avant exécution | `crates/interfaces/src/bin/otter_api.rs:383-402,431-464` ; `contracts/src/DelegationVault.sol:95-99,176-210` | Implémenté (RBAC et multisig absents) |
 | A02 — Crypto | SIWE + JWT HS256 ; ECDSA/blake2s/ZK on-chain ; `SecretProvider` (fichier 0600, Vault, KMS, keystore) | `crates/interfaces/src/auth.rs` ; `delegation_circuit/src/main.nr:140-146` ; `crates/interfaces/src/secrets.rs` | Partiel : TLS hors dépôt, secret JWT aléatoire en dev |
-| A03 — Injection | SQL paramétré (rusqlite/sqlx) ; serde typé ; `MAX_INTENT_TEXT_LEN = 2000` | `crates/infrastructure/src/storage/sqlite.rs:144-160` ; `crates/interfaces/src/bin/metis_api.rs:1034-1047` | Implémenté (prompt injection LLM non traitée) |
+| A03 — Injection | SQL paramétré (rusqlite/sqlx) ; serde typé ; `MAX_INTENT_TEXT_LEN = 2000` | `crates/infrastructure/src/storage/sqlite.rs:144-160` ; `crates/interfaces/src/bin/otter_api.rs:1034-1047` | Implémenté (prompt injection LLM non traitée) |
 | A04 — Conception | Limites on-chain + double vérification (circuit + contrat) ; anti-rejeu nonce | `contracts/src/DelegationVault.sol:193-204` ; `delegation_circuit/src/main.nr:148-168` | Implémenté (pas de circuit breaker) |
-| A05 — Configuration | CORS whitelist ; rate limiting/IP (défaut 100/min) ; secrets CI dans GitHub Secrets | `crates/interfaces/src/bin/metis_api.rs:411-429,476-508` ; `.env.example:11-19` | Partiel : défauts permissifs en dev (auth off, CORS `*`) |
+| A05 — Configuration | CORS whitelist ; rate limiting/IP (défaut 100/min) ; secrets CI dans GitHub Secrets | `crates/interfaces/src/bin/otter_api.rs:411-429,476-508` ; `.env.example:11-19` | Partiel : défauts permissifs en dev (auth off, CORS `*`) |
 | A06 — Composants | OpenZeppelin ; versions épinglées ; clippy `-D warnings` en CI | `contracts/src/DelegationVault.sol:5-7` ; `.github/workflows/ci.yml:46-47` | Partiel : pas de `cargo audit` ni Dependabot |
 | A07 — Authentification | EIP-4361 sans mot de passe ; challenges 16 octets/5 min à usage unique ; JWT court | `crates/interfaces/src/auth.rs:69-155,170-184` | Implémenté (challenges en mémoire, pas de révocation) |
 | A08 — Intégrité | Preuve ZK liant toutes les entrées ; hash blake2s recalculé ; `Cargo.lock` commité | `delegation_circuit/src/main.nr:135-146` ; `contracts/src/DelegationVault.sol:179-182` | Partiel : artefacts non signés, pas de SBOM |
-| A09 — Journalisation | `tracing` structuré ; `/health` `/ready` `/metrics` ; événements on-chain | `crates/interfaces/src/bin/metis_api.rs:380-381` ; `contracts/src/DelegationVault.sol:62-74` | Partiel : pas d'alerte sur les événements de sécurité |
+| A09 — Journalisation | `tracing` structuré ; `/health` `/ready` `/metrics` ; événements on-chain | `crates/interfaces/src/bin/otter_api.rs:380-381` ; `contracts/src/DelegationVault.sol:62-74` | Partiel : pas d'alerte sur les événements de sécurité |
 | A10 — SSRF | Destinations réseau côté configuration uniquement ; routeurs whitelistés on-chain | `.env.example:2,34-37` ; `contracts/src/DelegationVault.sol:95-99,246-249` | Implémenté (pas de filtrage egress documenté) |
 
 ---

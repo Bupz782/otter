@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-REPO="${REPO:-Bupz782/metis}"
+REPO="${REPO:-Bupz782/otter}"
 
 echo "Setting up labels for $REPO..."
 

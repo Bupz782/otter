@@ -507,7 +507,7 @@ export const api = {
     list: () => request<{ agents: BackendAgentSummary[] }>("/api/v1/agents"),
     get: (id: string) => request<BackendAgentSummary>(`/api/v1/agents/${id}`),
     // The backend serves a single configured agent key and ignores the id in
-    // this path (get_agent_pubkey in crates/interfaces/src/bin/metis_api.rs
+    // this path (get_agent_pubkey in crates/interfaces/src/bin/otter_api.rs
     // has no path extractor). Per-agent pubkeys are a backend follow-up.
     pubkey: () => request<BackendAgentPubkeyResponse>("/api/v1/agents/otter-agent/pubkey"),
   },

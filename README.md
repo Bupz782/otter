@@ -163,30 +163,30 @@ Use `OTTER_CONFIG_PATH` to point to a custom config file location.
 
 ```bash
 # Parse a natural-language intent
-cargo run -p interfaces --bin metis_cli -- parse "lend 1000 USDC on Aave"
+cargo run -p interfaces --bin otter_cli -- parse "lend 1000 USDC on Aave"
 
 # Build an execution plan from an intent
-cargo run -p interfaces --bin metis_cli -- plan "swap 1 ETH for USDC on Uniswap"
+cargo run -p interfaces --bin otter_cli -- plan "swap 1 ETH for USDC on Uniswap"
 
 # Start the orchestrator daemon and monitor a conditional price intent.
 # Fetches real-time ETH/USD from Chainlink on Sepolia (default).
-cargo run -p interfaces --bin metis_cli -- start \
+cargo run -p interfaces --bin otter_cli -- start \
   "swap 1 ETH for USDC on Uniswap if price > 2_000_000000" \
   --interval 5
 
 # Monitor a yield intent (fetches Aave supply APY on the chosen network)
-cargo run -p interfaces --bin metis_cli -- start \
+cargo run -p interfaces --bin otter_cli -- start \
   "lend 1000 USDC on Aave if yield > 3" \
   --network sepolia \
   --interval 60
 
 # Query the daemon state
-cargo run -p interfaces --bin metis_cli -- status
+cargo run -p interfaces --bin otter_cli -- status
 
 # Start the daemon in on-chain execution mode
 # It will monitor the condition, generate a ZKP, and submit executeWithProof
 # to the vault when the condition is met.
-cargo run -p interfaces --bin metis_cli -- start \
+cargo run -p interfaces --bin otter_cli -- start \
   "swap 1000 USDC for ETH on Uniswap if price > 2_000_000000" \
   --network sepolia \
   --rpc-url http://localhost:8545 \
@@ -239,7 +239,7 @@ cast send $VAULT "deposit()" --value 10ether \
   --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 
 # 4. Execute a natural-language intent with a real Noir proof
-cargo run -p interfaces --bin metis_cli -- execute \
+cargo run -p interfaces --bin otter_cli -- execute \
   "swap 1000 USDC for ETH on Uniswap" \
   --rpc-url http://localhost:8545 \
   --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
@@ -255,13 +255,13 @@ You can also generate and verify a proof independently:
 
 ```bash
 # Generate a proof for an intent (writes proof.bin + public_inputs.bin)
-cargo run -p interfaces --bin metis_cli -- prove \
+cargo run -p interfaces --bin otter_cli -- prove \
   "lend 1000 USDC on Aave" \
   --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
   --output-dir ./tmp
 
 # Verify the proof on-chain (view call against the verifier linked to the vault)
-cargo run -p interfaces --bin metis_cli -- verify-onchain \
+cargo run -p interfaces --bin otter_cli -- verify-onchain \
   --proof ./tmp/proof.bin \
   --public-inputs ./tmp/public_inputs.bin \
   --rpc-url http://localhost:8545 \
@@ -283,12 +283,12 @@ Prerequisites: `anvil`, `forge`, `cast`, `nargo`, `bb` and the Rust toolchain.
 
 ### REST API
 
-The Rust backend exposes a minimal Axum server (`metis_api`) on port `3001`
+The Rust backend exposes a minimal Axum server (`otter_api`) on port `3001`
 (configurable via `OTTER_API_PORT`).
 
 ```bash
 # Start the API server
-cargo run -p interfaces --bin metis_api
+cargo run -p interfaces --bin otter_api
 
 # Parse an intent
 curl -X POST http://localhost:3001/api/v1/intents/parse \
@@ -311,7 +311,7 @@ over HTTP instead of shelling out to the CLI.
 
 ```bash
 # 1. Start the API server (in a separate terminal)
-cargo run -p interfaces --bin metis_api
+cargo run -p interfaces --bin otter_api
 
 # 2. Start the frontend
 cd frontend
@@ -355,7 +355,7 @@ docker compose logs -f
 ```
 
 Services:
-- `api` — Rust Axum backend (`metis_api`), persists intents in `/data/otter.db`
+- `api` — Rust Axum backend (`otter_api`), persists intents in `/data/otter.db`
 - `frontend` — React 18 + Vite app served by nginx; nginx proxies `/api/*` to
   the backend service
 
@@ -409,7 +409,7 @@ OTTER_TEST_RPC_URL=https://rpc.sepolia.org cargo test -p infrastructure --test p
 
 The complete backlog lives in [`BACKLOG.md`](BACKLOG.md). It contains:
 - 580 user stories organized by wave and epic
-- Per-story status: ✅ Done / 🚧 In Progress / ⏳ Pending / ⬛ Cut / 🔮 Future
+- Statut par story : [FAIT] / [EN COURS] / [EN ATTENTE] / [CUT] / [FUTUR]
 - Scope tags: MVP / Future / Cut
 
 ### Sync stories to GitHub Issues

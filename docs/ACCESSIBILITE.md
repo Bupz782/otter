@@ -101,13 +101,13 @@ de contraste ont été calculés (formule WCAG) à partir des valeurs hexadécim
 
 | Paire texte / fond | Ratio | Seuil RGAA (AA, texte courant 4,5:1) |
 |---|---|---|
-| `#f4f4f5` (foreground) sur `#050505` (background) | 18,54:1 | ✅ |
-| `#a1a1aa` (muted-foreground) sur `#050505` | 7,95:1 | ✅ |
-| `#a1a1aa` sur `#0c0c0c` (card) | 7,63:1 | ✅ |
-| `#c8a46c` (accent) sur `#050505` | 8,72:1 | ✅ |
-| `#fb7185` (erreurs, `text-rose-400`) sur `#050505` | 7,57:1 | ✅ |
-| `#34d399` (succès, `text-emerald-400`) sur `#050505` | 10,60:1 | ✅ |
-| `#71717a` (gris secondaire) sur `#050505` | **4,22:1** | ⚠️ sous le seuil pour texte courant (OK pour grand texte, seuil 3:1) |
+| `#f4f4f5` (foreground) sur `#050505` (background) | 18,54:1 | Oui |
+| `#a1a1aa` (muted-foreground) sur `#050505` | 7,95:1 | Oui |
+| `#a1a1aa` sur `#0c0c0c` (card) | 7,63:1 | Oui |
+| `#c8a46c` (accent) sur `#050505` | 8,72:1 | Oui |
+| `#fb7185` (erreurs, `text-rose-400`) sur `#050505` | 7,57:1 | Oui |
+| `#34d399` (succès, `text-emerald-400`) sur `#050505` | 10,60:1 | Oui |
+| `#71717a` (gris secondaire) sur `#050505` | **4,22:1** | sous le seuil pour texte courant (OK pour grand texte, seuil 3:1) |
 
 Mapping des tokens : `frontend/src/index.css:9-38` (variables `--color-*` du thème
 Tailwind 4 pointant vers les primitives Otter).
@@ -301,17 +301,17 @@ mouvement déclenché automatiquement de plus de 5 s.*
 
 | Thématique RGAA | Statut | Preuve principale | Action corrective |
 |---|---|---|---|
-| Images | ✅ Conforme | `aria-hidden` sur icônes/canvas (`WebGLSpiral.tsx:151`) | Réévaluer si ajout d'images informatives |
-| Cadres | ✅ N/A | Aucun `<iframe>` | — |
+| Images | Conforme | `aria-hidden` sur icônes/canvas (`WebGLSpiral.tsx:151`) | Réévaluer si ajout d'images informatives |
+| Cadres | N/A | Aucun `<iframe>` | — |
 | Couleurs | 🟡 Partiel | Ratios calculés : 7,5:1 à 18,5:1 sur les couleurs principales | Audit de contraste exhaustif (états hover, opacités) ; corriger `#71717a` (4,22:1 < 4,5:1) pour le texte courant |
-| Multimédia | ✅ N/A | Aucun média temporel | — |
-| Tableaux | ✅ N/A | Aucun `<table>` | — |
-| Liens | ✅ Conforme | `aria-label` sur boutons iconiques, `aria-current` (`AppHeader.tsx:108`) | — |
+| Multimédia | N/A | Aucun média temporel | — |
+| Tableaux | N/A | Aucun `<table>` | — |
+| Liens | Conforme | `aria-label` sur boutons iconiques, `aria-current` (`AppHeader.tsx:108`) | — |
 | Scripts | 🟡 Partiel | Boutons natifs, `Escape`, ARIA complet sur radios/disclosures/menus | Focus trap + retour du focus dans les modales ; navigation fléchée dans les radiogroups |
 | Éléments obligatoires | 🟡 Partiel | `lang="en"`, doctype, titre (`index.html:1-10`) | `document.title` dynamique par route |
-| Structuration | ✅ Conforme | `h1` unique, `role="list"/"listitem"`, navs étiquetées | — |
+| Structuration | Conforme | `h1` unique, `role="list"/"listitem"`, navs étiquetées | — |
 | Présentation | 🟡 Partiel | CSS externe, ordre DOM logique | Test zoom 200 % et `forced-colors` |
-| Formulaires | ✅ Conforme | `htmlFor`, `aria-invalid`, `role="alert"`, `aria-describedby` | Tests avec lecteur d'écran |
+| Formulaires | Conforme | `htmlFor`, `aria-invalid`, `role="alert"`, `aria-describedby` | Tests avec lecteur d'écran |
 | Navigation | 🟡 Partiel | Skip link + focus management (`App.tsx:40-52`), `aria-current` | Skip link dans `AppLayout`, plan du site |
 | Consultation | 🟡 Partiel | `prefers-reduced-motion` global (`main.tsx:72`, `index.css:149`) | Contrôle pause/stop pour le marquee |
 

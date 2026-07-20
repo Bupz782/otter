@@ -16,7 +16,7 @@ COPY crates ./crates
 COPY delegation_circuit ./delegation_circuit
 COPY crates/infrastructure/migrations ./crates/infrastructure/migrations
 
-RUN cargo build --release -p interfaces --bin metis_api
+RUN cargo build --release -p interfaces --bin otter_api
 
 # -----------------------------------------------------------------------------
 # Stage 2: Noir tooling
@@ -67,7 +67,7 @@ ENV RUST_LOG=info
 VOLUME ["/data"]
 EXPOSE 3001
 
-COPY --from=builder /app/target/release/metis_api /usr/local/bin/metis_api
+COPY --from=builder /app/target/release/otter_api /usr/local/bin/otter_api
 COPY --from=builder /app/delegation_circuit /app/delegation_circuit
 COPY --from=builder /app/crates/infrastructure/migrations /app/crates/infrastructure/migrations
 COPY --from=noir /usr/local/bin/nargo /usr/local/bin/nargo
@@ -77,4 +77,4 @@ COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["metis_api"]
+CMD ["otter_api"]

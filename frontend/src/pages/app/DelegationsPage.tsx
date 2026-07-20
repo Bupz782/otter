@@ -143,7 +143,7 @@ export function DelegationsPage() {
                     </span>
                     {/* No Revoke button: the backend has no revoke/delete
                         delegation endpoint (only GET/POST /api/v1/delegation in
-                        crates/interfaces/src/bin/metis_api.rs). Backend follow-up. */}
+                        crates/interfaces/src/bin/otter_api.rs). Backend follow-up. */}
                   </DataRow>
                 );
               })}

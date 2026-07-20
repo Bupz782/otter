@@ -198,14 +198,14 @@ COPY --from=bb /usr/local/bin/bb /usr/local/bin/bb
 
 # Stage 3: runtime
 FROM debian:bookworm-slim AS runtime
-COPY --from=builder /app/target/release/metis_api /usr/local/bin/
+COPY --from=builder /app/target/release/otter_api /usr/local/bin/
 COPY --from=builder /app/delegation_circuit /app/delegation_circuit
 COPY --from=noir /usr/local/bin/nargo /usr/local/bin/nargo
 COPY --from=bb /usr/local/bin/bb /usr/local/bin/bb
 COPY scripts/docker-entrypoint.sh /usr/local/bin/
 
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["metis_api"]
+CMD ["otter_api"]
 ```
 
 ### 5.2 Entrypoint: `scripts/docker-entrypoint.sh`
@@ -216,7 +216,7 @@ Responsibilities:
 2. If SQLite, ensure the parent directory exists.
 3. Validate required env vars (`OTTER_RPC_URL`, `OTTER_CHAIN_ID`, etc.).
 4. If `OTTER_EXECUTION_ENABLED=true`, verify `nargo`, `bb`, and `OTTER_VAULT_ADDRESS` are reachable/valid.
-5. Exec `metis_api`.
+5. Exec `otter_api`.
 
 ### 5.3 Frontend image
 

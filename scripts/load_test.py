@@ -128,7 +128,7 @@ def main() -> int:
 
     print(f"Target API: {api_base()}")
     if not health_check():
-        print("API is not healthy. Start it with `cargo run -p interfaces --bin metis_api` or Docker.", file=sys.stderr)
+        print("API is not healthy. Start it with `cargo run -p interfaces --bin otter_api` or Docker.", file=sys.stderr)
         return 1
 
     if not args.skip_parse:

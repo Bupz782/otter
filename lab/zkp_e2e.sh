@@ -49,14 +49,14 @@ cast send "$VAULT" "deposit()" --value 10ether \
   >/dev/null
 
 echo "[4/6] Generating delegation proof..."
-cargo run -p interfaces --bin metis_cli -- prove "$INTENT" \
+cargo run -p interfaces --bin otter_cli -- prove "$INTENT" \
   --private-key "$PRIVATE_KEY" \
   --output-dir ./lab/zkp_e2e_out \
   --circuit-dir "$CIRCUIT_DIR" \
   --bb-bin "$BB_BIN"
 
 echo "[5/6] Executing intent on-chain with proof..."
-cargo run -p interfaces --bin metis_cli -- execute "$INTENT" \
+cargo run -p interfaces --bin otter_cli -- execute "$INTENT" \
   --rpc-url "$RPC_URL" \
   --private-key "$PRIVATE_KEY" \
   --vault "$VAULT" \
@@ -65,7 +65,7 @@ cargo run -p interfaces --bin metis_cli -- execute "$INTENT" \
   --bb-bin "$BB_BIN"
 
 echo "[6/6] Verifying proof on-chain..."
-cargo run -p interfaces --bin metis_cli -- verify-onchain \
+cargo run -p interfaces --bin otter_cli -- verify-onchain \
   --vault "$VAULT" \
   --rpc-url "$RPC_URL" \
   --private-key "$PRIVATE_KEY" \

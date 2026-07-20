@@ -37,7 +37,7 @@ an intent created via the API was executed automatically by the agent:
 - **DelegationVault**: `0x2e3a565bb92bC46150259F2559320ce79EC751F2`
 - **Execution tx**: `0xe3cd33b2c6697e4ad16416cf0d3c84cde6a92bcd606b0d8ffd83da33d69d54a5`
 
-> ⚠️ **Stale after circuit change.** Adding `target_contract` to the Noir
+> **Stale after circuit change.** Adding `target_contract` to the Noir
 circuit changed the verification key. The addresses above correspond to the
 previous verifier and must be redeployed. Follow the steps below, then update
 `OTTER_VAULT_ADDRESS` with the newly deployed vault address.
@@ -239,7 +239,7 @@ running API:
 ```bash
 # Start the API locally (execution disabled for a safe parse-only test)
 OTTER_API_PORT=3002 OTTER_EXECUTION_ENABLED=false OTTER_METRICS_ENABLED=true \
-  ./target/debug/metis_api
+  ./target/debug/otter_api
 
 # In another terminal
 export OTTER_API_URL=http://localhost:3002

@@ -18,7 +18,7 @@ function toStep(record: BackendExecutionRecord): ExecutionStep {
 /**
  * Real execution history for an intent, from GET /api/v1/executions filtered
  * client-side by intent_id (the backend endpoint has no per-intent filter;
- * list_executions in crates/interfaces/src/bin/metis_api.rs). The backend only
+ * list_executions in crates/interfaces/src/bin/otter_api.rs). The backend only
  * writes a record once a transaction confirms, so an empty result means "no
  * execution yet": the hook returns null and the page shows an honest static
  * state built from the intent's own status.

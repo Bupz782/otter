@@ -30,7 +30,7 @@ pub struct ActiveIntent {
 /// Coordinates the high-level automation flow: parse → plan → execute.
 ///
 /// The orchestrator is intentionally small right now. It owns the parser and
-/// strategy planner so that CLI commands such as `metis parse` and `metis plan`
+/// strategy planner so that CLI commands such as `otter parse` and `otter plan`
 /// can reuse the same business rules as the end-to-end execution path.
 #[derive(Clone)]
 pub struct Orchestrator<P, O, Z, E> {

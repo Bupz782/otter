@@ -108,13 +108,13 @@ it on-chain against the vault's verifier contract (view call, no state change).
 
 ```bash
 # Generate proof.bin + public_inputs.bin for an intent
-cargo run -p interfaces --bin metis_cli -- prove \
+cargo run -p interfaces --bin otter_cli -- prove \
   "lend 1000 USDC on Aave" \
   --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
   --output-dir ./tmp
 
 # Verify the proof on-chain (vault address is used to discover the verifier)
-cargo run -p interfaces --bin metis_cli -- verify-onchain \
+cargo run -p interfaces --bin otter_cli -- verify-onchain \
   --proof ./tmp/proof.bin \
   --public-inputs ./tmp/public_inputs.bin \
   --rpc-url http://localhost:8545 \

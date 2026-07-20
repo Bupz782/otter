@@ -11,7 +11,7 @@
 
 set -euo pipefail
 
-REPO="${REPO:-Bupz782/metis}"
+REPO="${REPO:-Bupz782/otter}"
 BACKLOG="${BACKLOG:-BACKLOG.md}"
 MODE="dry-run"
 WAVE_FILTER=""
@@ -140,7 +140,7 @@ while IFS= read -r line; do
       technical_notes="$technical_notes\n- **Directory:** `contracts/src/`"
       technical_notes="$technical_notes\n- **Ref:** Voir [Foundry book](https://book.getfoundry.sh/)"
     fi
-    if [[ "$us_title" =~ CLI|metis\ |user.*veut\ (ex|voir|executer) ]]; then
+    if [[ "$us_title" =~ CLI|otter\ |user.*veut\ (ex|voir|executer) ]]; then
       acceptance_criteria="$acceptance_criteria\n- [ ] Commande CLI fonctionne et retourne la sortie attendue"
       acceptance_criteria="$acceptance_criteria\n- [ ] Help text et error messages clairs"
       technical_notes="$technical_notes\n- **Crate:** `crates/interfaces/src/cli/`"

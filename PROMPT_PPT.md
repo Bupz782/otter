@@ -1,7 +1,7 @@
 # Prompt — Génération du PowerPoint de Présentation Projet
 
 ## Métadonnées
-- **Projet** : Otter (anciennement Metis) — Trustless DeFi Automation Protocol
+- **Projet** : Otter (anciennement Otter) — Trustless DeFi Automation Protocol
 - **Objectif** : Réaliser un PowerPoint professionnel répondant aux critères d'évaluation C1.1.1 à C1.6
 - **Public visé** : Jury d'évaluation professionnelle (formateur, examinateur, client)
 - **Ton** : Professionnel, technique mais vulgarisé, argumenté, visuel
@@ -243,40 +243,40 @@ Otter est un protocole d'automatisation DeFi **trustless**. L'utilisateur décri
    **Backend** :
    | Solution | Avantages | Inconvénients | Verdict |
    |----------|-----------|---------------|---------|
-   | **Rust (Axum)** ✅ | Sécurité mémoire, performance ZK, async natif (tokio), typage fort | Courbe d'apprentissage, écosystème plus jeune que Node | ✅ Retenu |
-   | Node.js/Express | Écosystème mature, rapide à développer | Moins performant, typage faible (JS), pas adapté ZK | ❌ Rejeté |
-   | Go/Gin | Performant, simple | Moins riche pour crypto/ZK, gestion mémoire moins sûre | ❌ Rejeté |
+   | **Rust (Axum)** | Sécurité mémoire, performance ZK, async natif (tokio), typage fort | Courbe d'apprentissage, écosystème plus jeune que Node | Retenu |
+   | Node.js/Express | Écosystème mature, rapide à développer | Moins performant, typage faible (JS), pas adapté ZK | Rejeté |
+   | Go/Gin | Performant, simple | Moins riche pour crypto/ZK, gestion mémoire moins sûre | Rejeté |
 
    **Zero-Knowledge Proofs** :
    | Solution | Avantages | Inconvénients | Verdict |
    |----------|-----------|---------------|---------|
-   | **Noir** ✅ | Syntaxe proche Rust, verifier Solidity exportable facilement, tooling Aztec mature | Moins optimisé que Circom, écosystème plus jeune | ✅ Retenu |
-   | Circom | Très optimisé, grand écosystème | Syntaxe complexe, courbe d'apprentissage abrupte, audit plus difficile | ❌ Rejeté |
-   | Cairo (Starknet) | Puissant, scaling natif | Non-EVM, refonte complète des smart contracts, écosystème séparé | ❌ Rejeté |
+   | **Noir** | Syntaxe proche Rust, verifier Solidity exportable facilement, tooling Aztec mature | Moins optimisé que Circom, écosystème plus jeune | Retenu |
+   | Circom | Très optimisé, grand écosystème | Syntaxe complexe, courbe d'apprentissage abrupte, audit plus difficile | Rejeté |
+   | Cairo (Starknet) | Puissant, scaling natif | Non-EVM, refonte complète des smart contracts, écosystème séparé | Rejeté |
 
    **Smart Contract Framework** :
    | Solution | Avantages | Inconvénients | Verdict |
    |----------|-----------|---------------|---------|
-   | **Foundry** ✅ | Tests en Solidity natif, très rapide, forge script pour deploy, fuzzing natif | Moins de plugins que Hardhat | ✅ Retenu |
-   | Hardhat | Écosystème riche, TypeScript tasks | Plus lent, moins intégré au testing natif Solidity | ❌ Rejeté |
+   | **Foundry** | Tests en Solidity natif, très rapide, forge script pour deploy, fuzzing natif | Moins de plugins que Hardhat | Retenu |
+   | Hardhat | Écosystème riche, TypeScript tasks | Plus lent, moins intégré au testing natif Solidity | Rejeté |
 
    **LLM / Intent Parsing** :
    | Solution | Avantages | Inconvénients | Verdict |
    |----------|-----------|---------------|---------|
-   | **Local llama.cpp (GGUF)** ✅ | Privacy totale, pas de fuite données, pas de coût API, offline possible | Qualité inférieure aux grands modèles API, requiert RAM/GPU locale | ✅ Retenu |
-   | API Claude/OpenAI | Excellente qualité parsing, simple | Coût récurrent, fuite données financières sensibles, dépendance fournisseur | ❌ Rejeté |
+   | **Local llama.cpp (GGUF)** | Privacy totale, pas de fuite données, pas de coût API, offline possible | Qualité inférieure aux grands modèles API, requiert RAM/GPU locale | Retenu |
+   | API Claude/OpenAI | Excellente qualité parsing, simple | Coût récurrent, fuite données financières sensibles, dépendance fournisseur | Rejeté |
 
    **Frontend** :
    | Solution | Avantages | Inconvénients | Verdict |
    |----------|-----------|---------------|---------|
-   | **React + Vite** ✅ | Simplicité, pas de SSR nécessaire, hot reload rapide, tailwind intégré | Pas de SEO natif (pas critique pour dApp) | ✅ Retenu |
-   | Next.js | SEO, SSR, routing intégré | Complexité inutile pour dApp, hydration | ❌ Rejeté |
+   | **React + Vite** | Simplicité, pas de SSR nécessaire, hot reload rapide, tailwind intégré | Pas de SEO natif (pas critique pour dApp) | Retenu |
+   | Next.js | SEO, SSR, routing intégré | Complexité inutile pour dApp, hydration | Rejeté |
 
    **Blockchain** :
    | Solution | Avantages | Inconvénients | Verdict |
    |----------|-----------|---------------|---------|
-   | **Ethereum + Arbitrum** ✅ | Écosystème DeFi mature, L2 réduit gas/consommation, EVM compatible | Congestion L1, coûts L1 élevés | ✅ Retenu (principal) |
-   | **Solana** ✅ | Très rapide, faibles coûts, écosystème Rust natif (cohérence stack), haut débit | Écosystème DeFi différent (programs Anchor), historique d'outages, courbe d'apprentissage | ✅ Retenu (secondaire) |
+   | **Ethereum + Arbitrum** | Écosystème DeFi mature, L2 réduit gas/consommation, EVM compatible | Congestion L1, coûts L1 élevés | Retenu (principal) |
+   | **Solana** | Très rapide, faibles coûts, écosystème Rust natif (cohérence stack), haut débit | Écosystème DeFi différent (programs Anchor), historique d'outages, courbe d'apprentissage | Retenu (secondaire) |
 
 2. **Synthèse des choix retenus et justifications** :
    - **Rust** : choisi pour la sécurité mémoire critique dans un projet financier, et la performance nécessaire à la génération de preuves.
@@ -332,7 +332,7 @@ Otter est un protocole d'automatisation DeFi **trustless**. L'utilisateur décri
 3. **Outil d'analyse fonctionnelle** :
    - Méthode : User Stories (format "En tant que..., je veux..., afin de...")
    - Organisation : Backlog structuré par vagues (waves) et epics (BACKLOG.md)
-   - Suivi : Fichier markdown versionné avec statuts (✅ Done / 🚧 In Progress / ⏳ Pending)
+   - Suivi : Fichier markdown versionné avec statuts ([FAIT] / [EN COURS] / [EN ATTENTE])
 
 4. **Couverture technique des besoins fonctionnels** :
    - Toute fonction principale est couverte par une technologie validée et un POC réalisé.
