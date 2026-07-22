@@ -127,7 +127,7 @@ des textes explicites en plus de la couleur rose (`role="alert"`, cf. §2.11), e
 
 *Limite : le calcul couvre les couleurs principales, pas chaque combinaison de classes
 utilisée (opacités `bg-background/80`, superpositions de calques, états hover). Un audit
-de contraste exhaustif reste à faire (voir §4).*
+de contraste exhaustif reste à faire (voir §5).*
 
 ### 2.4 Multimédia
 
@@ -330,34 +330,127 @@ mouvement déclenché automatiquement de plus de 5 s.*
 | Multimédia | N/A | Aucun média temporel | — |
 | Tableaux | N/A | Aucun `<table>` | — |
 | Liens | Conforme | `aria-label` sur boutons iconiques, `aria-current` (`AppHeader.tsx:108`) | — |
-| Scripts | Partiel | Boutons natifs, `Escape`, focus trap maison (`useFocusTrap.ts`), ARIA complet sur radios/disclosures/menus | Navigation fléchée dans les radiogroups |
+| Scripts | Partiel | Boutons natifs, `Escape`, focus trap maison (`useFocusTrap.ts`), ARIA complet sur radios/disclosures/menus ; campagne clavier réalisée le 20/07/2026 (§4) | Navigation fléchée dans les radiogroups (tracée, §4.4) |
 | Éléments obligatoires | Conforme | `lang="en"`, doctype, titre dynamique par route (`useDocumentTitle.ts`) | — |
 | Structuration | Conforme | `h1` unique, `role="list"/"listitem"`, navs étiquetées | — |
 | Présentation | Partiel | CSS externe, ordre DOM logique | Test zoom 200 % et `forced-colors` |
-| Formulaires | Conforme | `htmlFor`, `aria-invalid`, `role="alert"`, `aria-describedby` | Tests avec lecteur d'écran |
-| Navigation | Partiel | Skip links sur les deux shells (`App.tsx:42`, `AppLayout.tsx:52`) + focus management, `aria-current` | Plan du site |
+| Formulaires | Conforme | `htmlFor`, `aria-invalid`, `role="alert"`, `aria-describedby` | Tests avec lecteur d'écran (planifié, §4.4) |
+| Navigation | Partiel | Skip links sur les deux shells (`App.tsx:42`, `AppLayout.tsx:52`) + focus management, `aria-current` ; campagne clavier réalisée le 20/07/2026, écarts mineurs corrigés (§4) | Plan du site |
 | Consultation | Partiel | `prefers-reduced-motion` global (`main.tsx:72`, `index.css:149`) | Contrôle pause/stop pour le marquee |
 
 ---
 
-## 4. Plan d'amélioration
+## 4. Campagne de tests pratiques — navigation clavier (20/07/2026)
+
+### 4.1 Méthode et périmètre
+
+**Date : 20/07/2026.** Méthode : revue clavier structurée par **inspection du DOM
+rendu** — lecture du code JSX des 12 pages applicatives de `frontend/src/pages/app/`
+(routes déclarées dans `frontend/src/main.tsx`), de la page publique
+(`frontend/src/App.tsx`) et des composants qu'elles utilisent. Pour chaque élément
+interactif : (a) focusabilité native (`button`, `a[href]`, `input`, `select`,
+`textarea`) ou `tabIndex` approprié ; (b) absence de `tabIndex` positif ; (c) présence
+de styles `:focus-visible` ; (d) absence de piège clavier (focus trap sur les
+dialogues) ; (e) cible du lien d'évitement. Des tests automatisés (Vitest/jsdom)
+verrouillent les points critiques (§4.5).
+
+*Limite de méthode : cette campagne vérifie le code, pas le rendu dans un navigateur
+réel ; elle ne remplace ni un passage manuel complet à la tabulation dans le
+navigateur, ni un test avec lecteur d'écran (cf. §4.4).*
+
+Note de décompte : `main.tsx` déclare **12 routes applicatives** (et non 13) ; le
+tableau ci-dessous compte donc 12 lignes applicatives + 1 page publique.
+
+### 4.2 Résultats par page
+
+Constats transverses au shell applicatif (`AppLayout`) : skip link ciblant un
+`#main-content` existant (vérifié par test), aucun `tabIndex` positif dans tout
+`frontend/src` (recherche exhaustive), focus traps confirmés sur les trois dialogues
+maison (modale de bienvenue `WelcomeModal`, modale d'aide « What's an intent? »
+d'`AppHeader`, tiroir de navigation mobile d'`AppLayout`).
+
+| Page | Éléments interactifs | Focusabilité | Focus visible | Piège clavier | Statut |
+|---|---|---|---|---|---|
+| Publique (`/`) | Skip link, liens ancres nav, menu mobile, disclosures FAQ, formulaire waitlist, démo (textarea + chips de suggestions), liens footer | Native (`button`/`a`/`input`/`textarea`) | Présent ; **ajouté** sur les chips de suggestions démo | Menu mobile fermable à `Escape` | Corrigé |
+| Dashboard | Liens (Create intent, View all, lignes d'intents), boutons Retry des états d'erreur | Native | Présent (`Button`, `focus-visible` du design system) | Aucun | Conforme |
+| Intents | Chips de filtres (`aria-pressed`), liens lignes, Create intent | Native | **Ajouté** sur les chips de filtres | Aucun | Corrigé |
+| Create Intent | Textarea, chips d'exemples, inputs de révision, cartes radio de délégation, boutons d'étape | Native (radios = `<button role="radio">`) | **Ajouté** sur chips et cartes radio | Aucun | Corrigé ; navigation fléchée du radiogroup restante (§4.4) |
+| Intent Detail | Copy hash, block explorer, Cancel / Confirm / Keep, liens retour | Native | Présent (`Button`) | Aucun | Conforme |
+| Delegations | Lien New delegation | Native | Présent (`Button`) | Aucun | Conforme |
+| Create Delegation | Cartes radio d'agents, inputs limites/expiry, cases (`role="checkbox"` sur `<button>`), bouton Sign | Native | **Ajouté** sur les cartes radio | Aucun | Corrigé ; navigation fléchée du radiogroup restante (§4.4) |
+| Agents | Liens cartes agents, Use strategy, liens leaderboard | Native | Présent (`Button`, liens) | Aucun | Conforme |
+| Agent Detail | Liens Back / Create delegation | Native | Présent (`Button`) | Aucun | Conforme |
+| Strategies | Boutons Fork strategy, liens leaderboard, Publish strategy | Native | Présent (`Button`) | Aucun | Conforme |
+| Create Strategy | Inputs/textarea, boutons de sélection d'agent, sélecteur de profil de risque, Parse/Publish | Native **après correction** (sélecteur de risque) | **Ajouté** sur les boutons d'agents | Aucun | Corrigé |
+| Proofs | Boutons d'expansion (`aria-expanded`), lien View intent | Native | Présent (`Button`) | Aucun | Conforme |
+| Settings | Boutons Take the tour / Sign out | Native | Présent (`Button`) | Aucun | Conforme |
+| Shell (sidebar, header) | Liens de navigation sidebar, fil d'Ariane, menu d'aide (`role="menu"`), bouton wallet | Native | **Ajouté** sur liens sidebar, lien du fil d'Ariane, items du menu d'aide, bouton de fermeture de la modale | Focus traps sur les 3 dialogues (§4.1) | Corrigé |
+
+### 4.3 Écarts trouvés et corrigés le 20/07/2026
+
+1. **Élément interactif non focusable** — `CreateStrategyPage.tsx` : le sélecteur de
+   profil de risque utilisait `<Badge>` (une `<div>`) avec `onClick`, donc inatteignable
+   et inopérable au clavier. Remplacé par des `<button type="button" aria-pressed>`
+   réutilisant `badgeVariants` (styles identiques).
+2. **Focus visible absent sur des contrôles custom** — ajout de
+   `focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent` sur :
+   cartes radio (`CreateDelegationPage.tsx`, `CreateIntentPage.tsx`), boutons de
+   sélection d'agent (`CreateStrategyPage.tsx`), chips de filtres (`IntentsPage.tsx`),
+   chips d'exemples (`CreateIntentPage.tsx`) et de suggestions
+   (`components/demo/PromptInput.tsx`), liens de la sidebar (`AppSidebar.tsx`), lien du
+   fil d'Ariane et items du menu d'aide (`AppHeader.tsx`), bouton de fermeture
+   (`WelcomeModal.tsx`).
+
+### 4.4 Écarts restants et sujets explicitement planifiés
+
+- **Radiogroups sans navigation fléchée ni roving tabindex**
+  (`CreateDelegationPage.tsx`, `CreateIntentPage.tsx`) — écart **tracé, volontairement
+  non corrigé** dans cette campagne : la correction dépasse un ajustement local (pattern
+  ARIA « radio group » complet). Reportée au plan d'amélioration (§5, point 1).
+- **Lecteur d'écran (NVDA / VoiceOver) : planifié — non réalisé.** Aucun lecteur
+  d'écran n'était disponible pour cette campagne ; aucune restitution vocale n'a été
+  vérifiée. Parcours critiques à tester avec un vrai lecteur d'écran :
+  1. connexion wallet et signature SIWE (challenge, signature, session) ;
+  2. création d'intention : stepper, édition du parse, choix de délégation ;
+  3. création de délégation : limites, protocoles, expiration, signature ;
+  4. suivi d'exécution : timeline d'un intent, annonces de changement de statut.
+- Zoom 200 %, mode `forced-colors`, contrôle pause/stop du marquee : inchangés, cf. §5.
+
+### 4.5 Vérifications automatisées ajoutées
+
+- `frontend/src/components/app/AppLayout.test.tsx` (4 tests) : le skip link cible un
+  élément `#main-content` existant ; aucun `tabIndex` positif dans le shell ; le focus
+  entre dans le tiroir mobile à l'ouverture (focus trap) ; le tiroir se ferme à
+  `Escape`.
+- `frontend/src/pages/app/CreateStrategyPage.test.tsx` (2 tests) : le sélecteur de
+  profil de risque est composé de vrais boutons avec `aria-pressed` ; l'activation met
+  à jour la sélection.
+- Suite complète au 20/07/2026 : **40 tests Vitest verts** (34 existants + 6 nouveaux),
+  `tsc --noEmit` et ESLint sans erreur.
+
+---
+
+## 5. Plan d'amélioration
 
 Points **non couverts** ou partiellement couverts à date, par ordre de priorité :
 
 1. **Radiogroups custom** (`CreateDelegationPage.tsx:159`, `CreateIntentPage.tsx:398`) —
    ajouter la navigation au clavier par flèches et le roving tabindex conformément au
-   pattern ARIA « radio group ».
+   pattern ARIA « radio group ». Écart confirmé et tracé lors de la campagne clavier du
+   20/07/2026 (§4.4).
 2. **Audit de contraste exhaustif** — le calcul ne couvre que les couleurs principales
    en état de repos. Mesurer toutes les combinaisons réelles (états hover/focus/disabled,
    textes sur fonds translucides `bg-background/80`, badges de statut).
 3. **Contrôle du marquee** (`index.css:107-119`) — ajouter un bouton pause/stop ou
    conditionner l'animation à `prefers-reduced-motion` comme les autres animations.
-4. **Tests clavier systématiques** — parcours complet de chaque page à la seule
-   tabulation, avec vérification de la visibilité du focus sur tous les composants
-   (le style `outline-none` sur `<main>` est compensé par les `focus:ring-*` des
-   composants, mais cela reste à vérifier page par page).
-5. **Tests avec lecteurs d'écran** — aucun test réel NVDA/VoiceOver n'a été mené à ce
-   stade ; la conformité ARIA n'a été vérifiée que par inspection statique du code.
+4. ~~**Tests clavier systématiques**~~ — **réalisé le 20/07/2026** (§4) : revue
+   structurée des 12 pages applicatives + page publique, écarts mineurs corrigés
+   (élément non focusable, focus visible manquant), 6 tests automatisés ajoutés. Reste
+   en complément : un passage manuel page par page à la tabulation dans un navigateur
+   réel, la méthode d'inspection ne couvrant pas le rendu effectif.
+5. **Tests avec lecteurs d'écran** — **planifié, non réalisé** (§4.4) : aucun test réel
+   NVDA/VoiceOver n'a été mené ; parcours critiques à couvrir : connexion wallet SIWE,
+   création d'intention + stepper, création de délégation, suivi d'exécution.
 6. **Tests zoom 200 % et mode contraste élevé** (`forced-colors: active`).
 7. **Plan du site / page d'aide à la navigation** (critère RGAA 12.3).
 8. **Déclaration d'accessibilité** — à rédiger après un audit RGAA formel (obligatoire
@@ -368,5 +461,9 @@ Points **non couverts** ou partiellement couverts à date, par ordre de priorit�
 *Document rédigé à partir d'une revue du code source au 20/07/2026. Révision du
 20/07/2026 : corrections intégrées (contraste du gris secondaire `#777777`, titres de
 page dynamiques, skip link du shell applicatif, focus trap des dialogues maison) et
-sections de conformité mises à jour en conséquence. Toute évolution du frontend doit
+sections de conformité mises à jour en conséquence. Révision du 20/07/2026 (seconde
+passe) : campagne de tests pratiques de navigation clavier réalisée (§4) — sélecteur
+de profil de risque rendu focusable (`CreateStrategyPage.tsx`), styles `focus-visible`
+ajoutés sur les contrôles custom, 6 tests automatisés ajoutés ; lecteur d'écran
+explicitement planifié, non réalisé. Toute évolution du frontend doit
 déclencher une réévaluation des thématiques concernées.*

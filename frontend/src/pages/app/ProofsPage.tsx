@@ -10,6 +10,7 @@ import { SectionCard } from "@/components/app/SectionCard";
 import { DataRow } from "@/components/app/DataRow";
 import { EmptyState } from "@/components/app/EmptyState";
 import { ErrorState } from "@/components/app/ErrorState";
+import { DemoDataNotice } from "@/components/app/DemoDataNotice";
 import { useProofs } from "@/hooks/useProofs";
 import { cn } from "@/lib/utils";
 import type { Proof } from "@/types/app";
@@ -151,7 +152,7 @@ function ProofRow({
 
 export function ProofsPage() {
   useDocumentTitle("Proofs");
-  const { data: proofs, isLoading, error, refetch } = useProofs();
+  const { data: proofs, isLoading, error, refetch, isBackendDemo } = useProofs();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const latestSolvency = proofs
@@ -172,6 +173,12 @@ export function ProofsPage() {
       <FadeIn>
         <PageHeader title="Proofs" subtitle="Every execution, proven." />
       </FadeIn>
+
+      {isBackendDemo && (
+        <FadeIn delay={0.05}>
+          <DemoDataNotice />
+        </FadeIn>
+      )}
 
       <FadeIn delay={0.05}>
         {isLoading ? (

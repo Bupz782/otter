@@ -136,4 +136,5 @@ Always uses glassmorphism. Title uses `font-heading`.
 - Pages compose `PageHeader` + `SectionCard` + `StatCard` + `DataRow`; no ad-hoc card markup.
 - Data sections always resolve to one of: skeleton, `ErrorState` (with retry), genuine `EmptyState`, or data.
 - When no wallet session exists, hooks serve `src/lib/demo-data.ts` fixtures and the header shows an amber "Demo data" pill. Real API data only renders for authenticated sessions.
+- When the API itself flags a payload as demonstration data (`demo: true` field / `X-Demo-Data` header, anomaly A2), the affected pages render `DemoDataNotice` with the same amber styling.
 - Status visuals come from `src/lib/status.ts` only.

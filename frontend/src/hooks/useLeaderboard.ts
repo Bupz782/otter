@@ -13,12 +13,15 @@ export function useLeaderboard() {
   const [isLoading, setIsLoading] = useState(isAuthenticated);
   const [error, setError] = useState<Error | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // True when the API itself flags the payload as demonstration data (A2).
+  const [isBackendDemo, setIsBackendDemo] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
       setData(demoLeaderboard);
       setError(null);
       setIsLoading(false);
+      setIsBackendDemo(false);
       return;
     }
     let cancelled = false;
@@ -28,6 +31,7 @@ export function useLeaderboard() {
       .then((res) => {
         if (cancelled) return;
         setData(res.entries.map(mapBackendLeaderboardEntry));
+        setIsBackendDemo(res.demo === true);
         setError(null);
       })
       .catch((err) => {
@@ -44,5 +48,5 @@ export function useLeaderboard() {
 
   const refetch = () => setReloadKey((key) => key + 1);
 
-  return { data, isLoading, error, refetch, isDemo };
+  return { data, isLoading, error, refetch, isDemo, isBackendDemo };
 }

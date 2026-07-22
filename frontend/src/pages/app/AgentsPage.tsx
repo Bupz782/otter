@@ -11,6 +11,7 @@ import { SectionCard } from "@/components/app/SectionCard";
 import { DataRow } from "@/components/app/DataRow";
 import { EmptyState } from "@/components/app/EmptyState";
 import { ErrorState } from "@/components/app/ErrorState";
+import { DemoDataNotice } from "@/components/app/DemoDataNotice";
 import { useAgents } from "@/hooks/useAgents";
 import { useStrategies } from "@/hooks/useStrategies";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
@@ -57,7 +58,7 @@ function agentStats(agent: Agent): { label: string; value: string }[] {
 
 export function AgentsPage() {
   useDocumentTitle("Agents");
-  const { data: agents, isLoading, error, refetch } = useAgents();
+  const { data: agents, isLoading, error, refetch, isBackendDemo } = useAgents();
   const {
     data: strategies,
     isLoading: strategiesLoading,
@@ -79,6 +80,12 @@ export function AgentsPage() {
           subtitle="Vetted agents that execute inside your signed limits."
         />
       </FadeIn>
+
+      {isBackendDemo && (
+        <FadeIn delay={0.05}>
+          <DemoDataNotice />
+        </FadeIn>
+      )}
 
       <FadeIn delay={0.05}>
         <SectionCard className="py-4">
