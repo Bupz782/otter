@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { badgeVariants } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAgents } from "@/hooks/useAgents";
 import { useCreateStrategy } from "@/hooks/useCreateStrategy";
@@ -96,7 +96,7 @@ export function CreateStrategyPage() {
                     key={agent.id}
                     type="button"
                     onClick={() => setAgentId(agent.id)}
-                    className={`rounded-xl border p-4 text-left transition-colors ${agentId === agent.id ? "border-accent bg-accent-subtle" : "border-border/60 bg-card hover:border-accent/40"}`}
+                    className={`rounded-xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent ${agentId === agent.id ? "border-accent bg-accent-subtle" : "border-border/60 bg-card hover:border-accent/40"}`}
                   >
                     <p className="font-heading text-lg font-bold">{agent.name}</p>
                     <p className="text-sm text-muted-foreground">{agent.description}</p>
@@ -109,14 +109,17 @@ export function CreateStrategyPage() {
             <Label>Risk profile</Label>
             <div className="flex gap-2">
               {riskProfiles.map((profile) => (
-                <Badge
+                <button
                   key={profile}
-                  variant={riskProfile === profile ? "default" : "outline"}
-                  className="cursor-pointer"
+                  type="button"
+                  aria-pressed={riskProfile === profile}
                   onClick={() => setRiskProfile(profile)}
+                  className={badgeVariants({
+                    variant: riskProfile === profile ? "default" : "outline",
+                  })}
                 >
                   {profile}
-                </Badge>
+                </button>
               ))}
             </div>
           </div>

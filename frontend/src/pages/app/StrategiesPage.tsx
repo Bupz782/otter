@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useStrategies } from "@/hooks/useStrategies";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { EmptyState } from "@/components/app/EmptyState";
+import { DemoDataNotice } from "@/components/app/DemoDataNotice";
 import { api } from "@/lib/api";
 
 const riskVariant: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
@@ -20,7 +21,7 @@ const riskVariant: Record<string, "default" | "secondary" | "outline" | "destruc
 export function StrategiesPage() {
   useDocumentTitle("Strategies");
   const navigate = useNavigate();
-  const { data: strategies, isLoading: strategiesLoading } = useStrategies();
+  const { data: strategies, isLoading: strategiesLoading, isBackendDemo } = useStrategies();
   const { data: leaderboard, isLoading: leaderboardLoading } = useLeaderboard();
 
   const handleFork = async (strategyId: string) => {
@@ -46,6 +47,8 @@ export function StrategiesPage() {
           Official Otter strategies you can use as a starting point.
         </p>
       </motion.div>
+
+      {isBackendDemo && <DemoDataNotice />}
 
       <Card className="border-accent/20 bg-accent-subtle">
         <CardContent className="flex flex-col items-start justify-between gap-4 p-6 sm:flex-row sm:items-center">

@@ -248,7 +248,7 @@ Commit (Conventional Commits) → Push / Pull Request
 **Séquence Rust — `rust-check`** :
 1. `cargo fmt --check` — formatage ;
 2. `cargo clippy --workspace --all-targets -- -D warnings` — analyse statique, **tout warning est une erreur** ;
-3. `cargo test --workspace` — les ~272 tests unitaires et d'intégration (hors tests réseau conditionnels).
+3. `cargo test --workspace` — les ~274 tests unitaires et d'intégration (hors tests réseau conditionnels).
 
 **Séquence Contrats — `contracts-check`** :
 1. `forge fmt --check` ;
@@ -264,7 +264,7 @@ Commit (Conventional Commits) → Push / Pull Request
 1. `npm ci` (installation déterministe depuis le lockfile) ;
 2. `npm run typecheck` (`tsc --noEmit`) ;
 3. `npm run lint` (`--max-warnings 0`) ;
-4. `npm run test` (vitest, 34 cas) ;
+4. `npm run test` (vitest, 40 cas) ;
 5. `npm run build`.
 
 **Séquence d'assemblage — `docker-smoke`** :
@@ -340,19 +340,22 @@ Au-delà de l'architecture hexagonale, plusieurs patrons structurent le code :
 
 Le prototype est **fonctionnel et utilisable en autonomie** ; il met en œuvre un ensemble cohérent des fonctionnalités principales et des user stories :
 
-1. **Application web** (`frontend/`, équipement cible : navigateur desktop) — 10 pages réelles routées dans `frontend/src/main.tsx` :
+1. **Application web** (`frontend/`, équipement cible : navigateur desktop) — 12 pages applicatives + 1 page publique routées dans `frontend/src/main.tsx` :
    - `/` page d'accueil publique ;
    - `/app/dashboard` — tableau de bord (portefeuille, exécutions) ;
    - `/app/intents`, `/app/intents/new`, `/app/intents/:id` — cycle de vie des intentions : saisie en langage naturel → parsing → revue du plan → confirmation (stepper Describe/Review/Delegate/Confirm) ;
    - `/app/delegations`, `/app/delegations/new` — création et suivi des délégations signées ;
    - `/app/agents`, `/app/agents/:agentId` — marketplace d'agents ;
+   - `/app/strategies`, `/app/strategies/new` — stratégies SocialFi (création, fork de modèles d'intention) ;
    - `/app/proofs` — preuves ZK générées ;
    - `/app/settings` — paramètres.
    Composants d'interface présents et fonctionnels : fenêtres modales (`WelcomeModal`), boutons et formulaires avec validation (`CreateDelegationPage` — messages d'erreur exacts « Limits must be numbers above 0. »), menus et navigation (`AppSidebar`, `AppHeader`), stepper accessible, tooltips d'onboarding, connexion wallet RainbowKit + signature SIWE.
 2. **API REST** (`otter_api`, port 3001) — routes réelles : `auth/challenge`, `auth/verify`, `intents` (+ `parse`, `plan/:id`), `delegation` (+ `hash`), `agents`, `strategies`, `portfolio`, `proofs`, `leaderboard`, `executions`, `orchestrator/state`, `health`, `ready`, `metrics`, `ws` (WebSocket temps réel).
 3. **CLI** (`otter_cli`) — commandes `parse`, `plan`, `start`, `status`, `execute`, `prove`, `verify-onchain` : un développeur peut piloter tout le cycle sans l'interface web.
-4. **Contrats déployés** — preuve de déploiement sur testnet **Sepolia** avec adresses de contrats et hash de transaction consignés dans `DEPLOYMENT.md`.
+4. **Contrats déployés** — un premier déploiement sur testnet **Sepolia** est consigné dans `DEPLOYMENT.md` (adresses, hash de transaction). **Note de transparence** : ces adresses V1 sont obsolètes depuis l'ajout de `target_contract` au circuit (le vérificateur doit être régénéré) ; le redéploiement du vérificateur + vault est préparé (procédure `DEPLOYMENT.md` §1) et ses nouvelles adresses seront consignées dès exécution — la chaîne complète reste vérifiable dès maintenant via les fixtures de preuves réelles (`contracts/test/fixtures/`) et la démo E2E sur Anvil.
 5. **Démonstration E2E ZK** — `lab/zkp_e2e.sh` et le quick start du `README.md` permettent de rejouer le flux complet : intention → délégation → preuve → vérification on-chain.
+
+> **Données de démonstration déclarées.** À ce stade de prototype, les endpoints `/agents`, `/strategies`, `/leaderboard` et `/proofs` servent des données de démonstration embarquées (anomalie A2 de la recette). Ce caractère est **explicite et vérifiable** : header HTTP `X-Demo-Data: true` + champ `demo: true` dans les réponses (test automatisé dédié), badge « Demo data » dans l'interface. Le remplacement par des données on-chain/persistées est tracé au plan de correction avec **retrait obligatoire avant mainnet**.
 
 **Ergonomie et équipement cible** : l'interface est une application web responsive (Tailwind 4), pensée pour navigateur desktop (usage DeFi avec extension wallet) ; le parcours est guidé par un stepper et un onboarding en tooltips ; les états de chargement/erreur sont explicites ; `prefers-reduced-motion` est respecté (voir C2.2.3 accessibilité).
 
@@ -372,12 +375,12 @@ Le harnais couvre les quatre stacks du projet, avec **prévention des régressio
 
 | Stack | Framework de test | Volume | Emplacement |
 |---|---|---|---|
-| Rust — unitaires | `#[test]` natif + `#[tokio::test]` | **272 tests au total** (tous targets confondus, `cargo test --workspace` vert au 20/07/2026) | `crates/*/src/**` |
+| Rust — unitaires | `#[test]` natif + `#[tokio::test]` | **274 tests au total** (tous targets confondus, `cargo test --workspace` vert au 20/07/2026) | `crates/*/src/**` |
 | Rust — intégration | tests d'intégration Cargo | 5 fichiers (SQLite, protocole Sepolia, E2E Anvil, ZK) | `crates/infrastructure/tests/` |
 | Rust — exemples exécutables | use cases jouables | 3 exemples | `crates/application/examples/` |
 | Solidity | Foundry (`forge test`) | 13 tests | `contracts/test/` |
 | Circuit ZK | `nargo test` | 3 tests | `delegation_circuit/src/main.nr` |
-| Frontend | Vitest + Testing Library + jsdom | **34 cas** (6 fichiers) | `frontend/src/**/*.test.{ts,tsx}` |
+| Frontend | Vitest + Testing Library + jsdom | **40 cas** (8 fichiers) | `frontend/src/**/*.test.{ts,tsx}` |
 
 ### Couverture des fonctionnalités demandées
 
@@ -386,7 +389,7 @@ Le harnais couvre les quatre stacks du projet, avec **prévention des régressio
 - **Infrastructure** (94 tests) : parseurs (`regex_parser.rs` : 184/197 lignes couvertes — le cœur du parsing d'intention), oracles, stockage SQLite, adaptateur ZK Noir, prompts LLM, cache.
 - **Interfaces** : authentification SIWE/JWT dont **test de bout en bout à signature EIP-191 réelle** (clé de test k256), rate limiting (par IP **et par utilisateur**), validation d'entrées, CORS, gestion des secrets, résolution du secret JWT (fail-fast sur réseaux publics).
 - **Contrats** : `DelegationVault.t.sol` (8 tests : dépôts, retraits, exécution avec preuve, limites, anti-rejeu), `DelegationVerifier.t.sol`, test d'intégration avec **fixtures de preuves réelles** (`contracts/test/fixtures/proof.bin`).
-- **Frontend** (34 cas) : mapping des réponses API et cas d'erreur (`api.test.ts`), normalisation des statuts (`status.test.ts`), logique de délégation — split de signature EIP-4361, construction du message, packing des protocoles (`delegation.test.ts`), composant `Stepper` et ses attributs ARIA (`Stepper.test.tsx`), titre de page dynamique (`useDocumentTitle.test.ts`), focus trap des modales (`WelcomeModal.test.tsx`).
+- **Frontend** (40 cas) : mapping des réponses API et cas d'erreur (`api.test.ts`), normalisation des statuts (`status.test.ts`), logique de délégation — split de signature EIP-4361, construction du message, packing des protocoles (`delegation.test.ts`), composant `Stepper` et ses attributs ARIA (`Stepper.test.tsx`), titre de page dynamique (`useDocumentTitle.test.ts`), focus trap des modales (`WelcomeModal.test.tsx`), navigation clavier du shell (`AppLayout.test.tsx`), sélecteur de risque accessible (`CreateStrategyPage.test.tsx`).
 
 ### Mesure de couverture
 
@@ -407,9 +410,9 @@ Détail représentatif par module (lignes couvertes / lignes totales) :
 | `domain/models/intent.rs` | 62/100 (62 %) | modèle métier central |
 | `protocols/aave.rs` / `uniswap.rs` | 143/197 (73 %) | adaptateurs protocoles DeFi |
 | `blockchain/*` (alloy, oracles, wallet) | 153/497 (31 %) | interactions EVM (testées aussi via Anvil en intégration) |
-| `storage/postgres.rs` | 0/218 (0 %) | couvert par les tests d'intégration exclus de cette mesure `--lib` |
+| `storage/postgres.rs` | 0/218 (0 %) | adaptateur vérifié en intégration contre le service réel (voir note ci-dessous) |
 
-Lecture de ce chiffre : le périmètre `--lib` exclut les tests d'intégration (qui requièrent Anvil/PostgreSQL), de sorte que les adaptateurs testés en intégration (Postgres, service d'exécution, blockchain) apparaissent sous-évalués ; la logique critique est couverte entre 91 % et 100 % (authentification, délégation, preuve ZK, parsing, persistance SQLite, configuration). **La majorité du code est couverte en périmètre unitaire seul.** L'objectif reste ≥ 70 % sur la logique métier avec intégration de tarpaulin à la CI (tracé dans `docs/PLAN_CORRECTION_BOGUES.md` §3.1).
+Lecture de ce chiffre : le périmètre `--lib` exclut les tests d'intégration (qui requièrent Anvil/PostgreSQL), de sorte que les adaptateurs testés en intégration apparaissent sous-évalués. **Cas de `postgres.rs`** : pour un adaptateur d'infrastructure, l'intégration contre le service réel (PostgreSQL via `docker-compose`, migrations rejouées au démarrage) est la vérification la plus fiable — les requêtes SQL n'ont de sens que contre un moteur réel ; elle est complétée, au plan qualité, par des tests unitaires des chemins hors connexion (validation, mapping d'erreurs, sérialisation). La logique critique est couverte entre 91 % et 100 % (authentification, délégation, preuve ZK, parsing, persistance SQLite, configuration). **La majorité du code est couverte en périmètre unitaire seul.** L'objectif reste ≥ 70 % sur la logique métier avec intégration de tarpaulin à la CI (tracé dans `docs/PLAN_CORRECTION_BOGUES.md` §3.1).
 
 ### Prévention des régressions
 
@@ -436,7 +439,7 @@ Le document `docs/SECURITE.md` détaille chaque risque A01→A10 avec ses preuve
 | **A03 — Injection** | SQL 100 % paramétré (sqlx/rusqlite, aucune concaténation sur entrées utilisateur) ; désérialisation typée serde ; `MAX_INTENT_TEXT_LEN = 2000` ; validation hex/cardinalités | `otter_api.rs:1034-1079`, `crates/infrastructure` |
 | **A04 — Insecure Design** | Délégations à limites cryptographiques (montant, protocole, expiration) ; nonces anti-rejeu on-chain ; vérification ZK par conception | `DelegationVault.sol:197-204`, `delegation_circuit/src/main.nr:148-168` |
 | **A05 — Security Misconfiguration** | CORS en liste blanche configurable ; validation de config au démarrage (fail-fast) ; headers nginx ; images Docker épinglées | `otter_api.rs:411-429`, `scripts/docker-entrypoint.sh` |
-| **A06 — Vulnerable Components** | Dépendances épinglées (lockfiles Cargo/npm, toolchain pinnée) ; **job `security-audit`** (`rustsec/audit-check`) en CI + **Dependabot** (cargo, npm, actions, docker) ; 6 vulnérabilités identifiées par `cargo audit` sont tracées (job en `continue-on-error` le temps des upgrades) | `.github/workflows/ci.yml`, `.github/dependabot.yml`, `Cargo.lock` |
+| **A06 — Vulnerable Components** | Dépendances épinglées (lockfiles Cargo/npm, toolchain pinnée) ; **job `security-audit` bloquant** en CI (`cargo audit` — toute nouvelle vulnérabilité fait échouer la CI et empêche le déploiement) + **Dependabot** (cargo, npm, actions, docker) ; upgrades appliqués (`sqlx` 0.8.6, `rustls-webpki` 0.103.13) ; 5 ignores résiduels documentés avec analyse d'exposition (`rsa` sans correctif hors graphe, `alloy-dyn-abi` — aucun usage EIP-712, webpki 0.101 confiné à la feature `aws-kms` non activée) | `.github/workflows/ci.yml`, `.github/dependabot.yml`, `docs/SECURITE.md` A06 |
 | **A07 — Auth Failures** | Challenge SIWE à nonce aléatoire 16 octets, expiration 5 min, **consommé après usage** ; JWT HS256 à TTL configurable ; pas de session cookie | `auth.rs:72-74,147-151,159` |
 | **A08 — Data Integrity Failures** | Images Docker taguées par sha + semver ; artefacts CI reproductibles ; versions Noir/bb épinglées | `.github/workflows/docker.yml`, `.noir-version` |
 | **A09 — Logging Failures** | Logs structurés JSON (`tracing`) ; métriques Prometheus `/metrics` ; 8 alertes (`alerting.yml`) dont échecs de vérification on-chain | `observability/logging.rs`, `otter_api.rs:1577` |
@@ -444,7 +447,7 @@ Le document `docs/SECURITE.md` détaille chaque risque A01→A10 avec ses preuve
 
 Mesures transverses : **rate limiting** par IP (429 au-delà de 100 req/min, `otter_api.rs:476-508`), échappement React par défaut (aucun `dangerouslySetInnerHTML` dans `frontend/src` — anti-XSS), JWT en header `Authorization` (pas de cookie → CSRF non applicable), secrets jamais commités (`.env.example` l'interdit explicitement ; clés CI dans GitHub Secrets).
 
-**Points résiduels assumés** (tracés dans le plan de correction) : terminaison TLS déléguée à l'infrastructure d'accueil (configuration de référence désormais versionnée : `deploy/Caddyfile`), secret JWT aléatoire toléré en local uniquement (fail-fast sur réseaux publics), 6 vulnérabilités de dépendances identifiées par `cargo audit` en cours de traitement (job CI en `continue-on-error` jusqu'aux upgrades — détail dans `docs/SECURITE.md` A06).
+**Points résiduels assumés** (tracés dans le plan de correction) : terminaison TLS déléguée à l'infrastructure d'accueil (configuration de référence désormais versionnée : `deploy/Caddyfile`), secret JWT aléatoire toléré en local uniquement (fail-fast sur réseaux publics), 5 ignores `cargo audit` résiduels documentés avec analyse d'exposition et échéance de réévaluation (détail dans `docs/SECURITE.md` A06) — le job d'audit est bloquant pour toute nouvelle vulnérabilité.
 
 ### Accessibilité — référentiel RGAA 4.1
 
@@ -456,11 +459,11 @@ Mesures transverses : **rate limiting** par IP (429 au-delà de 100 req/min, `ot
 - **Contenus dynamiques** : régions `aria-live="polite"` pour les mises à jour asynchrones (`IntentDetailPage.tsx:217-233`, `OnboardingTooltip.tsx`).
 - **Navigation et repérage** : `aria-current="step"` sur le stepper (`components/app/Stepper.tsx:23`), skip link sur la page publique (`App.tsx:40-45`), `aria-expanded`/`aria-label` sur les contrôles interactifs, icônes décoratives en `aria-hidden`.
 - **Présentation** : `prefers-reduced-motion` respecté (`main.tsx:72`, `index.css:149-153`) ; contrastes **calculés** à partir des tokens (`styles/tokens.css`) : tous conformes au seuil 4,5:1 depuis la correction du gris secondaire (`#71717a` 4,22:1 → `#777777` **4,55:1**, calcul WCAG vérifié).
-- **Repérage et titres** : titres de page dynamiques sur les 13 pages (`useDocumentTitle`, format « Page — Otter » — RGAA 8.5) ; skip link « Skip to main content » sur la page publique **et** dans le shell applicatif (`AppLayout.tsx`) ; l'attribut `lang="en"` est conforme car le contenu de l'interface est réellement en anglais.
+- **Repérage et titres** : titres de page dynamiques sur les 12 pages applicatives et la page publique (`useDocumentTitle`, format « Page — Otter » — RGAA 8.5) ; skip link « Skip to main content » sur la page publique **et** dans le shell applicatif (`AppLayout.tsx`) ; l'attribut `lang="en"` est conforme car le contenu de l'interface est réellement en anglais.
 - **Dialogues** : focus trap implémenté sans dépendance (`useFocusTrap` : focus initial, cyclage Tab/Shift+Tab, restitution du focus) sur `WelcomeModal`, la modale d'aide (`AppHeader`) et le tiroir mobile.
 - **Tests automatisés d'accessibilité** : `Stepper.test.tsx` (attributs ARIA du stepper), `WelcomeModal.test.tsx` (focus trap), `useDocumentTitle.test.ts` — exécutés en CI.
 
-**Plan d'amélioration honnête** (tracé dans `docs/ACCESSIBILITE.md`) : corriger le contraste du gris secondaire, `lang="fr"` et titres de page dynamiques, skip link dans le shell applicatif, focus trap des modales maison (ou migration vers Radix UI Dialog), tests clavier et lecteur d'écran systématiques. L'audit est une auto-évaluation par inspection statique, pas un audit RGAA formel.
+**Campagne de tests pratiques et plan d'amélioration** (consignés dans `docs/ACCESSIBILITE.md` §4-5) : la **navigation clavier des 12 pages + page publique a été réalisée le 20/07/2026** (revue structurée du DOM + tests jsdom) — 8 écarts de focusabilité corrigés (sélecteur de risque en `div onClick` devenus vrais boutons `aria-pressed`, `focus-visible` ajouté sur navigation, chips, cartes radio, modales), 6 tests de non-régression ajoutés. Restent au plan : navigation fléchée des radiogroups custom, pause du marquee, **passages lecteur d'écran (NVDA/VoiceOver) planifiés** sur les parcours critiques (connexion wallet SIWE, création d'intention + stepper, création de délégation, suivi d'exécution), zoom 200 % et `forced-colors`. L'audit reste une auto-évaluation, pas un audit RGAA formel.
 
 **Vérification des critères d'évaluation** : les mesures couvrent les 10 failles OWASP (tableau ci-dessus + `docs/SECURITE.md`) — le référentiel d'accessibilité est présenté et justifié (RGAA 4.1 + Opquast) — le prototype répond aux exigences du référentiel sur les points audités, avec un plan d'amélioration tracé pour les écarts.
 
@@ -486,7 +489,7 @@ Mesures transverses : **rate limiting** par IP (429 au-delà de 100 req/min, `ot
 | Interface web | 10 pages React, stepper, wallet RainbowKit + SIWE | `frontend/`, `23a778c` |
 | CI/CD | 4 workflows, images multi-arch, déploiements testnet/mainnet | `docs/superpowers/specs/2026-07-08-ci-devops-deployment-design.md` |
 | Durcissement | secrets KMS/Vault, métriques/alertes, corrections de revue | commits `fix(debt):`, `fix(secrets):` |
-| **v0.1.0 (rendu)** | Documentation BC02 complète, couverture mesurée (55,92 %), 272 tests Rust + 34 tests frontend | ce dossier + `docs/` |
+| **v0.1.0 (rendu)** | Documentation BC02 complète, couverture mesurée (55,92 %), 274 tests Rust + 40 tests frontend, audit de sécurité bloquant en CI | ce dossier + `docs/` |
 
 ### Déploiement à chaque modification, de façon progressive
 
@@ -504,7 +507,7 @@ Le déploiement est **continu et progressif** (détail des séquences en C2.1.1)
 
 ### Dernière version fonctionnelle, fiable et viable
 
-La version livrée est **manipulable en autonomie** : `docker compose up` (ou `./scripts/dev.sh`) suffit à lancer la stack complète ; le `README.md` fournit le quick start (build, CLI, API avec exemples curl, démo E2E ZK) ; les manuels d'utilisation et de mise à jour (C2.4.1) couvrent l'exploitation. Fiabilité : CI verte, 300+ tests automatisés, smoke tests systématiques. Viabilité : déploiement Sepolia documenté avec adresses réelles (`DEPLOYMENT.md`), rollback documenté.
+La version livrée est **manipulable en autonomie** : `docker compose up` (ou `./scripts/dev.sh`) suffit à lancer la stack complète ; le `README.md` fournit le quick start (build, CLI, API avec exemples curl, démo E2E ZK) ; les manuels d'utilisation et de mise à jour (C2.4.1) couvrent l'exploitation. Fiabilité : CI verte, 300+ tests automatisés, smoke tests systématiques. Viabilité : procédure de déploiement Sepolia éprouvée et documentée (`DEPLOYMENT.md` — redéploiement V2 préparé, voir la note de transparence en C2.2.1), rollback documenté.
 
 **Vérification des critères d'évaluation** : système de gestion des versions utilisé (Git, Conventional Commits, semver via tags `v*`) — évolutions du prototype tracées (BACKLOG, Issues, registre de bogues) — logiciel fonctionnel et manipulable en autonomie (Docker Compose + manuels).
 
@@ -544,7 +547,7 @@ Quelques scénarios reproduits tels quels depuis le cahier (le document complet 
 
 ### Anomalies détectées
 
-La recette a révélé **7 anomalies (A1–A7)**, de gravité faible à moyenne, consignées dans le cahier (§6.3) et tracées dans le plan de correction (C2.3.2). **Cinq sont corrigées à la date du rendu** : A1 (validation d'entrée factorisée sur `/intents/parse`, tests 400 ajoutés), A3 (`HybridParser` LLM → regex branché dans l'orchestrateur), A4 (rate limiting par utilisateur quand un JWT est présent, IP sinon), A6 (plan de correction créé), A7 (test SIWE de bout en bout avec signature EIP-191 réelle — qui a d'ailleurs révélé et permis de corriger deux bogues latents : un panic de runtime dans `verify_signature` et un `sub` JWT mal formaté). Restent ouvertes : A2 (données de démonstration sur certains endpoints — accepté pour le MVP) et A5 (transfert ETH natif — planifié avant mainnet). Aucune anomalie bloquante : la chaîne critique (authentification, délégation signée, preuve ZK, anti-rejeu) est intégralement vérifiée.
+La recette a révélé **7 anomalies (A1–A7)**, de gravité faible à moyenne, consignées dans le cahier (§6.3) et tracées dans le plan de correction (C2.3.2). **Cinq sont corrigées à la date du rendu** : A1 (validation d'entrée factorisée sur `/intents/parse`, tests 400 ajoutés), A3 (`HybridParser` LLM → regex branché dans l'orchestrateur), A4 (rate limiting par utilisateur quand un JWT est présent, IP sinon), A6 (plan de correction créé), A7 (test SIWE de bout en bout avec signature EIP-191 réelle — qui a d'ailleurs révélé et permis de corriger deux bogues latents : un panic de runtime dans `verify_signature` et un `sub` JWT mal formaté). Restent tracées : A2 (données de démonstration — étiquetage explicite ajouté : header `X-Demo-Data`, champ `demo`, badge UI ; remplacement par données on-chain avec retrait obligatoire avant mainnet) et A5 (transfert ETH natif — planifié avant mainnet). Aucune anomalie bloquante : la chaîne critique (authentification, délégation signée, preuve ZK, anti-rejeu) est intégralement vérifiée.
 
 **Vérification des critères d'évaluation** : le cahier reprend l'ensemble des fonctionnalités attendues — les tests fonctionnels, structurels et de sécurité exécutés sont conformes au plan défini.
 
@@ -584,7 +587,7 @@ Le registre complet (§2 du plan) retient **12 bogues représentatifs**, chacun 
 Pour chaque faiblesse détectée (§3 du plan) : constat → risque → action corrective → statut :
 
 1. **Couverture non mesurée** → tarpaulin mis en place, mesure initiale 41,14 % puis renforcement massif des tests (voir C2.2.2 pour la mesure à jour) ;
-2. **Tests frontend légers** → renforcés de 3 à **34 cas** (mapping API, statuts, délégation, stepper, titre de page, focus trap des modales) ;
+2. **Tests frontend légers** → renforcés de 3 à **40 cas** (mapping API, statuts, délégation, stepper, titre de page, focus trap, navigation clavier, étiquetage des données de démonstration) ;
 3. **TLS hors dépôt** → **traité côté dépôt** : configuration de référence versionnée `deploy/Caddyfile` (TLS automatique, headers de sécurité), documentée dans `DEPLOYMENT.md` ; la terminaison elle-même reste déléguée à l'infrastructure ;
 4. **Secret JWT aléatoire en dev** → **traité** : démarrage refusé (`resolve_jwt_secret`) si le secret est absent sur un réseau public (`mainnet`/`sepolia`), secret aléatoire toléré en local seulement, tests dédiés.
 
@@ -606,7 +609,7 @@ La documentation d'exploitation assure la traçabilité pour le suivi des équip
 
 ### Manuel d'utilisation → `docs/MANUEL_UTILISATION.md`
 
-Rédigé pour un utilisateur non-développeur : concepts vulgarisés (intention, plan, délégation, exécution, preuve ZK) ; prérequis (navigateur, wallet, réseau Sepolia, faucet) ; installation (Docker Compose) ; **guide pas à pas des 10 écrans réels** avec les messages d'erreur exacts de l'application ; API REST avec exemples curl (authentification incluse) ; CLI `otter_cli` (7 commandes documentées) ; FAQ et tableau de dépannage ; catalogue des alertes. Les limitations réelles y sont honnêtement signalées (révocation de délégation non implémentée, adresses V1 obsolètes).
+Rédigé pour un utilisateur non-développeur : concepts vulgarisés (intention, plan, délégation, exécution, preuve ZK) ; prérequis (navigateur, wallet, réseau Sepolia, faucet) ; installation (Docker Compose) ; **guide pas à pas des écrans réels** avec les messages d'erreur exacts de l'application ; API REST avec exemples curl (authentification incluse) ; CLI `otter_cli` (7 commandes documentées) ; FAQ et tableau de dépannage ; catalogue des alertes. Les limitations réelles y sont honnêtement signalées (révocation de délégation non implémentée, adresses V1 obsolètes en attente du redéploiement).
 
 ### Manuel de mise à jour → `docs/MANUEL_MISE_A_JOUR.md`
 
@@ -638,8 +641,8 @@ Ces choix sont également documentés dans `README.md` (tech stack + schéma d'a
 | C2.1.1 | Critères de qualité et de performance | `ci.yml` (clippy/fmt/eslint), `tarpaulin.toml`, `coverage/tarpaulin-report.html`, `alerting.yml`, `scripts/load_test.py`, `/metrics` |
 | C2.1.2 | Protocole d'intégration continue | `.github/workflows/ci.yml` (5 jobs, séquences par stack) |
 | C2.2.1 | Architecture structurée | `Cargo.toml` (4 crates), `crates/domain/src/ports/`, `BACKLOG.md` US-006 |
-| C2.2.1 | Prototypes réalisés | `frontend/` (10 pages), `otter_api`, `otter_cli`, contrats Sepolia (`DEPLOYMENT.md`), `lab/zkp_e2e.sh` |
-| C2.2.2 | Tests unitaires | `crates/**` (272 tests), `contracts/test/` (13), `delegation_circuit/src/main.nr` (3), `frontend/src/**/*.test.*` (34), `coverage/` |
+| C2.2.1 | Prototypes réalisés | `frontend/` (12 pages + page publique), `otter_api`, `otter_cli`, contrats Sepolia (`DEPLOYMENT.md`), `lab/zkp_e2e.sh` |
+| C2.2.2 | Tests unitaires | `crates/**` (274 tests), `contracts/test/` (13), `delegation_circuit/src/main.nr` (3), `frontend/src/**/*.test.*` (40), `coverage/` |
 | C2.2.3 | Mesures de sécurité (OWASP) | `docs/SECURITE.md` + `auth.rs`, `secrets.rs`, `DelegationVault.sol`, rate limiting/CORS dans `otter_api.rs` |
 | C2.2.3 | Accessibilité (RGAA) | `docs/ACCESSIBILITE.md` + 108 attributs ARIA dans `frontend/src/`, `Stepper.test.tsx` |
 | C2.2.4 | Historique des versions | Git (Conventional Commits), tags semver `v*`, `BACKLOG.md` (481 US) |
@@ -678,11 +681,11 @@ Dans un souci de traçabilité complète, ce registre centralise les points rés
 | # | Point résiduel | Statut au rendu | Traitement | Référence |
 |---|---|---|---|---|
 | R1 | Couverture de tests à 41,14 % en périmètre `--lib` (unitaire seul) à la première mesure | **Amélioré** | Deux campagnes de tests : **55,92 %** (1951/3489) ; logique critique 91-100 % (auth, délégation, ZK, SQLite, config, parsing) ; objectif ≥ 70 % sur la logique métier et tarpaulin en CI toujours tracés | C2.2.2 ; `docs/PLAN_CORRECTION_BOGUES.md` §3.1 |
-| R2 | Adresses Sepolia V1 obsolètes après changement de clé de vérification (ajout de `target_contract` au circuit) | Déclaré | Redéploiement du vérificateur + vault planifié (procédure `DEPLOYMENT.md`) — action opérationnelle requérant la clé de déploiement ; la chaîne reste vérifiable via les fixtures de preuves réelles et la démo Anvil | C2.2.1 ; `DEPLOYMENT.md` |
-| R3 | Écarts d'accessibilité : contraste du gris secondaire, titres de page statiques, skip link du shell, focus trap des modales | **Corrigé** | Contraste `#71717a` → `#777777` (4,55:1, calcul WCAG vérifié) ; titres dynamiques sur les 13 pages (`useDocumentTitle`) ; skip link ajouté dans `AppLayout` ; focus trap implémenté (`useFocusTrap`, testé) ; `lang="en"` confirmé conforme (contenu anglais). Restent tracés : radiogroups (navigation fléchée), pause du marquee, tests lecteur d'écran | C2.2.3 ; `docs/ACCESSIBILITE.md` |
-| R4 | `cargo audit` / Dependabot non intégrés à la CI (OWASP A06) | **Traité (avec suivi)** | Job `security-audit` ajouté à `ci.yml` + `dependabot.yml` (cargo, npm, actions, docker). L'audit révèle 6 vulnérabilités de dépendances (`sqlx`, `alloy-dyn-abi`, `rustls-webpki`, `rsa` sans correctif) : job en `continue-on-error` le temps des upgrades, liste dans `docs/SECURITE.md` A06 | C2.2.3 ; `.github/workflows/ci.yml` |
+| R2 | Adresses Sepolia V1 obsolètes après changement de clé de vérification (ajout de `target_contract` au circuit) | Déclaré, redéploiement préparé | Redéploiement du vérificateur + vault préparé (procédure `DEPLOYMENT.md` §1), en attente d'exécution avec la clé de déploiement ; les nouvelles adresses seront consignées dans `DEPLOYMENT.md` et l'E2E rejouée ; la chaîne reste vérifiable via les fixtures de preuves réelles et la démo Anvil | C2.2.1 ; `DEPLOYMENT.md` |
+| R3 | Écarts d'accessibilité : contraste du gris secondaire, titres de page statiques, skip link du shell, focus trap des modales | **Corrigé + campagne clavier réalisée** | Contraste `#71717a` → `#777777` (4,55:1, calcul WCAG vérifié) ; titres dynamiques sur les pages (`useDocumentTitle`) ; skip link ajouté dans `AppLayout` ; focus trap implémenté (`useFocusTrap`, testé) ; `lang="en"` confirmé conforme (contenu anglais). Campagne de navigation clavier des 12 pages + page publique réalisée le 20/07/2026 (8 écarts de focusabilité corrigés, 6 tests ajoutés — `docs/ACCESSIBILITE.md` §4). Restent tracés : radiogroups (navigation fléchée), pause du marquee, passages lecteur d'écran (NVDA/VoiceOver) **planifiés** sur les parcours critiques | C2.2.3 ; `docs/ACCESSIBILITE.md` |
+| R4 | `cargo audit` / Dependabot non intégrés à la CI (OWASP A06) | **Traité** | Upgrades appliqués (`sqlx` 0.8.6, `rustls-webpki` 0.103.13) ; job `security-audit` **bloquant** dans `ci.yml` : toute nouvelle vulnérabilité fait échouer la CI et empêche le déploiement ; 5 ignores résiduels justifiés par analyse d'exposition (`rsa` hors graphe — aucun correctif, `alloy-dyn-abi` — aucun usage EIP-712, webpki 0.101 confiné à la feature `aws-kms` non activée) avec échéance de réévaluation ; `dependabot.yml` (cargo, npm, actions, docker) | C2.2.3 ; `docs/SECURITE.md` A06 |
 | R5 | TLS délégué à l'infrastructure d'accueil ; secret JWT aléatoire en développement | **Traité côté dépôt** | Configuration TLS de référence versionnée (`deploy/Caddyfile`, headers de sécurité) ; démarrage refusé si `OTTER_JWT_SECRET` absent sur `mainnet`/`sepolia` (`resolve_jwt_secret` + tests), aléatoire toléré en local seulement | C2.2.3 ; `docs/SECURITE.md` |
-| R6 | 7 anomalies de recette (A1–A7), gravité faible à moyenne | **5 résolues, 2 tracées** | A1 (validation `/intents/parse`), A3 (`HybridParser` branché), A4 (rate limiting par utilisateur), A6 (plan créé), A7 (test SIWE E2E — a révélé et corrigé 2 bogues latents : panic runtime dans `verify_signature`, `sub` JWT mal formaté). A2 acceptée pour le MVP, A5 planifiée avant mainnet | C2.3.1 / C2.3.2 |
+| R6 | 7 anomalies de recette (A1–A7), gravité faible à moyenne | **6 résolues/traitées, 1 tracée** | A1 (validation `/intents/parse`), A3 (`HybridParser` branché), A4 (rate limiting par utilisateur), A6 (plan créé), A7 (test SIWE E2E — a révélé et corrigé 2 bogues latents : panic runtime dans `verify_signature`, `sub` JWT mal formaté) ; A2 : étiquetage « démonstration » explicite ajouté (header `X-Demo-Data` + champ `demo` + badge UI), remplacement par données on-chain tracé avec retrait obligatoire avant mainnet ; A5 planifiée avant mainnet | C2.3.1 / C2.3.2 |
 
 Ce registre sera mis à jour à chaque release.
 

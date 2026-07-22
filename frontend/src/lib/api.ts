@@ -138,6 +138,8 @@ export interface BackendAgentSummary {
   id: string;
   name: string;
   operated_by: string;
+  // Present (true) while the API serves built-in demonstration data (A2).
+  demo?: boolean;
   risk_profile: string;
   bond: number;
   reputation: number;
@@ -521,7 +523,7 @@ export const api = {
       }),
   },
   agents: {
-    list: () => request<{ agents: BackendAgentSummary[] }>("/api/v1/agents"),
+    list: () => request<{ agents: BackendAgentSummary[]; demo?: boolean }>("/api/v1/agents"),
     get: (id: string) => request<BackendAgentSummary>(`/api/v1/agents/${id}`),
     // The backend serves a single configured agent key and ignores the id in
     // this path (get_agent_pubkey in crates/interfaces/src/bin/otter_api.rs
@@ -529,7 +531,8 @@ export const api = {
     pubkey: () => request<BackendAgentPubkeyResponse>("/api/v1/agents/otter-agent/pubkey"),
   },
   strategies: {
-    list: () => request<{ strategies: BackendStrategySummary[] }>("/api/v1/strategies"),
+    list: () =>
+      request<{ strategies: BackendStrategySummary[]; demo?: boolean }>("/api/v1/strategies"),
     get: (id: string) => request<BackendStrategyDetail>(`/api/v1/strategies/${id}`),
     create: (body: CreateStrategyPayload) =>
       request<{ id: string }>("/api/v1/strategies", {
@@ -545,9 +548,10 @@ export const api = {
     get: () => request<BackendPortfolioResponse>("/api/v1/portfolio"),
   },
   proofs: {
-    list: () => request<{ proofs: BackendProofSummary[] }>("/api/v1/proofs"),
+    list: () => request<{ proofs: BackendProofSummary[]; demo?: boolean }>("/api/v1/proofs"),
   },
   leaderboard: {
-    get: () => request<{ entries: BackendLeaderboardEntry[] }>("/api/v1/leaderboard"),
+    get: () =>
+      request<{ entries: BackendLeaderboardEntry[]; demo?: boolean }>("/api/v1/leaderboard"),
   },
 };

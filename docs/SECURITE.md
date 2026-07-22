@@ -269,28 +269,56 @@ connues ou non maintenues.
 - *Verrouillage des dépendances Rust.* `Cargo.lock` est commité à la racine,
   garantissant des builds reproductibles.
 - *Audit automatisé des dépendances Rust en CI.* Un job `security-audit`
-  exécute `cargo audit` (via `rustsec/audit-check@v2`, base RustSec) sur le
+  installe `cargo-audit` et exécute `cargo audit` (base RustSec) sur le
   workspace à chaque pipeline — `.github/workflows/ci.yml`, job
-  `security-audit`. Il est actuellement configuré en `continue-on-error`
-  (voir points résiduels ci-dessous).
+  `security-audit`. Le job est **bloquant** : toute nouvelle vulnérabilité
+  fait échouer la CI. Seules des vulnérabilités sans correctif applicable
+  sont ignorées via `--ignore`, chacune justifiée par un commentaire dans
+  le workflow (voir points résiduels ci-dessous).
 - *Mises à jour automatisées.* Dependabot ouvre chaque semaine des PR de
   mise à jour pour les écosystèmes cargo (racine), npm (`frontend/`),
   github-actions et docker — `.github/dependabot.yml`.
 
 **Points résiduels / axes d'amélioration.**
 
-- **Vulnérabilités connues non résolues.** L'audit du 2026-07-20
-  (`cargo audit` sur `Cargo.lock`, 571 dépendances) signale 6
-  vulnérabilités : `alloy-dyn-abi` 0.7.7 (RUSTSEC-2025-0073, DoS,
-  sévérité 7.5), `rsa` 0.9.10 (RUSTSEC-2023-0071, attaque Marvin, **sans
-  correctif disponible**), `rustls-webpki` 0.101.7 (RUSTSEC-2026-0098,
-  RUSTSEC-2026-0099, RUSTSEC-2026-0104) et `sqlx` 0.7.4
-  (RUSTSEC-2024-0363) — plus 5 avertissements (crates non maintenues
-  `derivative`, `paste`, `proc-macro-error` ; `lru` unsound ; `spin`
-  yanké). C'est pourquoi le job `security-audit` est en
-  `continue-on-error: true` : il reste visible en échec sans bloquer les
-  pipelines. Ces vulnérabilités restent à traiter (mises à jour ou
-  remplacement), puis le job doit repasser en bloquant.
+- **Vulnérabilités connues : état au 2026-07-22.** L'audit du 2026-07-20
+  (`cargo audit` sur `Cargo.lock`, 571 dépendances) signalait 6
+  vulnérabilités. Traitement effectué le 2026-07-22 :
+  - `sqlx` 0.7.4 (RUSTSEC-2024-0363) : **corrigé** par upgrade vers
+    `sqlx` 0.8.6 (features inchangées) dans
+    `crates/infrastructure/Cargo.toml`. `rusqlite` a dû être monté de
+    0.30 à 0.32 pour lever le conflit de linkage `sqlite3` entre
+    `libsqlite3-sys` 0.27 (rusqlite 0.30) et 0.30 (sqlx-sqlite 0.8).
+    Aucun changement de code applicatif requis.
+  - `rsa` 0.9.10 (RUSTSEC-2023-0071, attaque Marvin par canal auxiliaire
+    temporel) : **sans correctif disponible**, ignorée dans le job CI.
+    Exposition nulle : `rsa` n'est tirée que par `sqlx-mysql`, dépendance
+    optionnelle de la facade `sqlx` dont la feature `mysql` n'est jamais
+    activée ; `cargo tree -i rsa` sur les features par défaut retourne un
+    graphe vide, le code `rsa` n'entre dans aucun binaire. Réévaluation :
+    à chaque upgrade de sqlx ou si la feature `mysql` est un jour activée.
+  - `rustls-webpki` 0.101.7 (RUSTSEC-2026-0098, RUSTSEC-2026-0099,
+    RUSTSEC-2026-0104) : **ignorées** dans le job CI. La version vulnérable
+    n'entre dans le graphe que via la feature optionnelle `aws-kms` de
+    `interfaces` (`aws-smithy-http-client` 1.1.10 -> `rustls` 0.21),
+    jamais activée dans les builds par défaut, la CI ou le Dockerfile ;
+    le graphe par défaut utilise `rustls` 0.23 + `rustls-webpki`
+    0.103.13 (corrigé). `aws-config` 1.8.14 et `aws-sdk-kms` 1.101.0 sont
+    déjà aux dernières versions : pas de correctif applicable sans
+    changement upstream du SDK AWS. Réévaluation : à chaque mise à jour
+    Dependabot des SDK AWS.
+  - `alloy-dyn-abi` 0.7.7 (RUSTSEC-2025-0073, DoS sur le hashing
+    `TypedData` EIP-712, sévérité 7.5) : **ignorée** dans le job CI. Le
+    correctif (>= 0.8.26) exige une migration majeure d'`alloy` 0.2 vers
+    0.8, jugée trop risquée avant le rendu. Exposition nulle : aucun usage
+    de `TypedData`/EIP-712 dans le code (grep sur `crates/`,
+    `contracts/src`, `frontend/src`) ; l'authentification SIWE
+    (`crates/interfaces/src/auth.rs`) repose sur EIP-191/personal_sign et
+    n'appelle jamais le hashing `TypedData`. Réévaluation : lors de la
+    migration `alloy` planifiée après le rendu.
+  - Restent 5 avertissements non bloquants (crates non maintenues
+    `derivative`, `paste`, `proc-macro-error` ; `lru` unsound ; `spin`
+    yanké), remontés par le job sans faire échouer la CI.
 - Pas de scan de vulnérabilités sur les dépendances Solidity (le vérifieur et
   OpenZeppelin sont intégrés via `contracts/lib/`) ni d'audit externe du
   contrat ou du circuit ZK dans cette version.
@@ -457,7 +485,7 @@ cloud, etc.).
 | A03 — Injection | SQL paramétré (rusqlite/sqlx) ; serde typé ; `MAX_INTENT_TEXT_LEN = 2000` | `crates/infrastructure/src/storage/sqlite.rs:144-160` ; `crates/interfaces/src/bin/otter_api.rs:1034-1047` | Implémenté (prompt injection LLM non traitée) |
 | A04 — Conception | Limites on-chain + double vérification (circuit + contrat) ; anti-rejeu nonce | `contracts/src/DelegationVault.sol:193-204` ; `delegation_circuit/src/main.nr:148-168` | Implémenté (pas de circuit breaker) |
 | A05 — Configuration | CORS whitelist ; rate limiting/IP (défaut 100/min) ; secrets CI dans GitHub Secrets ; config TLS de référence avec headers de sécurité | `crates/interfaces/src/bin/otter_api.rs:411-429,476-508` ; `.env.example:11-19` ; `deploy/Caddyfile` | Partiel : défauts permissifs en dev (auth off, CORS `*`) |
-| A06 — Composants | OpenZeppelin ; versions épinglées ; clippy `-D warnings` en CI ; job `cargo audit` en CI ; Dependabot hebdomadaire | `contracts/src/DelegationVault.sol:5-7` ; `.github/workflows/ci.yml` (job `security-audit`) ; `.github/dependabot.yml` | Partiel : audit CI en `continue-on-error` (6 vulnérabilités connues à traiter, dont `rsa` sans correctif) |
+| A06 — Composants | OpenZeppelin ; versions épinglées ; clippy `-D warnings` en CI ; job `cargo audit` bloquant en CI (ignores justifiés) ; Dependabot hebdomadaire | `contracts/src/DelegationVault.sol:5-7` ; `.github/workflows/ci.yml` (job `security-audit`) ; `.github/dependabot.yml` | Implémenté : job d'audit bloquant ; `sqlx` corrigé (0.8.6) ; 3 ignores justifiés (`rsa`, `alloy-dyn-abi`, `rustls-webpki` via `aws-kms`) avec exposition nulle |
 | A07 — Authentification | EIP-4361 sans mot de passe ; challenges 16 octets/5 min à usage unique ; JWT court | `crates/interfaces/src/auth.rs:69-155,170-184` | Implémenté (challenges en mémoire, pas de révocation) |
 | A08 — Intégrité | Preuve ZK liant toutes les entrées ; hash blake2s recalculé ; `Cargo.lock` commité | `delegation_circuit/src/main.nr:135-146` ; `contracts/src/DelegationVault.sol:179-182` | Partiel : artefacts non signés, pas de SBOM |
 | A09 — Journalisation | `tracing` structuré ; `/health` `/ready` `/metrics` ; événements on-chain | `crates/interfaces/src/bin/otter_api.rs:380-381` ; `contracts/src/DelegationVault.sol:62-74` | Partiel : pas d'alerte sur les événements de sécurité |

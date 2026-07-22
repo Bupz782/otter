@@ -51,7 +51,7 @@ export function PromptInput({ onSubmit, isLoading }: PromptInputProps) {
             key={suggestion}
             type="button"
             onClick={() => setPrompt(suggestion)}
-            className="rounded-full border border-border/60 bg-secondary/50 px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-accent/40 hover:text-accent"
+            className="rounded-full border border-border/60 bg-secondary/50 px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-accent/40 hover:text-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
           >
             {suggestion}
           </button>

@@ -115,7 +115,7 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
                     ) : (
                       <Link
                         to={crumb.to}
-                        className="text-muted-foreground transition-colors hover:text-accent"
+                        className="rounded text-muted-foreground transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
                       >
                         {crumb.label}
                       </Link>
@@ -164,7 +164,7 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
                     setHelpOpen(false);
                     restart();
                   }}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-secondary"
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
                 >
                   <RotateCcw className="h-4 w-4 text-accent" />
                   Take the tour
@@ -175,7 +175,7 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
                     setHelpOpen(false);
                     setIntentHelpOpen(true);
                   }}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-secondary"
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
                 >
                   <Lightbulb className="h-4 w-4 text-accent" />
                   What's an intent?
@@ -184,7 +184,7 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
                   role="menuitem"
                   to="/#demo"
                   onClick={() => setHelpOpen(false)}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-secondary"
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
                 >
                   <Play className="h-4 w-4 text-accent" />
                   Open demo
@@ -193,7 +193,7 @@ export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
                   role="menuitem"
                   to="/"
                   onClick={() => setHelpOpen(false)}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-secondary"
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
                 >
                   <Home className="h-4 w-4 text-accent" />
                   Back to landing

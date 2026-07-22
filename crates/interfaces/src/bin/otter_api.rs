@@ -6,7 +6,7 @@ use axum::{
     extract::ws::{Message, WebSocket},
     extract::{ConnectInfo, Path, State as AxumState, WebSocketUpgrade},
     http::{Request, StatusCode, header},
-    middleware::{Next, from_fn_with_state},
+    middleware::{Next, from_fn, from_fn_with_state},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
@@ -257,6 +257,9 @@ struct AgentSummary {
     id: String,
     name: String,
     operated_by: String,
+    /// Always true while agents come from `default_agents()` (anomaly A2);
+    /// remove once agents are served from persisted/on-chain data.
+    demo: bool,
     risk_profile: String,
     bond: u64,
     reputation: f64,
@@ -272,6 +275,8 @@ struct AgentSummary {
 #[derive(Debug, Serialize)]
 struct AgentsResponse {
     agents: Vec<AgentSummary>,
+    /// True while the payload embeds demonstration data (anomaly A2).
+    demo: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -299,6 +304,8 @@ struct StrategySummary {
 #[derive(Debug, Serialize)]
 struct StrategiesResponse {
     strategies: Vec<StrategySummary>,
+    /// True while the payload embeds demonstration data (anomaly A2).
+    demo: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -338,6 +345,8 @@ struct ProofSummary {
 #[derive(Debug, Serialize)]
 struct ProofsResponse {
     proofs: Vec<ProofSummary>,
+    /// True while the payload embeds demonstration data (anomaly A2).
+    demo: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -354,6 +363,8 @@ struct LeaderboardEntry {
 #[derive(Debug, Serialize)]
 struct LeaderboardResponse {
     entries: Vec<LeaderboardEntry>,
+    /// True while the payload embeds demonstration data (anomaly A2).
+    demo: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -424,6 +435,18 @@ fn app(state: Arc<AppState>) -> Router {
         .route("/ready", get(ready))
         .route("/metrics", get(metrics));
 
+    // Endpoints serving built-in demonstration data (hardcoded agents,
+    // seeded strategies, synthetic solvency proof) are grouped so the
+    // X-Demo-Data header is applied consistently. Remove the marker once
+    // they serve persisted/on-chain data (anomaly A2, mandatory pre-mainnet).
+    let demo = Router::new()
+        .route("/api/v1/agents", get(list_agents))
+        .route("/api/v1/agents/:id", get(get_agent))
+        .route("/api/v1/strategies", get(list_strategies))
+        .route("/api/v1/proofs", get(list_proofs))
+        .route("/api/v1/leaderboard", get(get_leaderboard))
+        .route_layer(from_fn(demo_data_header));
+
     let protected = Router::new()
         .route("/api/v1/intents/parse", post(parse_intent))
         .route("/api/v1/intents/plan", post(plan_intent))
@@ -434,20 +457,14 @@ fn app(state: Arc<AppState>) -> Router {
             get(list_delegations).post(set_delegation),
         )
         .route("/api/v1/delegation/hash", post(delegation_hash))
-        .route("/api/v1/agents", get(list_agents))
-        .route("/api/v1/agents/:id", get(get_agent))
         .route("/api/v1/agents/:id/pubkey", get(get_agent_pubkey))
-        .route(
-            "/api/v1/strategies",
-            get(list_strategies).post(create_strategy),
-        )
+        .route("/api/v1/strategies", post(create_strategy))
         .route("/api/v1/strategies/:id", get(get_strategy))
         .route("/api/v1/strategies/:id/fork", post(fork_strategy))
         .route("/api/v1/portfolio", get(get_portfolio))
-        .route("/api/v1/proofs", get(list_proofs))
-        .route("/api/v1/leaderboard", get(get_leaderboard))
         .route("/api/v1/executions", get(list_executions))
         .route("/api/v1/orchestrator/state", get(orchestrator_state))
+        .merge(demo)
         .route_layer(from_fn_with_state(state.clone(), auth_middleware));
 
     public
@@ -475,6 +492,18 @@ fn build_cors(origins: &str) -> CorsLayer {
             .allow_methods(Any)
             .allow_headers(Any)
     }
+}
+
+/// Stamps `X-Demo-Data: true` on responses so clients can tell the payload
+/// embeds built-in demonstration data (anomaly A2). Applied only to the demo
+/// route group; remove together with the hardcoded data pre-mainnet.
+async fn demo_data_header(request: Request<Body>, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    response.headers_mut().insert(
+        header::HeaderName::from_static("x-demo-data"),
+        header::HeaderValue::from_static("true"),
+    );
+    response
 }
 
 async fn auth_middleware(
@@ -625,6 +654,7 @@ fn default_agents() -> Vec<AgentSummary> {
             id: "agent-1".to_string(),
             name: "Aave Ace".to_string(),
             operated_by: "Otter".to_string(),
+            demo: true,
             risk_profile: "Conservative".to_string(),
             bond: 50_000,
             reputation: 4.9,
@@ -640,6 +670,7 @@ fn default_agents() -> Vec<AgentSummary> {
             id: "agent-2".to_string(),
             name: "Uni-Unicorn".to_string(),
             operated_by: "Otter".to_string(),
+            demo: true,
             risk_profile: "Balanced".to_string(),
             bond: 75_000,
             reputation: 4.7,
@@ -655,6 +686,7 @@ fn default_agents() -> Vec<AgentSummary> {
             id: "agent-3".to_string(),
             name: "Compound King".to_string(),
             operated_by: "Otter".to_string(),
+            demo: true,
             risk_profile: "Conservative".to_string(),
             bond: 32_000,
             reputation: 4.5,
@@ -670,6 +702,7 @@ fn default_agents() -> Vec<AgentSummary> {
             id: "agent-4".to_string(),
             name: "Cross-Chain Carl".to_string(),
             operated_by: "Otter".to_string(),
+            demo: true,
             risk_profile: "Advanced".to_string(),
             bond: 100_000,
             reputation: 4.8,
@@ -1371,6 +1404,7 @@ async fn delegation_hash(
 async fn list_agents(AxumState(state): AxumState<Arc<AppState>>) -> Json<AgentsResponse> {
     Json(AgentsResponse {
         agents: state.agents.clone(),
+        demo: true,
     })
 }
 
@@ -1407,7 +1441,10 @@ async fn list_strategies(
         .into_iter()
         .map(map_strategy_record_to_summary)
         .collect();
-    Ok(Json(StrategiesResponse { strategies }))
+    Ok(Json(StrategiesResponse {
+        strategies,
+        demo: true,
+    }))
 }
 
 async fn get_strategy(
@@ -1652,7 +1689,7 @@ async fn list_proofs(
         tx_hash: None,
     });
     proofs.sort_by_key(|a| std::cmp::Reverse(a.timestamp));
-    Ok(Json(ProofsResponse { proofs }))
+    Ok(Json(ProofsResponse { proofs, demo: true }))
 }
 
 async fn get_leaderboard(AxumState(state): AxumState<Arc<AppState>>) -> Json<LeaderboardResponse> {
@@ -1673,7 +1710,10 @@ async fn get_leaderboard(AxumState(state): AxumState<Arc<AppState>>) -> Json<Lea
     for (i, entry) in entries.iter_mut().enumerate() {
         entry.rank = (i + 1) as u32;
     }
-    Json(LeaderboardResponse { entries })
+    Json(LeaderboardResponse {
+        entries,
+        demo: true,
+    })
 }
 
 async fn parse_intent(
@@ -2997,5 +3037,68 @@ mod tests {
         );
         let response = router.oneshot(req).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn demo_endpoints_set_x_demo_data_header_and_flag() {
+        let state = test_state().await;
+        let router = app(state);
+
+        for uri in [
+            "/api/v1/agents",
+            "/api/v1/agents/agent-1",
+            "/api/v1/strategies",
+            "/api/v1/proofs",
+            "/api/v1/leaderboard",
+        ] {
+            let req = with_connect_info(
+                Request::builder()
+                    .method("GET")
+                    .uri(uri)
+                    .body(Body::empty())
+                    .unwrap(),
+            );
+            let response = router.clone().oneshot(req).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "{uri}");
+            assert_eq!(
+                response
+                    .headers()
+                    .get("x-demo-data")
+                    .and_then(|v| v.to_str().ok()),
+                Some("true"),
+                "{uri} must carry the X-Demo-Data header"
+            );
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!(
+                json["demo"],
+                serde_json::json!(true),
+                "{uri} must be flagged as demo in the payload"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn non_demo_endpoints_do_not_set_x_demo_data_header() {
+        let state = test_state().await;
+        let router = app(state);
+
+        for uri in ["/health", "/api/v1/intents", "/api/v1/portfolio"] {
+            let req = with_connect_info(
+                Request::builder()
+                    .method("GET")
+                    .uri(uri)
+                    .body(Body::empty())
+                    .unwrap(),
+            );
+            let response = router.clone().oneshot(req).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "{uri}");
+            assert!(
+                response.headers().get("x-demo-data").is_none(),
+                "{uri} must not carry the X-Demo-Data header"
+            );
+        }
     }
 }

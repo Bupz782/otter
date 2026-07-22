@@ -165,7 +165,7 @@ export function CreateDelegationPage() {
                   aria-checked={selectedAgent === agent.id}
                   onClick={() => setSelectedAgent(agent.id)}
                   className={cn(
-                    "w-full rounded-xl border p-4 text-left transition-colors",
+                    "w-full rounded-xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent",
                     selectedAgent === agent.id
                       ? "border-accent bg-accent-subtle"
                       : "border-border/60 bg-card hover:border-accent/40"

@@ -248,7 +248,7 @@ export function CreateIntentPage() {
                             reset();
                             setParsedDraft(null);
                           }}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-secondary/50 px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-accent/40 hover:text-accent"
+                          className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-secondary/50 px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-accent/40 hover:text-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
                         >
                           <Sparkles className="h-3 w-3 text-accent" />
                           {example}
@@ -405,7 +405,7 @@ export function CreateIntentPage() {
                             role="radio"
                             aria-checked={selectedDelegation === delegation.id}
                             onClick={() => setSelectedDelegation(delegation.id)}
-                            className={`w-full rounded-xl border p-4 text-left transition-colors ${
+                            className={`w-full rounded-xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent ${
                               selectedDelegation === delegation.id
                                 ? "border-accent bg-accent-subtle"
                                 : "border-border/60 bg-card hover:border-accent/40"

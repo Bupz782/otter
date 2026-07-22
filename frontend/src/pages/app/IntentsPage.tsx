@@ -88,7 +88,7 @@ export function IntentsPage() {
                 aria-pressed={isActive}
                 onClick={() => setStatusFilter(f.value === "all" ? undefined : f.value)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors",
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent",
                   isActive
                     ? "border-accent/40 bg-accent-subtle text-accent"
                     : "border-border/60 text-muted-foreground hover:text-foreground"

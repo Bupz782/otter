@@ -72,7 +72,7 @@ function SidebarNavItem({ item }: { item: NavItem }) {
       <NavLink
         to={item.to}
         className={cn(
-          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent",
           active
             ? "bg-accent-subtle text-accent shadow-[inset_2px_0_0_0_var(--color-accent)]"
             : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
@@ -88,7 +88,7 @@ function SidebarNavItem({ item }: { item: NavItem }) {
               key={child.to}
               to={child.to}
               className={cn(
-                "flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-colors",
+                "flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent",
                 location.pathname === child.to
                   ? "text-accent"
                   : "text-muted-foreground hover:text-foreground"
