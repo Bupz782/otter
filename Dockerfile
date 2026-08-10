@@ -3,7 +3,7 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Rust backend build
 # -----------------------------------------------------------------------------
-FROM rustlang/rust:nightly-2026-07-07 AS builder
+FROM rustlang/rust:nightly-2026-07-31 AS builder
 
 WORKDIR /app
 
