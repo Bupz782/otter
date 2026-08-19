@@ -41,6 +41,15 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      # Les tests d'intégration zkp_noir.rs exécutent le circuit via le
+      # binaire nargo (witness réel) : il doit être présent dans le job.
+      - name: Read Noir compiler version
+        id: noir_version
+        run: echo "version=$(cat delegation_circuit/.noir-version)" >> "$GITHUB_OUTPUT"
+      - name: Install Noir
+        uses: noir-lang/noirup@v0.1.4
+        with:
+          toolchain: ${{ steps.noir_version.outputs.version }}
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Run clippy
@@ -78,7 +87,7 @@ jobs:
           version=$(cat .noir-version)
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Install Noir
-        uses: noir-lang/noirup@v1
+        uses: noir-lang/noirup@v0.1.4
         with:
           toolchain: ${{ steps.noir_version.outputs.version }}
       - name: Install bb
@@ -154,6 +163,14 @@ jobs:
   #   : rustls 0.23 + webpki 0.103.13). aws-config/aws-sdk-kms sont déjà
   #   aux dernières versions : pas de correctif applicable sans changement
   #   upstream. Réévaluation : à chaque mise à jour Dependabot des SDK AWS.
+  # - RUSTSEC-2026-0258 (h2, DATA frames vides illimitées). L'occurrence du
+  #   graphe par défaut (h2 0.4.x, tirée par reqwest/hyper 1.x) est corrigée
+  #   par la mise à jour en 0.4.16. Reste h2 0.3.27, présent uniquement via
+  #   la feature optionnelle `aws-kms` (aws-smithy-http-client -> hyper
+  #   0.14), jamais activée dans les builds par défaut, la CI ou le
+  #   Dockerfile. Aucun correctif 0.3.x publié (solution : >= 0.4.16,
+  #   incompatible avec hyper 0.14 sans changement upstream).
+  #   Réévaluation : à chaque mise à jour Dependabot des SDK AWS.
   security-audit:
     runs-on: ubuntu-latest
     steps:
@@ -171,6 +188,7 @@ jobs:
           --ignore RUSTSEC-2026-0098
           --ignore RUSTSEC-2026-0099
           --ignore RUSTSEC-2026-0104
+          --ignore RUSTSEC-2026-0258
 
   docker-smoke:
     needs: [changes, rust-check, contracts-check, circuit-check, frontend-check]
@@ -212,10 +230,20 @@ jobs:
             -e OTTER_CHAIN_ID=31337 \
             -e OTTER_MIGRATIONS_DIR=/app/crates/infrastructure/migrations \
             otter-api
-          sleep 10
+
+          echo "Waiting for API (up to 60s)..."
+          for _ in {1..60}; do
+            if curl -fsS http://localhost:3001/api/v1/health >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
 
           echo "--- /health"
-          curl -fsS http://localhost:3001/api/v1/health
+          if ! curl -fsS http://localhost:3001/api/v1/health; then
+            docker logs api-smoke
+            exit 1
+          fi
 
           echo "--- /ready (may be 503 until the oracle/RPC warm up)"
           status=$(curl -s -o /tmp/ready.json -w "%{http_code}" http://localhost:3001/ready)

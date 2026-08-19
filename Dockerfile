@@ -3,7 +3,11 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Rust backend build
 # -----------------------------------------------------------------------------
-FROM rustlang/rust:nightly-2026-07-07 AS builder
+# Base bookworm comme le runtime : un builder sur une Debian plus recente
+# produit un binaire exigeant une glibc plus neuve que celle du runtime
+# (GLIBC_2.38/2.39 not found au demarrage). La toolchain reste epinglee par
+# rust-toolchain.toml (nightly-2026-07-07), installee par rustup au build.
+FROM rustlang/rust:nightly-bookworm AS builder
 
 WORKDIR /app
 

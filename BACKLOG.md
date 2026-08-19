@@ -864,7 +864,7 @@
 - [EN ATTENTE] **US-559** : En tant que maintainer, je veux choisir une licence (MIT, Apache 2.0, GPL)
 - [EN ATTENTE] **US-560** : En tant que maintainer, je veux nettoyer le code (remove secrets, TODOs)
 - [EN ATTENTE] **US-561** : En tant que maintainer, je veux créer un repo GitHub public
-- [EN ATTENTE] **US-562** : En tant que maintainer, je veux écrire un CHANGELOG.md
+- [FAIT] **US-562** : En tant que maintainer, je veux écrire un CHANGELOG.md
 - [EN ATTENTE] **US-563** : En tant que maintainer, je veux créer un CODE_OF_CONDUCT.md
 
 ### Epic 10.2 : Community Building

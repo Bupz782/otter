@@ -1,0 +1,23 @@
+# Configuration Alertmanager de reference pour la stack Otter.
+# Le placeholder __ALERT_WEBHOOK_URL__ est substitue au demarrage du conteneur
+# avec la variable d'environnement ALERT_WEBHOOK_URL (voir docker-compose.yml).
+#
+# Canaux supportes via l'URL unique :
+#   - healthchecks.io : https://hc-ping.com/<uuid> (chaque alerte = un ping,
+#     les notifications mail/SMS/Slack se configurent cote healthchecks.io)
+#   - tout endpoint HTTP acceptant un POST JSON (webhook maison, ntfy, etc.)
+# Pour Slack natif, remplacer le receiver par une `slack_configs`
+# (https://prometheus.io/docs/alerting/latest/configuration/#slack_config).
+
+route:
+  receiver: webhook
+  group_by: [alertname, severity]
+  group_wait: 10s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: webhook
+    webhook_configs:
+      - url: "__ALERT_WEBHOOK_URL__"
+        send_resolved: true

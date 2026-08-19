@@ -69,6 +69,45 @@ services:
       api:
         condition: service_healthy
 
+  # Supervision : demarrer avec `docker compose --profile monitoring up -d`.
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: otter-prometheus
+    profiles: ["monitoring"]
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alerting.yml:/etc/prometheus/alerting.yml:ro
+      - otter-prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      api:
+        condition: service_healthy
+      alertmanager:
+        condition: service_started
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: otter-alertmanager
+    profiles: ["monitoring"]
+    volumes:
+      - ./deploy/alertmanager.yml:/etc/alertmanager/alertmanager.yml.tmpl:ro
+    environment:
+      # Canal de signalement : URL de webhook (healthchecks.io, ntfy, endpoint maison).
+      - ALERT_WEBHOOK_URL=${ALERT_WEBHOOK_URL:-http://host.docker.internal:9876/alert}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:9093:9093"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        sed "s|__ALERT_WEBHOOK_URL__|$${ALERT_WEBHOOK_URL}|g"
+        /etc/alertmanager/alertmanager.yml.tmpl > /tmp/alertmanager.yml
+        && exec alertmanager --config.file=/tmp/alertmanager.yml
+        --storage.path=/tmp/alertmanager
+
 volumes:
   otter-data:
   otter-postgres-data:
+  otter-prometheus-data:

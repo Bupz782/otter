@@ -84,7 +84,24 @@ jobs:
     needs: build-and-push
     environment: testnet
     steps:
+      # Le déploiement est sauté proprement tant que les secrets testnet ne
+      # sont pas configurés : le pipeline de tag reste vert et le saut est
+      # explicite dans les logs (pas un échec SSH silencieux).
+      - name: Check deployment secrets
+        id: secrets
+        run: |
+          set -euo pipefail
+          if [ -z "${TESTNET_HOST_CHECK}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::TESTNET_HOST secret not set, skipping SSH deployment"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          TESTNET_HOST_CHECK: ${{ secrets.TESTNET_HOST }}
+
       - name: Deploy to testnet host
+        if: steps.secrets.outputs.configured == 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.TESTNET_HOST }}
@@ -101,6 +118,7 @@ jobs:
             docker compose ps
 
       - name: Run smoke tests
+        if: steps.secrets.outputs.configured == 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.TESTNET_HOST }}
