@@ -47,7 +47,7 @@ jobs:
         id: noir_version
         run: echo "version=$(cat delegation_circuit/.noir-version)" >> "$GITHUB_OUTPUT"
       - name: Install Noir
-        uses: noir-lang/noirup@v1
+        uses: noir-lang/noirup@v0.1.4
         with:
           toolchain: ${{ steps.noir_version.outputs.version }}
       - name: Check formatting
@@ -87,7 +87,7 @@ jobs:
           version=$(cat .noir-version)
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Install Noir
-        uses: noir-lang/noirup@v1
+        uses: noir-lang/noirup@v0.1.4
         with:
           toolchain: ${{ steps.noir_version.outputs.version }}
       - name: Install bb
