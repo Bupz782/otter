@@ -38,6 +38,6 @@ sqlx = { version = "0.8.1", default-features = false, features = ["runtime-tokio
 async-trait = "0.1"
 
 [dev-dependencies]
-rand = "0.8"
+rand = "0.10"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 serial_test = "3.2"
