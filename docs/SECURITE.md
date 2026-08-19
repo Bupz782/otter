@@ -319,6 +319,26 @@ connues ou non maintenues.
   - Restent 5 avertissements non bloquants (crates non maintenues
     `derivative`, `paste`, `proc-macro-error` ; `lru` unsound ; `spin`
     yanké), remontés par le job sans faire échouer la CI.
+- **Vulnérabilités connues : état au 2026-08-19.** L'audit du 2026-08-19
+  (`cargo audit` sur `Cargo.lock`, 597 dépendances) signalait 8 occurrences
+  pour 7 identifiants uniques. Traitement effectué le jour même :
+  - `h2` 0.4.15 (RUSTSEC-2026-0258, DATA frames vides illimitées) :
+    **corrigé** par upgrade vers 0.4.16 (`cargo update -p h2@0.4.15`).
+  - `ruint` 1.18.0 (RUSTSEC-2026-0220, drapeaux d'overflow incorrects sur
+    les shifts) : **corrigé** par upgrade vers 1.20.0.
+  - `h2` 0.3.27 (même identifiant RUSTSEC-2026-0258) : **ignorée** dans le
+    job CI. Cette occurrence n'entre dans le graphe que via la feature
+    optionnelle `aws-kms` (`aws-smithy-http-client` -> `hyper` 0.14),
+    jamais activée dans les builds par défaut, la CI ou le Dockerfile.
+    Aucun correctif 0.3.x publié (solution : >= 0.4.16, incompatible avec
+    `hyper` 0.14 sans changement upstream). Réévaluation : à chaque mise à
+    jour Dependabot des SDK AWS.
+  - Inchangés : les 5 ignores du 2026-07-22 (`rsa`, `alloy-dyn-abi`,
+    `rustls-webpki` x3) restent justifiés comme documentés ci-dessus.
+  - Total après traitement : **6 identifiants ignorés, tous justifiés**, 0
+    vulnérabilité sans correctif applicable hors ignores ; 7 avertissements
+    non bloquants (`derivative`, `paste`, `proc-macro-error`,
+    `event-listener` unsound, `lru` unsound x2, `spin` yanké).
 - Pas de scan de vulnérabilités sur les dépendances Solidity (le vérifieur et
   OpenZeppelin sont intégrés via `contracts/lib/`) ni d'audit externe du
   contrat ou du circuit ZK dans cette version.
@@ -485,7 +505,7 @@ cloud, etc.).
 | A03 — Injection | SQL paramétré (rusqlite/sqlx) ; serde typé ; `MAX_INTENT_TEXT_LEN = 2000` | `crates/infrastructure/src/storage/sqlite.rs:144-160` ; `crates/interfaces/src/bin/otter_api.rs:1034-1047` | Implémenté (prompt injection LLM non traitée) |
 | A04 — Conception | Limites on-chain + double vérification (circuit + contrat) ; anti-rejeu nonce | `contracts/src/DelegationVault.sol:193-204` ; `delegation_circuit/src/main.nr:148-168` | Implémenté (pas de circuit breaker) |
 | A05 — Configuration | CORS whitelist ; rate limiting/IP (défaut 100/min) ; secrets CI dans GitHub Secrets ; config TLS de référence avec headers de sécurité | `crates/interfaces/src/bin/otter_api.rs:411-429,476-508` ; `.env.example:11-19` ; `deploy/Caddyfile` | Partiel : défauts permissifs en dev (auth off, CORS `*`) |
-| A06 — Composants | OpenZeppelin ; versions épinglées ; clippy `-D warnings` en CI ; job `cargo audit` bloquant en CI (ignores justifiés) ; Dependabot hebdomadaire | `contracts/src/DelegationVault.sol:5-7` ; `.github/workflows/ci.yml` (job `security-audit`) ; `.github/dependabot.yml` | Implémenté : job d'audit bloquant ; `sqlx` corrigé (0.8.6) ; 3 ignores justifiés (`rsa`, `alloy-dyn-abi`, `rustls-webpki` via `aws-kms`) avec exposition nulle |
+| A06 — Composants | OpenZeppelin ; versions épinglées ; clippy `-D warnings` en CI ; job `cargo audit` bloquant en CI (ignores justifiés) ; Dependabot hebdomadaire | `contracts/src/DelegationVault.sol:5-7` ; `.github/workflows/ci.yml` (job `security-audit`) ; `.github/dependabot.yml` | Implémenté : job d'audit bloquant ; `sqlx` corrigé (0.8.6), `h2` corrigé (0.4.16), `ruint` corrigé (1.20.0) ; 6 ignores justifiés (`rsa`, `alloy-dyn-abi`, `rustls-webpki` x3, `h2` 0.3 via `aws-kms`) avec exposition nulle |
 | A07 — Authentification | EIP-4361 sans mot de passe ; challenges 16 octets/5 min à usage unique ; JWT court | `crates/interfaces/src/auth.rs:69-155,170-184` | Implémenté (challenges en mémoire, pas de révocation) |
 | A08 — Intégrité | Preuve ZK liant toutes les entrées ; hash blake2s recalculé ; `Cargo.lock` commité | `delegation_circuit/src/main.nr:135-146` ; `contracts/src/DelegationVault.sol:179-182` | Partiel : artefacts non signés, pas de SBOM |
 | A09 — Journalisation | `tracing` structuré ; `/health` `/ready` `/metrics` ; événements on-chain | `crates/interfaces/src/bin/otter_api.rs:380-381` ; `contracts/src/DelegationVault.sol:62-74` | Partiel : pas d'alerte sur les événements de sécurité |
