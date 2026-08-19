@@ -1,0 +1,7 @@
+{
+  "preuve": "Notification Alertmanager recue par le webhook de capture",
+  "date_reception": "2026-08-19T07:47:37Z",
+  "alertmanager_url": "http://localhost:9093",
+  "webhook_url": "http://host.docker.internal:9876/alert",
+  "payload": {"receiver":"webhook","status":"firing","alerts":[{"status":"firing","labels":{"alertname":"OtterAgentDown","job":"otter-api","severity":"critical","test":"true"},"annotations":{"description":"Alerte synthetique injectee par scripts/test-alert.sh","summary":"Test du canal de notification Otter"},"startsAt":"2026-08-19T07:47:27Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"","fingerprint":"d6afbd19aa30e585"}],"groupLabels":{"alertname":"OtterAgentDown","severity":"critical"},"commonLabels":{"alertname":"OtterAgentDown","job":"otter-api","severity":"critical","test":"true"},"commonAnnotations":{"description":"Alerte synthetique injectee par scripts/test-alert.sh","summary":"Test du canal de notification Otter"},"externalURL":"http://62791d666ae9:9093","version":"4","groupKey":"{}:{alertname=\"OtterAgentDown\", severity=\"critical\"}","truncatedAlerts":0}
+}

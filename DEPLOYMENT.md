@@ -216,6 +216,32 @@ Key alerts:
 - `OtterExecutionStalled` — conditions met but no executions confirmed.
 - `OtterNoPriceUpdates` — oracle/monitoring stalled.
 
+### Supervision stack and notification channel
+
+The `monitoring` profile of `docker-compose.yml` runs Prometheus (scraping
+`api:3001/metrics`, evaluating `alerting.yml`) and Alertmanager:
+
+```bash
+# Set the notification channel first (healthchecks.io, ntfy, custom endpoint).
+export ALERT_WEBHOOK_URL=https://hc-ping.com/<uuid>
+docker compose --profile monitoring up -d
+```
+
+Alertmanager renders `deploy/alertmanager.yml` at startup with
+`ALERT_WEBHOOK_URL` and posts every firing/resolved alert to that URL. With
+healthchecks.io the ping feeds mail/SMS/Slack notifications configured on
+their side; a native `slack_configs` receiver can be substituted in
+`deploy/alertmanager.yml` if preferred.
+
+To prove the notification chain end-to-end without waiting for a real
+outage, inject a synthetic alert and capture the webhook delivery:
+
+```bash
+scripts/test-alert.sh
+```
+
+The received payload is timestamped and archived under `docs/preuves/`.
+
 ### Runbook snippets
 
 ```bash
