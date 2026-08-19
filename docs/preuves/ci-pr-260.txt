@@ -1,0 +1,14 @@
+=== gh pr checks 260 (run CI de la PR de correctif) — 2026-08-19T09:13:07Z
+docker-smoke	pass	8m12s	https://github.com/Bupz782/otter/actions/runs/32234767885/job/96012475809	
+rust-check	pass	1m2s	https://github.com/Bupz782/otter/actions/runs/32234767885/job/96012201190	
+circuit-check	skipping	0	https://github.com/Bupz782/otter/actions/runs/32234767885/job/96012202723	
+contracts-check	skipping	0	https://github.com/Bupz782/otter/actions/runs/32234767885/job/96012202835	
+frontend-check	skipping	0	https://github.com/Bupz782/otter/actions/runs/32234767885/job/96012202155	
+build-and-push	pass	11m5s	https://github.com/Bupz782/otter/actions/runs/32234767839/job/96012173864	
+changes	pass	4s	https://github.com/Bupz782/otter/actions/runs/32234767885/job/96012174054	
+security-audit	pass	19s	https://github.com/Bupz782/otter/actions/runs/32234767885/job/96012174323	
+
+=== cargo audit avec la liste d'ignores CI — 2026-08-19T09:13:08Z
+Warning:   yanked
+
+warning: 7 allowed warnings found

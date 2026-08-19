@@ -1,0 +1,17 @@
+=== gh run view (Deploy Testnet sur tag v0.1.1) — 2026-08-19T09:22:15Z
+{"conclusion":"success","createdAt":"2026-08-19T09:08:22Z","jobs":[{"conclusion":"success","name":"build-and-push"},{"conclusion":"success","name":"deploy"}]}
+
+=== log du job deploy (skip explicite, secrets TESTNET_* non provisionnes)
+deploy	Check deployment secrets	﻿2026-08-19T09:21:48.0711350Z ##[group]Run set -euo pipefail
+deploy	Check deployment secrets	2026-08-19T09:21:48.0712035Z ^[[36;1mset -euo pipefail^[[0m
+deploy	Check deployment secrets	2026-08-19T09:21:48.0712469Z ^[[36;1mif [ -z "${TESTNET_HOST_CHECK}" ]; then^[[0m
+deploy	Check deployment secrets	2026-08-19T09:21:48.0712999Z ^[[36;1m  echo "configured=false" >> "$GITHUB_OUTPUT"^[[0m
+deploy	Check deployment secrets	2026-08-19T09:21:48.0713655Z ^[[36;1m  echo "::notice::TESTNET_HOST secret not set, skipping SSH deployment"^[[0m
+
+=== git tag -l
+v0.1.0
+v0.1.1
+
+=== images publiees
+otter/api
+otter/frontend
