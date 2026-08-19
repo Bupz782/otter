@@ -27,7 +27,7 @@ thiserror = "2"
 siwe = "0.6"
 jsonwebtoken = "9"
 chrono = "0.4"
-rand = "0.8"
+rand = "0.10"
 base64 = { version = "0.22", optional = true }
 aws-config = { version = "1", optional = true }
 aws-sdk-kms = { version = "1", optional = true }
