@@ -895,7 +895,10 @@ async fn main() {
         config.api_port
     );
 
-    let server = axum::serve(listener, app(state));
+    let server = axum::serve(
+        listener,
+        app(state).into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    );
     tokio::select! {
         result = server => result.expect("server failed"),
         _ = tokio::signal::ctrl_c() => {

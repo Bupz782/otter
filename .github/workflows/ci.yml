@@ -230,10 +230,20 @@ jobs:
             -e OTTER_CHAIN_ID=31337 \
             -e OTTER_MIGRATIONS_DIR=/app/crates/infrastructure/migrations \
             otter-api
-          sleep 10
+
+          echo "Waiting for API (up to 60s)..."
+          for _ in {1..60}; do
+            if curl -fsS http://localhost:3001/api/v1/health >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
 
           echo "--- /health"
-          curl -fsS http://localhost:3001/api/v1/health
+          if ! curl -fsS http://localhost:3001/api/v1/health; then
+            docker logs api-smoke
+            exit 1
+          fi
 
           echo "--- /ready (may be 503 until the oracle/RPC warm up)"
           status=$(curl -s -o /tmp/ready.json -w "%{http_code}" http://localhost:3001/ready)
