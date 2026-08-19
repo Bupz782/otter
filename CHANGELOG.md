@@ -3,15 +3,14 @@
 Journal des versions d'Otter, genere depuis l'historique git
 (Conventional Commits) par `scripts/generate-changelog.sh`.
 
-## [Unreleased]
+## [v0.1.1] - 2026-08-19
 
 ### Features
 
-- feat(supervision): stack prometheus + alertmanager avec canal de notification eprouve (9878a40)
+- feat: BC04 remediation — supervision branchée, CHANGELOG, CI verte (#260) (fb12f58)
 
 ### Fixes
 
-- fix(ci): installer nargo dans rust-check, corriger h2 0.4.16 et ruint 1.20.0 (0782a3d)
 - fix: durcissement securite, accessibilite et etiquetage demo avant rendu (bae724d)
 - fix: traiter les points residuels du registre (R1, R3-R6) (f2858b7)
 
