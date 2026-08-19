@@ -33,7 +33,7 @@ jobs:
     environment: mainnet
     steps:
       - name: Deploy to mainnet host
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.MAINNET_HOST }}
           username: ${{ secrets.MAINNET_USER }}
