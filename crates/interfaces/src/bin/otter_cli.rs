@@ -57,7 +57,7 @@ execute options:
   --delegate             Also register the delegation on-chain before executing.
   --price <value>        Default price for conditional intents (USD, 6 decimals). Default: 3_000_000_000
   --amount <value>       Max amount allowed per intent type. Default: 10_000_000_000
-  --timestamp <value>    Current timestamp. Default: 1_000_000
+  --timestamp <value>    Current timestamp. Default: now (unix seconds)
   --circuit-dir <path>   Path to the Noir circuit. Default: ./delegation_circuit
   --bb-bin <path>        Barretenberg bb binary. Default: ~/.bb/bb
 
@@ -66,7 +66,7 @@ prove options:
                          Also read from OTTER_PRIVATE_KEY.
   --output-dir <path>    Directory to write proof.bin and public_inputs.bin. Default: .
   --amount <value>       Max amount allowed per intent type. Default: 10_000_000_000
-  --timestamp <value>    Current timestamp. Default: 1_000_000
+  --timestamp <value>    Current timestamp. Default: now (unix seconds)
   --circuit-dir <path>   Path to the Noir circuit. Default: ./delegation_circuit
   --bb-bin <path>        Barretenberg bb binary. Default: ~/.bb/bb
 
@@ -438,7 +438,10 @@ fn run_start(intent_text: &str, option_args: &[String]) {
     let mut vault_address: Option<String> = None;
     let mut auto_delegate = false;
     let mut max_amount: u128 = 10_000_000_000;
-    let mut timestamp: u64 = 1_000_000;
+    let mut timestamp: u64 = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
     let mut circuit_dir = default_circuit_dir();
     let mut bb_bin = default_bb_bin();
 
@@ -758,7 +761,10 @@ fn run_execute(intent_text: &str, option_args: &[String]) {
     let mut auto_delegate = false;
     let mut price: u128 = 3_000_000_000;
     let mut max_amount: u128 = 10_000_000_000;
-    let mut timestamp: u64 = 1_000_000;
+    let mut timestamp: u64 = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
     let mut circuit_dir = default_circuit_dir();
     let mut bb_bin = default_bb_bin();
 
@@ -940,7 +946,10 @@ fn run_execute(intent_text: &str, option_args: &[String]) {
 fn run_prove(intent_text: &str, option_args: &[String]) {
     let mut private_key: Option<String> = std::env::var("OTTER_PRIVATE_KEY").ok();
     let mut output_dir = PathBuf::from(".");
-    let mut timestamp: u64 = 1_000_000;
+    let mut timestamp: u64 = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
     let mut max_amount: u128 = 10_000_000_000;
     let mut circuit_dir = default_circuit_dir();
     let mut bb_bin = default_bb_bin();

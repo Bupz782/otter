@@ -25,6 +25,8 @@ sol! {
 
         function executeWithProof(bytes calldata proof, bytes32[] calldata publicInputs) external;
 
+        function setProtocolRouter(uint256 protocol, address router) external;
+
         function verifier() external view returns (address);
     }
 
@@ -96,6 +98,56 @@ impl AlloyEvmAdapter {
             Duration::from_secs(5),
             is_retryable_evm_error,
         )
+    }
+
+    /// Whitelist the router address for a protocol id. Must be called by the
+    /// vault owner before intents targeting that protocol can execute.
+    pub fn set_protocol_router(&self, protocol: u64, router: &str) -> Result<String, EvmError> {
+        with_retry(
+            || {
+                let rt = tokio::runtime::Runtime::new()
+                    .map_err(|e| EvmError::SubmissionFailed(format!("tokio runtime: {}", e)))?;
+                rt.block_on(self.set_protocol_router_async(protocol, router))
+            },
+            3,
+            Duration::from_millis(500),
+            Duration::from_secs(5),
+            is_retryable_evm_error,
+        )
+    }
+
+    async fn set_protocol_router_async(
+        &self,
+        protocol: u64,
+        router: &str,
+    ) -> Result<String, EvmError> {
+        let wallet = EthereumWallet::from(self.signer.clone());
+        let url = self
+            .rpc_url
+            .parse()
+            .map_err(|e| EvmError::SubmissionFailed(format!("invalid rpc url: {}", e)))?;
+        let provider = ProviderBuilder::new()
+            .with_recommended_fillers()
+            .wallet(wallet)
+            .on_http(url);
+
+        let vault = DelegationVault::new(self.vault_address, provider);
+        let router_address = router
+            .parse::<Address>()
+            .map_err(|e| EvmError::SubmissionFailed(format!("invalid router address: {}", e)))?;
+
+        let tx_hash = vault
+            .setProtocolRouter(U256::from(protocol), router_address)
+            .send()
+            .await
+            .map_err(|e| EvmError::SubmissionFailed(format!("router set failed: {}", e)))?
+            .watch()
+            .await
+            .map_err(|e| {
+                EvmError::SubmissionFailed(format!("router set confirmation failed: {}", e))
+            })?;
+
+        Ok(tx_hash.to_string())
     }
 
     async fn ensure_delegated_async(
