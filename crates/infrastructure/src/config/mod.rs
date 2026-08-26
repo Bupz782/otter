@@ -151,6 +151,11 @@ pub struct Config {
     /// `OTTER_VAULT_ADDRESS` implicitly define the `default` network.
     #[serde(default)]
     pub networks: Vec<NetworkSpec>,
+
+    /// On-chain SolvencyRegistry address. When set, `/api/v1/solvency/status`
+    /// reads the latest proven Merkle root and total deposits from the contract.
+    #[serde(default)]
+    pub solvency_registry_address: Option<String>,
 }
 
 fn default_auth_enabled() -> bool {
@@ -212,6 +217,7 @@ impl Default for Config {
             rpc_url: "http://localhost:8545".to_string(),
             chain_id: 1,
             networks: Vec::new(),
+            solvency_registry_address: None,
             model_path: "models/Qwen3-8B-Q4_K_M.gguf".to_string(),
             monitoring_interval_secs: default_monitoring_interval(),
             log_level: default_log_level(),
@@ -466,6 +472,9 @@ impl Config {
             && let Ok(limit) = val.parse()
         {
             self.rate_limit_per_minute = limit;
+        }
+        if let Ok(val) = std::env::var("OTTER_SOLVENCY_REGISTRY") {
+            self.solvency_registry_address = Some(val);
         }
     }
 

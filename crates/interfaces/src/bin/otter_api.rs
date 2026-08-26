@@ -73,6 +73,8 @@ struct AppState {
     mev: Option<Arc<infrastructure::mev::SimulatedMevCapture>>,
     /// Share of captured profit rebated to the vault owner, in basis points.
     rebate_bps: u64,
+    /// Optional on-chain SolvencyRegistry address used by `/api/v1/solvency/status`.
+    solvency_registry_address: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -486,6 +488,7 @@ fn app(state: Arc<AppState>) -> Router {
         .route("/api/v1/executions", get(list_executions))
         .route("/api/v1/rebates", get(list_rebates))
         .route("/api/v1/rebates/pending", post(pending_rebates))
+        .route("/api/v1/solvency/status", get(solvency_status))
         .route("/api/v1/orchestrator/state", get(orchestrator_state))
         .merge(demo)
         .route_layer(from_fn_with_state(state.clone(), auth_middleware));
@@ -893,6 +896,7 @@ async fn main() {
         network_health: Arc::new(Mutex::new(HashMap::new())),
         mev: mev_store.clone(),
         rebate_bps: infrastructure::mev::rebate_bps_from_env(),
+        solvency_registry_address: config.solvency_registry_address.clone(),
     });
 
     // Background monitoring loop: fetch on-chain metrics for active intents.
@@ -1035,6 +1039,56 @@ async fn list_networks(
         });
     }
     Json(out)
+}
+
+#[derive(Debug, Serialize)]
+struct SolvencyStatusResponse {
+    /// Configured registry address (absent when not deployed/configured).
+    registry: Option<String>,
+    /// Current proven Merkle root, hex-encoded.
+    merkle_root: Option<String>,
+    /// Total deposits covered by the last proof.
+    total_deposits_wei: Option<String>,
+    /// Unix seconds of the last successful proof.
+    last_proven_at: Option<i64>,
+}
+
+/// Real solvency status: reads the on-chain SolvencyRegistry when
+/// OTTER_SOLVENCY_REGISTRY is configured; 503 otherwise. The demo
+/// synthetic proof stays in the demo group — this endpoint never lies.
+async fn solvency_status(AxumState(state): AxumState<Arc<AppState>>) -> Response {
+    let Some(registry) = state.solvency_registry_address.as_deref() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "solvency registry not configured",
+                "hint": "set OTTER_SOLVENCY_REGISTRY=<address>"
+            })),
+        )
+            .into_response();
+    };
+
+    match state.multichain.solvency_state(registry, None).await {
+        Ok(s) => Json(SolvencyStatusResponse {
+            registry: Some(registry.to_string()),
+            merkle_root: Some(format!("0x{}", hex::encode(s.merkle_root))),
+            total_deposits_wei: Some(s.total_deposits.to_string()),
+            last_proven_at: if s.last_proven_at == 0 {
+                None
+            } else {
+                Some(s.last_proven_at as i64)
+            },
+        })
+        .into_response(),
+        Err(err) => {
+            tracing::warn!(%err, "solvency state read failed");
+            (
+                StatusCode::BAD_GATEWAY,
+                Json(serde_json::json!({ "error": "registry read failed" })),
+            )
+                .into_response()
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -2387,6 +2441,7 @@ mod tests {
             network_health: Arc::new(Mutex::new(HashMap::new())),
             mev: None,
             rebate_bps: infrastructure::mev::DEFAULT_REBATE_BPS,
+            solvency_registry_address: None,
         })
     }
 
@@ -2441,6 +2496,7 @@ mod tests {
             network_health: Arc::new(Mutex::new(HashMap::new())),
             mev: None,
             rebate_bps: infrastructure::mev::DEFAULT_REBATE_BPS,
+            solvency_registry_address: None,
         });
 
         let response = metrics(AxumState(disabled_state)).await;
@@ -2652,6 +2708,7 @@ mod tests {
             network_health: Arc::new(Mutex::new(HashMap::new())),
             mev: state.mev.clone(),
             rebate_bps: state.rebate_bps,
+            solvency_registry_address: state.solvency_registry_address.clone(),
             orchestrator: state.orchestrator.clone(),
             storage: state.storage.clone(),
             bus: state.bus.clone(),

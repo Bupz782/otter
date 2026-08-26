@@ -26,8 +26,8 @@ export function StrategiesPage() {
 
   const handleFork = async (strategyId: string) => {
     try {
-      await api.strategies.fork(strategyId);
-      navigate(`/app/delegations/new?strategy=${strategyId}`);
+      const { redirect_to } = await api.strategies.fork(strategyId);
+      navigate(redirect_to);
     } catch (err) {
       // TODO surface toast
       console.error(err);
