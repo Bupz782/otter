@@ -51,14 +51,20 @@ contract DelegationVaultIntegrationTest is Test {
         vm.prank(alice);
         vault.deposit{value: 10 ether}();
 
+        // Fixture timestamp is 1_000_000: stay within the staleness bound.
+        vm.warp(1_000_000 + vault.MAX_PROOF_AGE() / 2);
+        vault.setProtocolRouter(1, PROTOCOL_ROUTER);
+
         uint256 amount = 2_000_000;
         vm.prank(agent);
         vault.executeWithProof(proof, publicInputs);
 
         assertEq(vault.balances(alice), 10 ether - amount);
+        assertEq(PROTOCOL_ROUTER.balance, amount);
         assertTrue(vault.usedNonces(delegationHash, nonce));
     }
 
     address alice = makeAddr("alice");
     address agent = makeAddr("agent");
+    address constant PROTOCOL_ROUTER = 0x2222222222222222222222222222222222222222;
 }

@@ -10,6 +10,16 @@ use infrastructure::zkp::NoirAdapter;
 use k256::ecdsa::{SigningKey, signature::DigestSigner};
 use rand::rngs::OsRng;
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+/// Fresh timestamp in seconds: the vault rejects proofs older than
+/// MAX_PROOF_AGE (staleness bound on the delegation).
+fn fresh_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
 
 fn sign_delegation(delegation: &DelegationMessage, signing_key: &SigningKey) -> [u8; 64] {
     let serialized = serialize_delegation(delegation);
@@ -115,7 +125,7 @@ fn verify_delegation_proof_on_anvil() {
     let public_inputs = PublicDelegationInputs {
         delegation_hash,
         proposed_intent,
-        timestamp: field_from_u64(1_000_000),
+        timestamp: field_from_u64(fresh_timestamp()),
         nonce: delegation.nonce,
     };
 

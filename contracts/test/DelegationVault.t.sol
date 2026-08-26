@@ -78,11 +78,48 @@ contract DelegationVaultTest is Test {
 
         // The fixture executes intent type 2 with amount 2_000_000.
         uint256 amount = 2_000_000;
+        // Fixture timestamp is 1_000_000; stay within the staleness bound and
+        // before the delegation expiry.
+        vm.warp(1_000_000 + vault.MAX_PROOF_AGE() / 2);
+        vault.setProtocolRouter(1, PROTOCOL_ROUTER);
         vm.prank(agent);
         vault.executeWithProof(proof, publicInputs);
 
         assertEq(vault.balances(alice), 10 ether - amount);
+        assertEq(PROTOCOL_ROUTER.balance, amount);
         assertTrue(vault.usedNonces(delegationHash, nonce));
+    }
+
+    function test_executeWithProof_revertsWhenStaleProof() public {
+        bytes memory proof = vm.readFileBinary("test/fixtures/proof.bin");
+        bytes32[] memory publicInputs = _loadPublicInputs();
+
+        vm.prank(alice);
+        vault.delegate(delegationHash, allowedIntents, maxAmounts, allowedProtocols, expiry, nonce);
+        vault.setProtocolRouter(1, PROTOCOL_ROUTER);
+
+        // One second past the staleness bound: delegation still valid on-chain,
+        // but the proof timestamp is too old to execute.
+        vm.warp(1_000_000 + vault.MAX_PROOF_AGE() + 1);
+        vm.expectRevert(DelegationVault.StaleProof.selector);
+        vault.executeWithProof(proof, publicInputs);
+    }
+
+    function test_executeWithProof_revertsWhenExpiredAtBlockTime() public {
+        bytes memory proof = vm.readFileBinary("test/fixtures/proof.bin");
+        bytes32[] memory publicInputs = _loadPublicInputs();
+
+        vm.prank(alice);
+        vault.delegate(delegationHash, allowedIntents, maxAmounts, allowedProtocols, expiry, nonce);
+        vault.setProtocolRouter(1, PROTOCOL_ROUTER);
+
+        // Expiry is anchored to block.timestamp now: even with a proof whose
+        // embedded timestamp predates the expiry, execution reverts once the
+        // chain has passed it. Fixture timestamp 1_000_000 keeps us inside the
+        // staleness bound at warp time.
+        vm.warp(expiry);
+        vm.expectRevert(DelegationVault.DelegationExpired.selector);
+        vault.executeWithProof(proof, publicInputs);
     }
 
     function test_executeWithProof_revertsWhenDelegationNotFound() public {
@@ -106,6 +143,7 @@ contract DelegationVaultTest is Test {
         vm.deal(alice, 10 ether);
         vm.prank(alice);
         vault.deposit{value: 10 ether}();
+        vm.warp(1_000_000 + vault.MAX_PROOF_AGE() / 2);
 
         vm.expectRevert(DelegationVault.IntentNotAllowed.selector);
         vault.executeWithProof(proof, publicInputs);
@@ -132,6 +170,8 @@ contract DelegationVaultTest is Test {
         vault.delegate(delegationHash, allowedIntents, maxAmounts, allowedProtocols, expiry, nonce);
         vault.deposit{value: 10 ether}();
         vm.stopPrank();
+        vm.warp(1_000_000 + vault.MAX_PROOF_AGE() / 2);
+        vault.setProtocolRouter(1, PROTOCOL_ROUTER);
 
         assertTrue(verifier.verify(proof, publicInputs), "first direct verify");
         vault.executeWithProof(proof, publicInputs);
@@ -162,6 +202,7 @@ contract DelegationVaultTest is Test {
         vm.stopPrank();
 
         vault.setProtocolRouter(1, PROTOCOL_ROUTER);
+        vm.warp(1_000_000 + vault.MAX_PROOF_AGE() / 2);
 
         uint256 amount = 2_000_000;
         vm.expectEmit(true, true, false, true);
@@ -191,6 +232,9 @@ contract DelegationVaultTest is Test {
         usdc.approve(address(vault), 5_000e6);
         vault.deposit(USDC_MAINNET, 5_000e6);
         vm.stopPrank();
+
+        // ERC-20 fixture timestamp is also 1_000_000.
+        vm.warp(1_000_000 + vault.MAX_PROOF_AGE() / 2);
 
         vm.expectRevert(abi.encodeWithSelector(DelegationVault.ProtocolRouterNotSet.selector, 1));
         vm.prank(agent);

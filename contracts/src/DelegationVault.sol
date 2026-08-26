@@ -84,6 +84,12 @@ contract DelegationVault is Ownable {
     error PublicInputsLengthWrong();
     error InsufficientBalance();
     error NativeTransferFailed();
+    error StaleProof();
+
+    /// @notice Maximum age of the proof timestamp relative to block.timestamp.
+    /// The on-chain expiry check uses block.timestamp; this bound prevents
+    /// proving a very old (but still valid) timestamp long after generation.
+    uint256 public constant MAX_PROOF_AGE = 10 minutes;
 
     constructor(DelegationVerifier _verifier) Ownable(msg.sender) {
         verifier = _verifier;
@@ -190,10 +196,14 @@ contract DelegationVault is Ownable {
         uint256 timestamp = uint256(publicInputs[TIMESTAMP_OFFSET]);
         uint256 nonce = uint256(publicInputs[NONCE_OFFSET]);
 
-        // 3. Enforce delegation limits.
+        // 3. Enforce delegation limits. Expiry is anchored to the block
+        // timestamp, not the proof's claimed timestamp: an old timestamp can
+        // never resurrect an expired delegation. The proof timestamp must
+        // additionally be recent (staleness bound).
         Delegation storage delegation = delegations[delegationHash];
         require(delegation.active, DelegationNotFound());
-        require(timestamp < delegation.expiry, DelegationExpired());
+        require(block.timestamp < delegation.expiry, DelegationExpired());
+        require(timestamp <= block.timestamp && block.timestamp - timestamp <= MAX_PROOF_AGE, StaleProof());
         require(nonce == delegation.nonce, InvalidNonce());
         require(!usedNonces[delegationHash][nonce], InvalidNonce());
         require(_isBitSet(delegation.allowedIntents, intentType), IntentNotAllowed());
@@ -234,17 +244,18 @@ contract DelegationVault is Ownable {
 
     /// @dev Release native ETH or ERC-20 tokens to a whitelisted protocol router.
     /// `token` is interpreted as the token address: address(0) for native ETH,
-    /// otherwise an ERC-20 contract. ERC-20 tokens are transferred to the
-    /// router registered for `protocol`; native ETH is left as a balance debit
-    /// for backwards compatibility with existing tests.
+    /// otherwise an ERC-20 contract. Both paths transfer the amount to the
+    /// router registered for `protocol`.
     function _execute(address owner, uint256 amount, address token, uint256 protocol) internal {
+        address router = protocolRouters[protocol];
+        require(router != address(0), ProtocolRouterNotSet(protocol));
         if (token == address(0)) {
             require(balances[owner] >= amount, InsufficientBalance());
             balances[owner] -= amount;
+            (bool success,) = payable(router).call{value: amount}("");
+            require(success, NativeTransferFailed());
         } else {
             require(tokenBalances[owner][token] >= amount, InsufficientBalance());
-            address router = protocolRouters[protocol];
-            require(router != address(0), ProtocolRouterNotSet(protocol));
             tokenBalances[owner][token] -= amount;
             IERC20(token).safeTransfer(router, amount);
         }
