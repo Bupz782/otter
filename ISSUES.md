@@ -111,7 +111,7 @@
 
 - [EN ATTENTE] **US-071** : En tant que circuit, je veux une struct `ProposedIntent` (intent_type, amount, protocol, target_contract)
 - [EN ATTENTE] **US-072** : En tant que circuit, je veux vérifier que intent_type est dans allowed_intents (bitfield check)
-- [EN ATTENTE] **US-073** : En tant que circuit, je veux vérifier que amount <= max_amounts[intent_type]
+- [FAIT] **US-073** : En tant que circuit, je veux vérifier que amount <= max_amounts[intent_type] — prouvé par `delegation_circuit/src/main.nr:153`
 - [EN ATTENTE] **US-074** : En tant que circuit, je veux vérifier que protocol est dans allowed_protocols (array membership)
 - [EN ATTENTE] **US-075** : En tant que circuit, je veux vérifier que target_contract correspond au protocol
 - [EN ATTENTE] **US-076** : En tant que circuit, je veux vérifier que current_timestamp < expiry
@@ -146,7 +146,7 @@
 
 - [EN ATTENTE] **US-096** : En tant que dev, je veux exporter le verifier Solidity depuis Noir
 - [EN ATTENTE] **US-097** : En tant que dev, je veux créer `DelegationVerifier.sol` wrappant le verifier Noir
-- [EN ATTENTE] **US-098** : En tant que contract, je veux une fonction `verifyDelegation(bytes proof, bytes32[] publicInputs)` → bool
+- [FAIT] **US-098** : En tant que contract, je veux une fonction `verifyDelegation(bytes proof, bytes32[] publicInputs)` → bool — implémenté sous le nom `executeWithProof` dans `contracts/src/DelegationVault.sol:176` (écart de nommage assumé)
 - [EN ATTENTE] **US-099** : En tant que dev, je veux déployer sur testnet Sepolia
 - [EN ATTENTE] **US-100** : En tant que dev, je veux tester on-chain : 10 valid proofs → true, 10 invalid → false
 ### Epic 2.10 : CLI - Delegation Flow
@@ -156,7 +156,7 @@
 - [EN ATTENTE] **US-103** : En tant que user, je veux voir la délégation créée avec hash et signature
 - [EN ATTENTE] **US-104** : En tant que user, je veux `otter prove --delegation <file> --intent "lend 1000 USDC on Aave"`
 - [EN ATTENTE] **US-105** : En tant que user, je veux voir la preuve générée (temps, taille, hash)
-- [EN ATTENTE] **US-106** : En tant que user, je veux `otter verify-onchain --proof <file>` pour tester le contract
+- [FAIT] **US-106** : En tant que user, je veux `otter verify-onchain --proof <file>` pour tester le contract — implémenté dans `crates/interfaces/src/bin/otter_cli.rs:37`
 ### Epic 2.11 : Tests ZKP Layer
 
 - [EN ATTENTE] **US-107** : En tant que dev, je veux des tests unitaires du circuit (20+ cas valid/invalid)
