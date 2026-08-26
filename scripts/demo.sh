@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # demo.sh — Soutenance demo: reproducible end-to-end Otter flow, timed < 3 min.
 #
-# Flow: anvil -> deploy DelegationVault -> delegation + deposit +
+# Flow: anvil -> deploy DelegationVault + SolvencyRegistry -> delegation + deposit +
 # executeWithProof with a REAL Noir/Barretenberg proof (cargo e2e test).
 #
 # Usage: bash scripts/demo.sh
@@ -76,20 +76,33 @@ VAULT_ADDRESS=$(echo "$DEPLOY_OUTPUT" | grep -oE 'DelegationVault deployed at: (
 echo "  Vault: $VAULT_ADDRESS"
 
 # ---------------------------------------------------------------------------
-step "3/5" "Export des variables d'environnement"
+step "3/5" "Déploiement de SolvencyRegistry sur anvil"
+SOLVENCY_DEPLOY=$(cd contracts && \
+  forge script script/DeploySolvencyRegistry.s.sol \
+  --rpc-url "$RPC_URL" --broadcast \
+  --private-key "$PRIVATE_KEY" \
+  --sender 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266)
+SOLVENCY_REGISTRY_ADDRESS=$(echo "$SOLVENCY_DEPLOY" | grep -oE 'SolvencyRegistry deployed at: (0x[0-9a-fA-F]+)' | awk '{print $NF}')
+[[ -n "$SOLVENCY_REGISTRY_ADDRESS" ]] || fail "adresse du SolvencyRegistry non trouvée dans la sortie forge"
+echo "  SolvencyRegistry: $SOLVENCY_REGISTRY_ADDRESS"
+
+# ---------------------------------------------------------------------------
+step "4/5" "Export des variables d'environnement"
 export OTTER_TEST_RPC_URL="$RPC_URL"
 export OTTER_TEST_VAULT_ADDRESS="$VAULT_ADDRESS"
 export OTTER_TEST_PRIVATE_KEY="$PRIVATE_KEY"
+export OTTER_SOLVENCY_REGISTRY="$SOLVENCY_REGISTRY_ADDRESS"
 export BB_BIN
 echo "  OTTER_TEST_RPC_URL=$OTTER_TEST_RPC_URL"
 echo "  OTTER_TEST_VAULT_ADDRESS=$VAULT_ADDRESS"
+echo "  OTTER_SOLVENCY_REGISTRY=$OTTER_SOLVENCY_REGISTRY"
 
 # ---------------------------------------------------------------------------
-step "4/5" "Test e2e: delegation + deposit + executeWithProof (preuve réelle bb)"
+step "5/5" "Test e2e: delegation + deposit + executeWithProof (preuve réelle bb)"
 cargo test -p infrastructure --test e2e_anvil_flow -- --nocapture
 
 # ---------------------------------------------------------------------------
-step "5/5" "Cleanup"
+step "6/6" "Cleanup"
 TOTAL=$(( $(date +%s) - START ))
 echo ""
 echo -e "\033[1;32m✅ Démo end-to-end réussie en ${TOTAL}s (< 180s visé pour la soutenance)\033[0m"
