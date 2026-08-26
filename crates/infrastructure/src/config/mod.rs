@@ -139,6 +139,11 @@ pub struct Config {
     #[serde(default = "default_jwt_ttl_hours")]
     pub jwt_ttl_hours: i64,
 
+    /// Address that automatically receives the `Owner` role when authentication
+    /// is enabled. Other authenticated addresses default to `Viewer`.
+    #[serde(default)]
+    pub auth_owner_address: Option<String>,
+
     /// CORS allowed origins. "*" means any origin. Comma-separated list otherwise.
     #[serde(default = "default_cors_allowed_origins")]
     pub cors_allowed_origins: String,
@@ -218,6 +223,7 @@ impl Default for Config {
             chain_id: 1,
             networks: Vec::new(),
             solvency_registry_address: None,
+            auth_owner_address: None,
             model_path: "models/Qwen3-8B-Q4_K_M.gguf".to_string(),
             monitoring_interval_secs: default_monitoring_interval(),
             log_level: default_log_level(),
@@ -464,6 +470,9 @@ impl Config {
             && let Ok(hours) = val.parse()
         {
             self.jwt_ttl_hours = hours;
+        }
+        if let Ok(val) = std::env::var("OTTER_AUTH_OWNER_ADDRESS") {
+            self.auth_owner_address = Some(val);
         }
         if let Ok(val) = std::env::var("OTTER_CORS_ALLOWED_ORIGINS") {
             self.cors_allowed_origins = val;

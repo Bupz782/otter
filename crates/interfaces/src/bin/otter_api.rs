@@ -29,7 +29,7 @@ use infrastructure::parsers::{HybridParser, LlmIntentParser, RegexParser};
 use infrastructure::services::OnChainExecutionService;
 use infrastructure::storage::{PgStorage, SqliteStorage};
 use infrastructure::zkp::NoirAdapter;
-use interfaces::auth::{AuthService, AuthUser};
+use interfaces::auth::{AuthService, AuthUser, Role};
 use interfaces::secrets::load_private_key;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -218,7 +218,18 @@ struct VerifyRequest {
 
 #[derive(Debug, Serialize)]
 struct VerifyResponse {
-    token: String,
+    access_token: String,
+    refresh_token: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RefreshRequest {
+    refresh_token: String,
+}
+
+#[derive(Debug, Serialize)]
+struct RefreshResponse {
+    access_token: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -450,6 +461,8 @@ fn app(state: Arc<AppState>) -> Router {
     let public = Router::new()
         .route("/api/v1/auth/challenge", post(auth_challenge))
         .route("/api/v1/auth/verify", post(auth_verify))
+        .route("/api/v1/auth/refresh", post(auth_refresh))
+        .route("/api/v1/auth/me", get(auth_me))
         .route("/api/v1/ws", get(ws_handler))
         .route("/health", get(health))
         .route("/api/v1/health", get(health))
@@ -648,10 +661,62 @@ async fn auth_verify(
         .auth_service
         .as_ref()
         .ok_or_else(|| AppError::Internal("authentication disabled".to_string()))?;
-    let token = service
+    let (access_token, refresh_token) = service
         .verify_signature(&body.message, &body.signature)
         .map_err(|e| AppError::Internal(e.to_string()))?;
-    Ok(Json(VerifyResponse { token }))
+    Ok(Json(VerifyResponse {
+        access_token,
+        refresh_token,
+    }))
+}
+
+async fn auth_refresh(
+    AxumState(state): AxumState<Arc<AppState>>,
+    Json(body): Json<RefreshRequest>,
+) -> Result<Json<RefreshResponse>, AppError> {
+    let service = state
+        .auth_service
+        .as_ref()
+        .ok_or_else(|| AppError::Internal("authentication disabled".to_string()))?;
+    let access_token = service
+        .refresh_access_token(&body.refresh_token)
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    Ok(Json(RefreshResponse { access_token }))
+}
+
+#[derive(Debug, Serialize)]
+struct AuthMeResponse {
+    address: String,
+    role: String,
+}
+
+async fn auth_me(Extension(user): Extension<Option<AuthUser>>) -> Response {
+    match user {
+        Some(user) => Json(AuthMeResponse {
+            address: user.address,
+            role: user.role.to_string(),
+        })
+        .into_response(),
+        None => (
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse {
+                error: "not authenticated".to_string(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+/// Require a non-Viewer role when authentication is enabled.
+/// `None` means auth is disabled, so the request is allowed.
+fn require_writer(user: &Option<AuthUser>) -> Result<(), AppError> {
+    match user {
+        Some(user) if user.role.can_write() => Ok(()),
+        Some(_) => Err(AppError::Forbidden("write role required".to_string())),
+        // Auth disabled: auth_middleware inserts None and every protected
+        // handler may proceed without a role check.
+        None => Ok(()),
+    }
 }
 
 async fn ws_handler(ws: WebSocketUpgrade, AxumState(state): AxumState<Arc<AppState>>) -> Response {
@@ -869,7 +934,11 @@ async fn main() {
                 std::process::exit(1);
             }
         };
-        Some(Arc::new(AuthService::new(secret, config.jwt_ttl_hours)))
+        Some(Arc::new(AuthService::new(
+            secret,
+            config.jwt_ttl_hours,
+            config.auth_owner_address.clone(),
+        )))
     } else {
         None
     };
@@ -1556,6 +1625,7 @@ async fn set_delegation(
     Extension(user): Extension<Option<AuthUser>>,
     Json(body): Json<SetDelegationRequest>,
 ) -> Result<Json<SetDelegationResponse>, AppError> {
+    let _user = require_writer(&user)?;
     validate_delegation_fields(
         &body.pubkey_x,
         &body.pubkey_y,
@@ -1700,6 +1770,7 @@ async fn create_strategy(
     Extension(user): Extension<Option<AuthUser>>,
     Json(body): Json<CreateStrategyRequest>,
 ) -> Result<Json<StrategyCreatedResponse>, AppError> {
+    let _user = require_writer(&user)?;
     let conditional = {
         let mut orchestrator = state.write_orchestrator().await;
         orchestrator.parse(&body.raw_text)?
@@ -1737,8 +1808,10 @@ async fn create_strategy(
 
 async fn fork_strategy(
     AxumState(state): AxumState<Arc<AppState>>,
+    Extension(user): Extension<Option<AuthUser>>,
     Path(id): Path<String>,
 ) -> Result<Json<ForkStrategyResponse>, AppError> {
+    require_writer(&user)?;
     state
         .storage
         .get_strategy(&id)
@@ -2035,6 +2108,7 @@ async fn create_intent(
     Extension(user): Extension<Option<AuthUser>>,
     Json(body): Json<CreateIntentRequest>,
 ) -> Result<Json<CreateIntentResponse>, AppError> {
+    let _user = require_writer(&user)?;
     validate_intent_text(&body.text)?;
 
     // Reject unknown networks up front so intents never silently fall back to
@@ -2123,6 +2197,7 @@ async fn delete_intent(
     Extension(user): Extension<Option<AuthUser>>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
+    let _user = require_writer(&user)?;
     let user = user.map(|u| u.address);
     let record = state.storage.get_intent(&id).await?;
     if let Some(ref rec) = record
@@ -2681,7 +2756,11 @@ mod tests {
         let base = test_state().await;
         Arc::new(AppState {
             auth_enabled: true,
-            auth_service: Some(Arc::new(AuthService::new("test-secret".to_string(), 24))),
+            auth_service: Some(Arc::new(AuthService::new(
+                "test-secret".to_string(),
+                24,
+                None,
+            ))),
             ..clone_state(&base)
         })
     }
@@ -2736,6 +2815,8 @@ mod tests {
             sub: String,
             exp: usize,
             iat: usize,
+            role: Role,
+            kind: String,
         }
 
         let now = Utc::now();
@@ -2744,6 +2825,8 @@ mod tests {
             sub: address.to_lowercase(),
             exp: exp.timestamp() as usize,
             iat: now.timestamp() as usize,
+            role: Role::Admin,
+            kind: "access".to_string(),
         };
         encode(
             &Header::new(jsonwebtoken::Algorithm::HS256),
@@ -2823,9 +2906,11 @@ mod tests {
         let state = test_state().await;
         let user_a = AuthUser {
             address: "0xaaa".to_string(),
+            role: Role::Admin,
         };
         let user_b = AuthUser {
             address: "0xbbb".to_string(),
+            role: Role::Admin,
         };
 
         let _ = set_delegation(
@@ -2852,9 +2937,11 @@ mod tests {
         let state = test_state().await;
         let user_a = AuthUser {
             address: "0xaaa".to_string(),
+            role: Role::Admin,
         };
         let user_b = AuthUser {
             address: "0xbbb".to_string(),
+            role: Role::Admin,
         };
 
         let create = create_intent(
@@ -2982,9 +3069,13 @@ mod tests {
         .await
         .unwrap();
 
-        let forked = fork_strategy(AxumState(state.clone()), Path(created.id.clone()))
-            .await
-            .unwrap();
+        let forked = fork_strategy(
+            AxumState(state.clone()),
+            Extension(None),
+            Path(created.id.clone()),
+        )
+        .await
+        .unwrap();
         assert_eq!(forked.strategy_id, created.id);
 
         let listed = list_strategies(AxumState(state)).await.unwrap();
@@ -3127,7 +3218,11 @@ mod tests {
         let base = test_state().await;
         Arc::new(AppState {
             auth_enabled: true,
-            auth_service: Some(Arc::new(AuthService::new("test-secret".to_string(), 24))),
+            auth_service: Some(Arc::new(AuthService::new(
+                "test-secret".to_string(),
+                24,
+                None,
+            ))),
             rate_limit_per_minute: 2,
             ..clone_state(&base)
         })
@@ -3303,7 +3398,7 @@ mod tests {
             .await
             .unwrap();
         let resp: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        let token = resp["token"].as_str().unwrap().to_string();
+        let token = resp["access_token"].as_str().unwrap().to_string();
 
         // 4. The JWT subject must be the signer's address (lowercased).
         let user = state

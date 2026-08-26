@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
 import { DataRow } from "@/components/app/DataRow";
-import { setAuthToken } from "@/lib/api";
+import { setAuthTokens } from "@/lib/api";
 import { useAuthToken } from "@/hooks/useAuthToken";
 import { useOnboardingContext } from "@/components/app/OnboardingProvider";
 import { truncateHash } from "@/lib/utils";
@@ -90,7 +90,7 @@ export function SettingsPage() {
           subtitle="Sign-in ties your vault, intents, and delegations to this wallet."
         >
           {isAuthenticated ? (
-            <Button variant="outline" onClick={() => setAuthToken(null)} className="rounded-full">
+            <Button variant="outline" onClick={() => setAuthTokens(null, null)} className="rounded-full">
               <LogOut className="mr-2 h-4 w-4" />
               Sign out
             </Button>

@@ -3,17 +3,27 @@ import type { CreateStrategyPayload, Delegation, Intent, ParsedIntent, Strategy 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
 let authToken: string | null = null;
+let refreshToken: string | null = null;
+
+const AUTH_TOKEN_KEY = "otter_token";
+const REFRESH_TOKEN_KEY = "otter_refresh_token";
 
 // Fired on window after setAuthToken so hooks and components in this tab
 // react to sign-in/sign-out. Cross-tab sync uses the native storage event.
 export const AUTH_TOKEN_CHANGED_EVENT = "otter-auth-changed";
 
-export function setAuthToken(token: string | null) {
-  authToken = token;
-  if (token) {
-    localStorage.setItem("otter_token", token);
+export function setAuthTokens(accessToken: string | null, refreshTokenValue: string | null) {
+  authToken = accessToken;
+  refreshToken = refreshTokenValue;
+  if (accessToken) {
+    localStorage.setItem(AUTH_TOKEN_KEY, accessToken);
   } else {
-    localStorage.removeItem("otter_token");
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+  }
+  if (refreshTokenValue) {
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshTokenValue);
+  } else {
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
   }
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(AUTH_TOKEN_CHANGED_EVENT));
@@ -22,7 +32,12 @@ export function setAuthToken(token: string | null) {
 
 export function loadAuthToken(): string | null {
   if (authToken) return authToken;
-  return localStorage.getItem("otter_token");
+  return localStorage.getItem(AUTH_TOKEN_KEY);
+}
+
+export function loadRefreshToken(): string | null {
+  if (refreshToken) return refreshToken;
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
 }
 
 export function getAuthToken(): string | null {
@@ -37,7 +52,7 @@ export class ApiClientError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}, retry = true): Promise<T> {
   const url = `${API_BASE}${path}`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -51,6 +66,27 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(url, { ...options, headers });
   if (response.status === 204) {
     return undefined as T;
+  }
+
+  // Try to refresh on 401 if we have a refresh token and haven't retried yet.
+  if (response.status === 401 && retry) {
+    const storedRefresh = loadRefreshToken();
+    if (storedRefresh) {
+      try {
+        const refreshed = await request<{ access_token: string }>(
+          "/api/v1/auth/refresh",
+          {
+            method: "POST",
+            body: JSON.stringify({ refresh_token: storedRefresh }),
+          },
+          false
+        );
+        setAuthTokens(refreshed.access_token, storedRefresh);
+        return request<T>(path, options, false);
+      } catch {
+        setAuthTokens(null, null);
+      }
+    }
   }
 
   let body: unknown;
@@ -224,7 +260,8 @@ export interface ChallengeResponse {
 }
 
 export interface VerifyResponse {
-  token: string;
+  access_token: string;
+  refresh_token: string;
 }
 
 export interface ParsedIntentResponse {

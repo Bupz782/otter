@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useSignMessage } from "wagmi";
 import { Button } from "@/components/ui/button";
-import { api, setAuthToken } from "@/lib/api";
+import { api, setAuthTokens } from "@/lib/api";
 import { useAuthToken } from "@/hooks/useAuthToken";
 import { Loader2, LogOut, ShieldCheck } from "lucide-react";
 
@@ -18,31 +18,31 @@ export function AppConnectButton() {
   // state does not clear the session before the wallet comes back.
   useEffect(() => {
     if (status === "disconnected") {
-      setAuthToken(null);
+      setAuthTokens(null, null);
       setAuthError(null);
     }
-  }, [status]);
+    }, [status]);
 
-  const handleAuth = async () => {
+    const handleAuth = async () => {
     if (!address) return;
     setAuthLoading(true);
     setAuthError(null);
     try {
       const { message } = await api.auth.challenge(address);
       const signature = await signMessageAsync({ message });
-      const { token } = await api.auth.verify(message, signature);
-      setAuthToken(token);
+      const { access_token, refresh_token } = await api.auth.verify(message, signature);
+      setAuthTokens(access_token, refresh_token);
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : "Sign-in failed. Try again.");
     } finally {
       setAuthLoading(false);
     }
-  };
+    };
 
-  const handleSignOut = () => {
-    setAuthToken(null);
+    const handleSignOut = () => {
+    setAuthTokens(null, null);
     setAuthError(null);
-  };
+    };
 
   if (!isConnected) {
     return <ConnectButton accountStatus="address" chainStatus="icon" showBalance={false} />;

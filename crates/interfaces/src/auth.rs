@@ -26,6 +26,54 @@ pub enum AuthError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthUser {
     pub address: String,
+    #[serde(default)]
+    pub role: Role,
+}
+
+/// Authorization role for multi-user deployments.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub enum Role {
+    /// Full control: strategy management, execution toggle, role assignment.
+    #[default]
+    Owner,
+    /// Can create/modify intents and strategies but cannot change roles.
+    Admin,
+    /// Read-only access to dashboards and status endpoints.
+    Viewer,
+}
+
+impl Role {
+    /// Whether this role is allowed to mutate strategies/intents.
+    pub fn can_write(&self) -> bool {
+        matches!(self, Role::Owner | Role::Admin)
+    }
+
+    pub fn can_manage_roles(&self) -> bool {
+        matches!(self, Role::Owner)
+    }
+}
+
+impl std::fmt::Display for Role {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Role::Owner => write!(f, "owner"),
+            Role::Admin => write!(f, "admin"),
+            Role::Viewer => write!(f, "viewer"),
+        }
+    }
+}
+
+impl std::str::FromStr for Role {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "owner" => Ok(Role::Owner),
+            "admin" => Ok(Role::Admin),
+            "viewer" => Ok(Role::Viewer),
+            _ => Err(format!("unknown role: {}", s)),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,6 +81,9 @@ struct Claims {
     sub: String,
     exp: usize,
     iat: usize,
+    role: Role,
+    /// "access" for API tokens, "refresh" for long-lived refresh tokens.
+    kind: String,
 }
 
 struct Challenge {
@@ -45,13 +96,18 @@ pub struct AuthService {
     jwt_secret: String,
     /// In-memory challenge store: nonce -> Challenge.
     challenges: Mutex<HashMap<String, Challenge>>,
+    /// Address that always receives the `Owner` role.
+    owner_address: Option<String>,
+    /// Extra role assignments beyond the default Viewer and the configured owner.
+    roles: Mutex<HashMap<String, Role>>,
     token_ttl_hours: i64,
+    refresh_ttl_days: i64,
 }
 
 impl AuthService {
     /// Create a new auth service. If `jwt_secret` is empty, a random one is generated
     /// (fine for dev, NOT for production).
-    pub fn new(jwt_secret: String, token_ttl_hours: i64) -> Self {
+    pub fn new(jwt_secret: String, token_ttl_hours: i64, owner_address: Option<String>) -> Self {
         let jwt_secret = if jwt_secret.is_empty() {
             // Generate a random 32-byte secret for dev.
             let bytes: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
@@ -62,7 +118,10 @@ impl AuthService {
         Self {
             jwt_secret,
             challenges: Mutex::new(HashMap::new()),
+            owner_address: owner_address.map(|a| a.to_lowercase()),
+            roles: Mutex::new(HashMap::new()),
             token_ttl_hours,
+            refresh_ttl_days: 30,
         }
     }
 
@@ -102,12 +161,12 @@ impl AuthService {
         Ok(message)
     }
 
-    /// Verify a signed SIWE message and return a JWT on success.
+    /// Verify a signed SIWE message and return access + refresh tokens on success.
     pub fn verify_signature(
         &self,
         message: &str,
         signature_hex: &str,
-    ) -> Result<String, AuthError> {
+    ) -> Result<(String, String), AuthError> {
         let msg: Message = message
             .parse()
             .map_err(|e| AuthError::InvalidMessage(format!("{:?}", e)))?;
@@ -155,10 +214,48 @@ impl AuthService {
             .remove(&msg.nonce);
 
         let address = siwe::eip55(&msg.address);
-        self.issue_token(&address)
+        let role = self.role_of(&address);
+        let access = self.issue_access_token(&address, role)?;
+        let refresh = self.issue_refresh_token(&address)?;
+        Ok((access, refresh))
     }
 
-    /// Validate a JWT and return the authenticated user address.
+    /// Resolve the role for an address: the configured owner is always Owner,
+    /// otherwise look up an explicit assignment, otherwise default to Viewer.
+    pub fn role_of(&self, address: &str) -> Role {
+        let normalized = address.to_lowercase();
+        if self
+            .owner_address
+            .as_ref()
+            .map(|owner| owner == &normalized)
+            .unwrap_or(false)
+        {
+            return Role::Owner;
+        }
+        self.roles
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&normalized)
+            .copied()
+            .unwrap_or(Role::Viewer)
+    }
+
+    /// Promote or demote an address. Only the configured owner can assign roles.
+    pub fn set_role(&self, caller: &str, address: &str, role: Role) -> Result<(), AuthError> {
+        let caller_role = self.role_of(caller);
+        if !caller_role.can_manage_roles() {
+            return Err(AuthError::VerificationFailed(
+                "only the owner can manage roles".to_string(),
+            ));
+        }
+        self.roles
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(address.to_lowercase(), role);
+        Ok(())
+    }
+
+    /// Validate an access token and return the authenticated user.
     pub fn validate_token(&self, token: &str) -> Result<AuthUser, AuthError> {
         let validation = Validation::new(jsonwebtoken::Algorithm::HS256);
         let token_data = decode::<Claims>(
@@ -166,18 +263,57 @@ impl AuthService {
             &DecodingKey::from_secret(self.jwt_secret.as_bytes()),
             &validation,
         )?;
+        if token_data.claims.kind != "access" {
+            return Err(AuthError::VerificationFailed(
+                "token is not an access token".to_string(),
+            ));
+        }
         Ok(AuthUser {
             address: token_data.claims.sub,
+            role: token_data.claims.role,
         })
     }
 
-    fn issue_token(&self, address: &str) -> Result<String, AuthError> {
+    /// Exchange a refresh token for a new access token.
+    pub fn refresh_access_token(&self, refresh_token: &str) -> Result<String, AuthError> {
+        let validation = Validation::new(jsonwebtoken::Algorithm::HS256);
+        let token_data = decode::<Claims>(
+            refresh_token,
+            &DecodingKey::from_secret(self.jwt_secret.as_bytes()),
+            &validation,
+        )?;
+        if token_data.claims.kind != "refresh" {
+            return Err(AuthError::VerificationFailed(
+                "token is not a refresh token".to_string(),
+            ));
+        }
+        let role = self.role_of(&token_data.claims.sub);
+        self.issue_access_token(&token_data.claims.sub, role)
+    }
+
+    fn issue_access_token(&self, address: &str, role: Role) -> Result<String, AuthError> {
+        self.issue_token(address, role, "access", self.token_ttl_hours)
+    }
+
+    fn issue_refresh_token(&self, address: &str) -> Result<String, AuthError> {
+        self.issue_token(address, Role::Viewer, "refresh", self.refresh_ttl_days * 24)
+    }
+
+    fn issue_token(
+        &self,
+        address: &str,
+        role: Role,
+        kind: &str,
+        ttl_hours: i64,
+    ) -> Result<String, AuthError> {
         let now = Utc::now();
-        let exp = now + Duration::hours(self.token_ttl_hours);
+        let exp = now + Duration::hours(ttl_hours);
         let claims = Claims {
             sub: address.to_lowercase(),
             exp: exp.timestamp() as usize,
             iat: now.timestamp() as usize,
+            role,
+            kind: kind.to_string(),
         };
         encode(
             &Header::new(jsonwebtoken::Algorithm::HS256),
@@ -201,7 +337,7 @@ mod tests {
 
     #[test]
     fn generate_challenge_creates_valid_message() {
-        let auth = AuthService::new("secret".to_string(), 24);
+        let auth = AuthService::new("secret".to_string(), 24, None);
         let msg = auth
             .generate_challenge("0x0000000000000000000000000000000000000000")
             .unwrap();
@@ -211,10 +347,27 @@ mod tests {
 
     #[test]
     fn validate_issued_token() {
-        let auth = AuthService::new("secret".to_string(), 24);
-        let token = auth.issue_token("0xAbC").unwrap();
+        let auth = AuthService::new("secret".to_string(), 24, None);
+        let token = auth.issue_access_token("0xAbC", Role::Admin).unwrap();
         let user = auth.validate_token(&token).unwrap();
         assert_eq!(user.address, "0xabc");
+        assert_eq!(user.role, Role::Admin);
+    }
+
+    #[test]
+    fn refresh_token_round_trips() {
+        let auth = AuthService::new("secret".to_string(), 24, None);
+        let refresh = auth.issue_refresh_token("0xabc").unwrap();
+        let access = auth.refresh_access_token(&refresh).unwrap();
+        let user = auth.validate_token(&access).unwrap();
+        assert_eq!(user.address, "0xabc");
+    }
+
+    #[test]
+    fn configured_owner_gets_owner_role() {
+        let auth = AuthService::new("secret".to_string(), 24, Some("0xOwner".to_string()));
+        assert_eq!(auth.role_of("0xowner"), Role::Owner);
+        assert_eq!(auth.role_of("0xother"), Role::Viewer);
     }
 
     #[test]
@@ -232,7 +385,7 @@ mod tests {
         let address_bytes: [u8; 20] = digest[12..].try_into().unwrap();
         let address = siwe::eip55(&address_bytes);
 
-        let auth = AuthService::new("secret".to_string(), 24);
+        let auth = AuthService::new("secret".to_string(), 24, None);
         let message = auth.generate_challenge(&address).unwrap();
 
         // EIP-191 personal_sign over the challenge message.
@@ -244,9 +397,13 @@ mod tests {
         signature_bytes.push(recovery_id.to_byte() + 27);
         let signature_hex = format!("0x{}", hex::encode(signature_bytes));
 
-        let token = auth.verify_signature(&message, &signature_hex).unwrap();
-        let user = auth.validate_token(&token).unwrap();
+        let (access, refresh) = auth.verify_signature(&message, &signature_hex).unwrap();
+        let user = auth.validate_token(&access).unwrap();
         assert_eq!(user.address, address.to_lowercase());
+
+        // Refresh token can be exchanged for a new access token.
+        let new_access = auth.refresh_access_token(&refresh).unwrap();
+        assert!(auth.validate_token(&new_access).is_ok());
 
         // The challenge is single-use.
         assert!(auth.verify_signature(&message, &signature_hex).is_err());
