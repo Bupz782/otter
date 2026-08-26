@@ -19,6 +19,9 @@ pub struct ExecuteIntentUseCase<P, O, Z, E> {
     zkp: Z,
     evm: E,
     chain_id: u64,
+    /// Optional MEV capture port. When set, a successful on-chain execution
+    /// records a (simulated) MEV capture for later user rebates.
+    mev: Option<std::sync::Arc<dyn domain::ports::mev_port::MevPort>>,
 }
 
 #[derive(Debug)]
@@ -102,7 +105,15 @@ where
             zkp,
             evm,
             chain_id,
+            mev: None,
         }
+    }
+
+    /// Attach an MEV capture port so successful executions record profit.
+    /// Optional, so existing constructors keep working unchanged.
+    pub fn with_mev(mut self, mev: std::sync::Arc<dyn domain::ports::mev_port::MevPort>) -> Self {
+        self.mev = Some(mev);
+        self
     }
 
     /// Execute an intent described in natural language.
@@ -157,6 +168,20 @@ where
 
         // 7. Submit the proof on-chain.
         let tx_hash = self.evm.execute_with_proof(&proof, &public_inputs)?;
+
+        // 8. Record simulated MEV profit when a capture port is attached.
+        // Best-effort: a capture failure must not fail an executed intent.
+        if let Some(mev) = &self.mev
+            && let Err(err) = mev.capture_from_execution(
+                &tx_hash,
+                0,
+                amount_for_capture(&intent),
+                "vault-owner",
+            )
+        {
+            tracing::warn!(error = %err, "MEV capture failed (ignored)");
+        }
+
         Ok(tx_hash)
     }
 
@@ -196,6 +221,17 @@ fn primary_asset(intent: &Intent) -> Asset {
         }
         Intent::Swap { from_asset, .. } => from_asset.clone(),
         Intent::Composite { intents } => intents.first().map(primary_asset).unwrap_or(Asset::Eth),
+    }
+}
+
+/// Extract the traded amount from an intent for the MEV profit formula.
+fn amount_for_capture(intent: &Intent) -> u128 {
+    match intent {
+        Intent::Lend { amount, .. }
+        | Intent::Stake { amount, .. }
+        | Intent::Borrow { amount, .. }
+        | Intent::Swap { amount, .. } => *amount,
+        Intent::Composite { intents } => intents.first().map(amount_for_capture).unwrap_or(0),
     }
 }
 

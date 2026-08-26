@@ -1,4 +1,5 @@
 use application::events::{Event, EventBus};
+use application::ports::ExecutionPort;
 use application::orchestrator::{ActiveIntent, Orchestrator};
 use axum::{
     Extension, Json, Router,
@@ -832,7 +833,7 @@ async fn main() {
         Arc::new(SqliteStorage::new(&config.database_url).expect("failed to open SQLite storage"))
     };
 
-    let (orchestrator, execution_enabled) = build_orchestrator(&config).await;
+    let (orchestrator, execution_enabled, mev_store) = build_orchestrator(&config).await;
     let orchestrator = Arc::new(RwLock::new(orchestrator));
 
     // Hydrate in-memory active intents from storage so monitoring survives
@@ -890,7 +891,7 @@ async fn main() {
             .and_then(|(key, _)| load_agent_pubkey(&key)),
         multichain: build_multichain_adapter(&config),
         network_health: Arc::new(Mutex::new(HashMap::new())),
-        mev: None,
+        mev: mev_store.clone(),
         rebate_bps: infrastructure::mev::rebate_bps_from_env(),
     });
 
@@ -1083,12 +1084,30 @@ fn parse_network(value: Option<&String>) -> OracleNetwork {
     }
 }
 
-async fn build_orchestrator(config: &Config) -> (AgentOrchestrator, bool) {
+async fn build_orchestrator(
+    config: &Config,
+) -> (
+    AgentOrchestrator,
+    bool,
+    Option<Arc<infrastructure::mev::SimulatedMevCapture>>,
+) {
     let parser = build_intent_parser(config);
     let network = parse_network(config.network.as_ref());
     let oracle = CompositeOracle::new(config.rpc_url.clone(), network)
         .expect("failed to initialize composite oracle");
     let zkp = NoirAdapter::from_config(config);
+
+    // Simulated MEV capture store, sharing the main SQLite database. Only
+    // available for SQLite backends; PostgreSQL gets `None` (rebates read
+    // as zero) until the capture adapter grows a pg implementation.
+    let mev_store = if config.database_url.starts_with("postgres://") {
+        None
+    } else {
+        infrastructure::mev::SimulatedMevCapture::new(&config.database_url)
+            .map(Arc::new)
+            .map_err(|err| tracing::warn!(%err, "MEV capture store unavailable"))
+            .ok()
+    };
 
     // Load the agent private key once; it is used both for EVM transaction
     // signing and for signing delegation messages inside the execution service.
@@ -1117,29 +1136,47 @@ async fn build_orchestrator(config: &Config) -> (AgentOrchestrator, bool) {
             .await
             .map(|n| n + 1)
             .unwrap_or(1);
-        let execution = Arc::new(
-            OnChainExecutionService::new(
-                RegexParser::new(),
-                oracle.clone(),
-                zkp.clone(),
-                evm.clone(),
-                &private_key,
-                starting_nonce,
-                &config.nonce_store_path,
-                config.chain_id,
+        let execution: Arc<dyn ExecutionPort> = if let Some(mev) = &mev_store {
+            Arc::new(
+                OnChainExecutionService::new(
+                    RegexParser::new(),
+                    oracle.clone(),
+                    zkp.clone(),
+                    evm.clone(),
+                    &private_key,
+                    starting_nonce,
+                    &config.nonce_store_path,
+                    config.chain_id,
+                )
+                .expect("failed to initialize execution service")
+                .with_mev(Arc::clone(mev) as Arc<dyn domain::ports::mev_port::MevPort>),
             )
-            .expect("failed to initialize execution service"),
-        );
+        } else {
+            Arc::new(
+                OnChainExecutionService::new(
+                    RegexParser::new(),
+                    oracle.clone(),
+                    zkp.clone(),
+                    evm.clone(),
+                    &private_key,
+                    starting_nonce,
+                    &config.nonce_store_path,
+                    config.chain_id,
+                )
+                .expect("failed to initialize execution service"),
+            )
+        };
         return (
             Orchestrator::new_with_executor(parser, oracle, zkp, evm, execution),
             true,
+            mev_store,
         );
     }
 
     tracing::warn!(
         "running without on-chain execution; set OTTER_EXECUTION_ENABLED=true and provide OTTER_PRIVATE_KEY / OTTER_VAULT_ADDRESS to enable"
     );
-    (Orchestrator::new(parser, oracle, zkp, evm), false)
+    (Orchestrator::new(parser, oracle, zkp, evm), false, mev_store)
 }
 
 /// Build the intent parser for the API daemon. When a GGUF model exists at

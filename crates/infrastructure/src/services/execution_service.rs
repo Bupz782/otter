@@ -5,6 +5,7 @@ use domain::models::delegation::{
 };
 use domain::ports::evm_port::EvmPort;
 use domain::ports::intent_parser_port::IntentParserPort;
+use domain::ports::mev_port::MevPort;
 use domain::ports::wallet_port::WalletPort;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -45,6 +46,9 @@ pub struct OnChainExecutionService {
     /// Optional user-signed delegation. When present, executions use this
     /// delegation and signature instead of generating a fresh agent-signed one.
     user_delegation: Arc<Mutex<UserDelegation>>,
+    /// Optional simulated MEV capture port, invoked after each successful
+    /// execution so captured profit can be rebated to the vault owner.
+    mev: Option<Arc<dyn MevPort>>,
 }
 
 impl OnChainExecutionService {
@@ -97,7 +101,14 @@ impl OnChainExecutionService {
             chain_id,
             delegated_hashes: Arc::new(Mutex::new(HashSet::new())),
             user_delegation: Arc::new(Mutex::new(None)),
+            mev: None,
         })
+    }
+
+    /// Attach a simulated MEV capture port (see `infrastructure::mev`).
+    pub fn with_mev(mut self, mev: Arc<dyn MevPort>) -> Self {
+        self.mev = Some(mev);
+        self
     }
 }
 
@@ -190,13 +201,16 @@ impl ExecutionPort for OnChainExecutionService {
             }
         }
 
-        let use_case = ExecuteIntentUseCase::new(
+        let mut use_case = ExecuteIntentUseCase::new(
             self.parser.clone(),
             self.oracle.clone(),
             self.zkp.clone(),
             self.evm.clone(),
             self.chain_id,
         );
+        if let Some(mev) = &self.mev {
+            use_case = use_case.with_mev(Arc::clone(mev));
+        }
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
