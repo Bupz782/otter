@@ -8,14 +8,12 @@ import {IVerifier, SolvencyRegistry} from "../src/SolvencyRegistry.sol";
 /// the test, so forge tests run without barretenberg or real ZK fixtures.
 contract MockVerifier is IVerifier {
     bool public accept = true;
-    uint256 public verifyCalls;
 
     function setAccept(bool accept_) external {
         accept = accept_;
     }
 
-    function verify(bytes calldata, bytes32[] calldata) external returns (bool) {
-        verifyCalls++;
+    function verify(bytes calldata, bytes32[] calldata) external view returns (bool) {
         return accept;
     }
 }
@@ -63,7 +61,6 @@ contract SolvencyRegistryTest is Test {
         assertEq(dep1, DEPOSITS);
         assertEq(ts1, block.timestamp);
         assertTrue(registry.isSolvent());
-        assertEq(mockVerifier.verifyCalls(), 1);
     }
 
     function test_RevertWhen_ProofInvalid() public {

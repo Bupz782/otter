@@ -65,7 +65,7 @@ fn sum_balances(leaves: [SolvencyLeaf; LEAF_COUNT]) -> Field {
 /// Private inputs:
 ///   - leaves: the N individual { commitment_hash, balance } records.
 fn main(
-    merkle_root_pub: [u8; 32],
+    merkle_root_pub: pub [u8; 32],
     total_deposits: pub Field,
     timestamp: pub Field,
     leaves: [SolvencyLeaf; LEAF_COUNT],

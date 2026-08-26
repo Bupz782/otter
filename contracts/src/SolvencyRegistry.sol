@@ -1,16 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.21;
 
-/// @title Interface for a Noir UltraHonk proof verifier.
-/// @notice Minimal surface used by SolvencyRegistry; intentionally decoupled
-/// from the generated DelegationVerifier contract.
-interface IVerifier {
-    /// @notice Verify a proof against its serialized public inputs.
-    /// @param proof Raw proof bytes.
-    /// @param publicInputs Field-element public inputs of the circuit.
-    /// @return True when the proof verifies.
-    function verify(bytes calldata proof, bytes32[] calldata publicInputs) external returns (bool);
-}
+import {IVerifier} from "./SolvencyVerifier.sol";
 
 /// @title SolvencyRegistry
 /// @notice On-chain registry of the latest proof-of-solvency commitment:
