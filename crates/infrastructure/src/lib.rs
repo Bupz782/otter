@@ -1,6 +1,7 @@
 pub mod blockchain;
 pub mod config;
 pub mod llm;
+pub mod mev;
 pub mod observability;
 pub mod parsers;
 pub mod protocols;

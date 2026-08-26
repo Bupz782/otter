@@ -146,6 +146,11 @@ pub struct Config {
     /// Maximum number of requests per minute per IP. 0 disables rate limiting.
     #[serde(default = "default_rate_limit_per_minute")]
     pub rate_limit_per_minute: u32,
+    /// Multi-network EVM configuration, parsed from `OTTER_NETWORKS`
+    /// (`name=rpc|vault|chainid,...`). When unset, `OTTER_RPC_URL` /
+    /// `OTTER_VAULT_ADDRESS` implicitly define the `default` network.
+    #[serde(default)]
+    pub networks: Vec<NetworkSpec>,
 }
 
 fn default_auth_enabled() -> bool {
@@ -206,6 +211,7 @@ impl Default for Config {
             agent_name: "otter-agent".to_string(),
             rpc_url: "http://localhost:8545".to_string(),
             chain_id: 1,
+            networks: Vec::new(),
             model_path: "models/Qwen3-8B-Q4_K_M.gguf".to_string(),
             monitoring_interval_secs: default_monitoring_interval(),
             log_level: default_log_level(),
@@ -248,7 +254,76 @@ pub enum ConfigError {
     ParseFailed(String),
 }
 
+pub const DEFAULT_NETWORK_NAME: &str = "default";
+
+/// One configured EVM network.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+pub struct NetworkSpec {
+    pub name: String,
+    pub rpc_url: String,
+    pub vault_address: String,
+    pub chain_id: u64,
+}
+
+pub fn parse_networks_spec(spec: &str) -> Result<Vec<NetworkSpec>, ConfigError> {
+    let mut networks = Vec::new();
+    for entry in spec.split(',') {
+        let entry = entry.trim();
+        if entry.is_empty() {
+            continue;
+        }
+        let (name, rest) = entry.split_once('=').ok_or_else(|| {
+            ConfigError::ParseFailed(format!(
+                "invalid OTTER_NETWORKS entry '{}': expected name=rpc|vault|chainid",
+                entry
+            ))
+        })?;
+        let parts: Vec<&str> = rest.split('|').collect();
+        if parts.len() != 3 {
+            return Err(ConfigError::ParseFailed(format!(
+                "invalid OTTER_NETWORKS entry '{}': expected rpc|vault|chainid",
+                entry
+            )));
+        }
+        let chain_id: u64 = parts[2].trim().parse().map_err(|_| {
+            ConfigError::ParseFailed(format!(
+                "invalid chain id '{}' in OTTER_NETWORKS entry '{}'",
+                parts[2], entry
+            ))
+        })?;
+        networks.push(NetworkSpec {
+            name: name.trim().to_string(),
+            rpc_url: parts[0].trim().to_string(),
+            vault_address: parts[1].trim().to_string(),
+            chain_id,
+        });
+    }
+    if networks.is_empty() {
+        return Err(ConfigError::ParseFailed(
+            "OTTER_NETWORKS is empty".to_string(),
+        ));
+    }
+    Ok(networks)
+}
+
 impl Config {
+    /// Resolve configured networks. Falls back to a single `default` network
+    /// built from `OTTER_RPC_URL` / `OTTER_VAULT_ADDRESS` for retro-compat.
+    pub fn resolve_networks(&self) -> Vec<NetworkSpec> {
+        if !self.networks.is_empty() {
+            return self.networks.clone();
+        }
+        match &self.vault_address {
+            Some(vault) => vec![NetworkSpec {
+                name: DEFAULT_NETWORK_NAME.to_string(),
+                rpc_url: self.rpc_url.clone(),
+                vault_address: vault.clone(),
+                chain_id: self.chain_id,
+            }],
+            None => Vec::new(),
+        }
+    }
+
     /// Load configuration from a TOML file, then apply environment variable
     /// overrides.
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, ConfigError> {

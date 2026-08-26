@@ -10,6 +10,29 @@ pub enum StrategyValidationError {
     InvalidIntent(String),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+pub enum StrategyVisibility {
+    Private,
+    Public,
+}
+
+impl StrategyVisibility {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            StrategyVisibility::Private => "private",
+            StrategyVisibility::Public => "public",
+        }
+    }
+
+    /// Parse the storage representation; unknown values default to private.
+    pub fn parse(value: &str) -> Self {
+        match value {
+            "public" => StrategyVisibility::Public,
+            _ => StrategyVisibility::Private,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Strategy {
     pub id: String,
@@ -21,6 +44,8 @@ pub struct Strategy {
     pub agent_id: String,
     pub risk_profile: String,
     pub copies: u64,
+    pub visibility: StrategyVisibility,
+    pub fork_count: u64,
     pub total_volume: u64,
     pub apy: f64,
     pub created_at: i64,
@@ -82,6 +107,8 @@ mod tests {
             agent_id: "agent-1".to_string(),
             risk_profile: "Conservative".to_string(),
             copies: 0,
+            visibility: StrategyVisibility::Private,
+            fork_count: 0,
             total_volume: 0,
             apy: 0.0,
             created_at: 0,

@@ -413,8 +413,9 @@ impl StoragePort for PgStorage {
         sqlx::query(
             "INSERT INTO strategies
              (id, title, description, raw_text, intent_json, creator_address, agent_id,
-              risk_profile, copies, total_volume, apy, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+              risk_profile, copies, total_volume, apy, created_at, updated_at,
+              visibility, fork_count)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
              ON CONFLICT (id) DO UPDATE SET
                  title = EXCLUDED.title,
                  description = EXCLUDED.description,
@@ -427,7 +428,9 @@ impl StoragePort for PgStorage {
                  total_volume = EXCLUDED.total_volume,
                  apy = EXCLUDED.apy,
                  created_at = EXCLUDED.created_at,
-                 updated_at = EXCLUDED.updated_at",
+                 updated_at = EXCLUDED.updated_at,
+                 visibility = EXCLUDED.visibility,
+                 fork_count = EXCLUDED.fork_count",
         )
         .bind(&record.id)
         .bind(&record.title)
@@ -442,6 +445,8 @@ impl StoragePort for PgStorage {
         .bind(record.apy)
         .bind(record.created_at)
         .bind(record.updated_at)
+        .bind(&record.visibility)
+        .bind(record.fork_count as i64)
         .execute(&self.pool)
         .await
         .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
@@ -452,7 +457,8 @@ impl StoragePort for PgStorage {
     async fn list_strategies(&self) -> Result<Vec<StrategyRecord>, StorageError> {
         let rows = sqlx::query(
             "SELECT id, title, description, raw_text, intent_json, creator_address, agent_id,
-                    risk_profile, copies, total_volume, apy, created_at, updated_at
+                    risk_profile, copies, total_volume, apy, created_at, updated_at,
+                    visibility, fork_count
              FROM strategies
              ORDER BY updated_at DESC",
         )
@@ -504,6 +510,13 @@ impl StoragePort for PgStorage {
                     updated_at: row
                         .try_get("updated_at")
                         .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    visibility: row
+                        .try_get("visibility")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    fork_count: row
+                        .try_get::<i64, _>("fork_count")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?
+                        as u64,
                 })
             })
             .collect()
@@ -512,7 +525,8 @@ impl StoragePort for PgStorage {
     async fn get_strategy(&self, id: &str) -> Result<Option<StrategyRecord>, StorageError> {
         let row = sqlx::query(
             "SELECT id, title, description, raw_text, intent_json, creator_address, agent_id,
-                    risk_profile, copies, total_volume, apy, created_at, updated_at
+                    risk_profile, copies, total_volume, apy, created_at, updated_at,
+                    visibility, fork_count
              FROM strategies
              WHERE id = $1",
         )
@@ -565,6 +579,13 @@ impl StoragePort for PgStorage {
                     updated_at: r
                         .try_get("updated_at")
                         .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    visibility: r
+                        .try_get("visibility")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    fork_count: r
+                        .try_get::<i64, _>("fork_count")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?
+                        as u64,
                 }))
             }
             None => Ok(None),
@@ -574,6 +595,29 @@ impl StoragePort for PgStorage {
     async fn increment_strategy_copies(&self, id: &str) -> Result<(), StorageError> {
         sqlx::query("UPDATE strategies SET copies = copies + 1, updated_at = $1 WHERE id = $2")
             .bind(migrations::unix_now())
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+
+        Ok(())
+    }
+
+    async fn increment_strategy_forks(&self, id: &str) -> Result<(), StorageError> {
+        sqlx::query(
+            "UPDATE strategies SET fork_count = fork_count + 1, updated_at = $1 WHERE id = $2",
+        )
+        .bind(migrations::unix_now())
+        .bind(id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+
+        Ok(())
+    }
+
+    async fn delete_strategy(&self, id: &str) -> Result<(), StorageError> {
+        sqlx::query("DELETE FROM strategies WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
             .await

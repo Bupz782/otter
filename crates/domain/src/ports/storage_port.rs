@@ -62,6 +62,10 @@ pub struct StrategyRecord {
     pub agent_id: String,
     pub risk_profile: String,
     pub copies: u64,
+    /// Sharing visibility: `private` (default) or `public`.
+    pub visibility: String,
+    /// Number of times other users forked this strategy.
+    pub fork_count: u64,
     pub total_volume: u64,
     pub apy: f64,
     pub created_at: i64,
@@ -133,4 +137,10 @@ pub trait StoragePort: Send + Sync {
 
     /// Increment the copy count for a strategy and refresh its updated_at timestamp.
     async fn increment_strategy_copies(&self, id: &str) -> Result<(), StorageError>;
+
+    /// Increment the fork counter for a strategy and refresh its updated_at timestamp.
+    async fn increment_strategy_forks(&self, id: &str) -> Result<(), StorageError>;
+
+    /// Remove a strategy by id.
+    async fn delete_strategy(&self, id: &str) -> Result<(), StorageError>;
 }

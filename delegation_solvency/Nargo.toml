@@ -1,0 +1,6 @@
+[package]
+name = "delegation_solvency"
+type = "bin"
+authors = [""]
+
+[dependencies]

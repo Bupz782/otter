@@ -475,8 +475,9 @@ impl StoragePort for SqliteStorage {
             conn.execute(
                 "INSERT OR REPLACE INTO strategies
                  (id, title, description, raw_text, intent_json, creator_address, agent_id,
-                  risk_profile, copies, total_volume, apy, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                  risk_profile, copies, total_volume, apy, created_at, updated_at,
+                  visibility, fork_count)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                 rusqlite::params![
                     &record.id,
                     &record.title,
@@ -491,6 +492,8 @@ impl StoragePort for SqliteStorage {
                     record.apy,
                     record.created_at,
                     record.updated_at,
+                    &record.visibility,
+                    record.fork_count as i64,
                 ],
             )
             .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
@@ -509,7 +512,8 @@ impl StoragePort for SqliteStorage {
             let mut stmt = conn
                 .prepare(
                     "SELECT id, title, description, raw_text, intent_json, creator_address, agent_id,
-                            risk_profile, copies, total_volume, apy, created_at, updated_at
+                            risk_profile, copies, total_volume, apy, created_at, updated_at,
+                            visibility, fork_count
                      FROM strategies
                      ORDER BY updated_at DESC",
                 )
@@ -530,6 +534,8 @@ impl StoragePort for SqliteStorage {
                         apy: row.get(10)?,
                         created_at: row.get(11)?,
                         updated_at: row.get(12)?,
+                        visibility: row.get(13)?,
+                        fork_count: row.get::<_, i64>(14)? as u64,
                     })
                 })
                 .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
@@ -550,7 +556,8 @@ impl StoragePort for SqliteStorage {
             let row = conn
                 .query_row(
                     "SELECT id, title, description, raw_text, intent_json, creator_address, agent_id,
-                            risk_profile, copies, total_volume, apy, created_at, updated_at
+                            risk_profile, copies, total_volume, apy, created_at, updated_at,
+                            visibility, fork_count
                      FROM strategies WHERE id = ?1",
                     [&id],
                     |row| {
@@ -568,6 +575,8 @@ impl StoragePort for SqliteStorage {
                             apy: row.get(10)?,
                             created_at: row.get(11)?,
                             updated_at: row.get(12)?,
+                            visibility: row.get(13)?,
+                            fork_count: row.get::<_, i64>(14)? as u64,
                         })
                     },
                 )
@@ -591,6 +600,39 @@ impl StoragePort for SqliteStorage {
                 rusqlite::params![migrations::unix_now(), id],
             )
             .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| StorageError::SaveFailed(e.to_string()))?
+    }
+
+    async fn increment_strategy_forks(&self, id: &str) -> Result<(), StorageError> {
+        let conn = self.conn.clone();
+        let id = id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn
+                .lock()
+                .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            conn.execute(
+                "UPDATE strategies SET fork_count = fork_count + 1, updated_at = ?1 WHERE id = ?2",
+                rusqlite::params![migrations::unix_now(), id],
+            )
+            .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| StorageError::SaveFailed(e.to_string()))?
+    }
+
+    async fn delete_strategy(&self, id: &str) -> Result<(), StorageError> {
+        let conn = self.conn.clone();
+        let id = id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn
+                .lock()
+                .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            conn.execute("DELETE FROM strategies WHERE id = ?1", [&id])
+                .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
             Ok(())
         })
         .await
@@ -687,6 +729,8 @@ mod tests {
             apy: 0.12,
             created_at: now_secs(),
             updated_at: now_secs(),
+            visibility: "private".to_string(),
+            fork_count: 0,
         }
     }
 

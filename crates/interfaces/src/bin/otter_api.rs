@@ -20,7 +20,8 @@ use domain::ports::storage_port::StrategyRecord;
 use domain::ports::wallet_port::WalletPort;
 use domain::ports::{BlockchainPort, DelegationRecord, ExecutionRecord, IntentRecord, StoragePort};
 use infrastructure::blockchain::{
-    AlloyEvmAdapter, CompositeOracle, LocalWalletAdapter, OracleNetwork,
+    AlloyEvmAdapter, CompositeOracle, HealthEntry, LocalWalletAdapter, MultiChainAdapter,
+    OracleNetwork,
 };
 use infrastructure::config::Config;
 use infrastructure::parsers::{HybridParser, LlmIntentParser, RegexParser};
@@ -62,6 +63,15 @@ struct AppState {
     event_tx: tokio::sync::broadcast::Sender<Event>,
     agents: Vec<AgentSummary>,
     agent_pubkey: Option<AgentPubkey>,
+    /// Multi-network EVM adapter registry (empty when no key is configured).
+    multichain: Arc<MultiChainAdapter>,
+    /// Cached `/api/v1/networks` healthchecks keyed by network name.
+    network_health: Arc<Mutex<HashMap<String, HealthEntry>>>,
+    /// Simulated MEV capture store; `None` when the backend is unavailable
+    /// (e.g. non-SQLite storage), in which case rebates read as zero.
+    mev: Option<Arc<infrastructure::mev::SimulatedMevCapture>>,
+    /// Share of captured profit rebated to the vault owner, in basis points.
+    rebate_bps: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -177,6 +187,9 @@ struct ExecutionsResponse {
 #[derive(Debug, Deserialize)]
 struct CreateIntentRequest {
     text: String,
+    /// Optional target network name (see `OTTER_NETWORKS`). Defaults to the
+    /// `default` network when omitted.
+    network: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -295,6 +308,10 @@ struct StrategySummary {
     raw_text: String,
     risk_profile: String,
     copies: u64,
+    /// `private` or `public` (sharing).
+    visibility: String,
+    /// Times this strategy was forked by other users.
+    fork_count: u64,
     total_volume: u64,
     apy: f64,
     created_at: i64,
@@ -374,6 +391,8 @@ struct CreateStrategyRequest {
     raw_text: String,
     agent_id: String,
     risk_profile: String,
+    /// `private` (default) or `public` (shareable).
+    visibility: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -433,7 +452,8 @@ fn app(state: Arc<AppState>) -> Router {
         .route("/api/v1/health", get(health))
         .route("/health/live", get(health_live))
         .route("/ready", get(ready))
-        .route("/metrics", get(metrics));
+        .route("/metrics", get(metrics))
+        .route("/api/v1/networks", get(list_networks));
 
     // Endpoints serving built-in demonstration data (hardcoded agents,
     // seeded strategies, synthetic solvency proof) are grouped so the
@@ -463,6 +483,8 @@ fn app(state: Arc<AppState>) -> Router {
         .route("/api/v1/strategies/:id/fork", post(fork_strategy))
         .route("/api/v1/portfolio", get(get_portfolio))
         .route("/api/v1/executions", get(list_executions))
+        .route("/api/v1/rebates", get(list_rebates))
+        .route("/api/v1/rebates/pending", post(pending_rebates))
         .route("/api/v1/orchestrator/state", get(orchestrator_state))
         .merge(demo)
         .route_layer(from_fn_with_state(state.clone(), auth_middleware));
@@ -728,6 +750,8 @@ fn default_strategies() -> Vec<StrategySummary> {
             raw_text: "Lend USDC on Aave if yield > 3%".to_string(),
             risk_profile: "Conservative".to_string(),
             copies: 1_240,
+            visibility: "public".to_string(),
+            fork_count: 1_240,
             total_volume: 5_400_000,
             apy: 4.1,
             created_at: 1_720_000_000,
@@ -742,6 +766,8 @@ fn default_strategies() -> Vec<StrategySummary> {
             raw_text: "Swap USDC to ETH on Uniswap when gas < 20 gwei".to_string(),
             risk_profile: "Balanced".to_string(),
             copies: 856,
+            visibility: "public".to_string(),
+            fork_count: 856,
             total_volume: 2_100_000,
             apy: 0.0,
             created_at: 1_720_500_000,
@@ -756,6 +782,8 @@ fn default_strategies() -> Vec<StrategySummary> {
             raw_text: "Lend USDC on highest yield market across Ethereum and Arbitrum".to_string(),
             risk_profile: "Advanced".to_string(),
             copies: 643,
+            visibility: "public".to_string(),
+            fork_count: 643,
             total_volume: 1_800_000,
             apy: 5.2,
             created_at: 1_720_900_000,
@@ -860,6 +888,10 @@ async fn main() {
         agent_pubkey: load_private_key(&config)
             .ok()
             .and_then(|(key, _)| load_agent_pubkey(&key)),
+        multichain: build_multichain_adapter(&config),
+        network_health: Arc::new(Mutex::new(HashMap::new())),
+        mev: None,
+        rebate_bps: infrastructure::mev::rebate_bps_from_env(),
     });
 
     // Background monitoring loop: fetch on-chain metrics for active intents.
@@ -936,6 +968,112 @@ fn resolve_jwt_secret(config: &Config) -> Result<String, String> {
     tracing::warn!("auth enabled but no OTTER_JWT_SECRET set; generating a random dev secret");
     let bytes: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
     Ok(hex::encode(bytes))
+}
+
+/// Build the multi-network EVM registry from config. Requires the agent
+/// private key (shared across networks); without one the registry is empty
+/// and `/api/v1/networks` reports no networks.
+fn build_multichain_adapter(config: &Config) -> Arc<MultiChainAdapter> {
+    let networks = config.resolve_networks();
+    match load_private_key(config) {
+        Ok((key, _)) => MultiChainAdapter::new(&networks, &hex::encode(key), None)
+            .map(Arc::new)
+            .unwrap_or_else(|err| {
+                tracing::warn!(%err, "multi-chain adapter initialization failed");
+                Arc::new(MultiChainAdapter::empty())
+            }),
+        Err(_) => {
+            tracing::info!("no agent private key configured; multi-chain routing disabled");
+            Arc::new(MultiChainAdapter::empty())
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct NetworkStatusResponse {
+    name: String,
+    chain_id: u64,
+    vault_address: String,
+    healthy: bool,
+}
+
+async fn list_networks(
+    AxumState(state): AxumState<Arc<AppState>>,
+) -> Json<Vec<NetworkStatusResponse>> {
+    let summaries = state.multichain.network_summaries();
+    let mut out = Vec::with_capacity(summaries.len());
+    for summary in summaries {
+        let cached = {
+            let map = state.network_health.lock().await;
+            map.get(&summary.name).cloned()
+        };
+        let healthy = match cached {
+            Some(entry) if entry.is_fresh() => entry.healthy,
+            _ => {
+                // Healthcheck: a successful eth_chainId round-trip.
+                let healthy = state
+                    .multichain
+                    .rpc_chain_id(Some(&summary.name))
+                    .await
+                    .is_ok();
+                state.network_health.lock().await.insert(
+                    summary.name.clone(),
+                    HealthEntry {
+                        healthy,
+                        checked_at: std::time::Instant::now(),
+                    },
+                );
+                healthy
+            }
+        };
+        out.push(NetworkStatusResponse {
+            name: summary.name,
+            chain_id: summary.chain_id,
+            vault_address: summary.vault_address,
+            healthy,
+        });
+    }
+    Json(out)
+}
+
+#[derive(Debug, Serialize)]
+struct RebatesResponse {
+    /// Total rebated profit for the caller, in wei.
+    total_rebated_wei: String,
+    rebate_bps: u64,
+}
+
+async fn list_rebates(
+    AxumState(state): AxumState<Arc<AppState>>,
+    Extension(user): Extension<Option<AuthUser>>,
+) -> Result<Json<RebatesResponse>, AppError> {
+    let Some(mev) = &state.mev else {
+        return Ok(Json(RebatesResponse {
+            total_rebated_wei: "0".to_string(),
+            rebate_bps: state.rebate_bps,
+        }));
+    };
+    // Without auth, attribute all captures to the single local operator.
+    let owner = user
+        .as_ref()
+        .map(|u| u.address.clone())
+        .unwrap_or_else(|| "local-operator".to_string());
+    let total = mev
+        .total_rebate(&owner)
+        .map_err(|e| AppError::Internal(format!("rebate lookup failed: {e}")))?;
+    Ok(Json(RebatesResponse {
+        total_rebated_wei: total.to_string(),
+        rebate_bps: state.rebate_bps,
+    }))
+}
+
+/// Preview endpoint for pending rebates (same value as `list_rebates` in V1:
+/// captures are rebated as soon as they are recorded).
+async fn pending_rebates(
+    state: AxumState<Arc<AppState>>,
+    user: Extension<Option<AuthUser>>,
+) -> Result<Json<RebatesResponse>, AppError> {
+    list_rebates(state, user).await
 }
 
 fn parse_network(value: Option<&String>) -> OracleNetwork {
@@ -1482,6 +1620,10 @@ async fn create_strategy(
         agent_id: body.agent_id,
         risk_profile: body.risk_profile,
         copies: 0,
+        visibility: domain::models::strategy::StrategyVisibility::parse(
+            body.visibility.as_deref().unwrap_or("private"),
+        ),
+        fork_count: 0,
         total_volume: 0,
         apy: 0.0,
         created_at: now_secs(),
@@ -1527,6 +1669,8 @@ fn strategy_to_record(strategy: domain::models::strategy::Strategy) -> StrategyR
         agent_id: strategy.agent_id,
         risk_profile: strategy.risk_profile,
         copies: strategy.copies,
+        visibility: strategy.visibility.as_str().to_string(),
+        fork_count: strategy.fork_count,
         total_volume: strategy.total_volume,
         apy: strategy.apy,
         created_at: strategy.created_at,
@@ -1544,6 +1688,8 @@ fn map_strategy_record_to_summary(record: StrategyRecord) -> StrategySummary {
         raw_text: record.raw_text,
         risk_profile: record.risk_profile,
         copies: record.copies,
+        visibility: record.visibility.clone(),
+        fork_count: record.fork_count,
         total_volume: record.total_volume,
         apy: record.apy,
         created_at: record.created_at,
@@ -1614,6 +1760,8 @@ async fn seed_default_strategies(
             agent_id: summary.agent_id,
             risk_profile: summary.risk_profile,
             copies: summary.copies,
+            visibility: summary.visibility.clone(),
+            fork_count: summary.fork_count,
             total_volume: summary.total_volume,
             apy: summary.apy,
             created_at: summary.created_at,
@@ -1793,6 +1941,22 @@ async fn create_intent(
     Json(body): Json<CreateIntentRequest>,
 ) -> Result<Json<CreateIntentResponse>, AppError> {
     validate_intent_text(&body.text)?;
+
+    // Reject unknown networks up front so intents never silently fall back to
+    // a different chain than the one the user selected.
+    if let Some(ref network) = body.network
+        && !state
+            .multichain
+            .network_names()
+            .iter()
+            .any(|n| n == network)
+    {
+        return Err(AppError::Validation(format!(
+            "unknown network '{}'; configured networks: {:?}",
+            network,
+            state.multichain.network_names()
+        )));
+    }
 
     let user_address = user.map(|u| u.address);
     let conditional = {
@@ -2178,6 +2342,10 @@ mod tests {
             event_tx: tokio::sync::broadcast::channel(1).0,
             agents: default_agents(),
             agent_pubkey: None,
+            multichain: Arc::new(infrastructure::blockchain::MultiChainAdapter::empty()),
+            network_health: Arc::new(Mutex::new(HashMap::new())),
+            mev: None,
+            rebate_bps: infrastructure::mev::DEFAULT_REBATE_BPS,
         })
     }
 
@@ -2228,6 +2396,10 @@ mod tests {
             event_tx: state.event_tx.clone(),
             agents: state.agents.clone(),
             agent_pubkey: state.agent_pubkey.clone(),
+            multichain: Arc::new(infrastructure::blockchain::MultiChainAdapter::empty()),
+            network_health: Arc::new(Mutex::new(HashMap::new())),
+            mev: None,
+            rebate_bps: infrastructure::mev::DEFAULT_REBATE_BPS,
         });
 
         let response = metrics(AxumState(disabled_state)).await;
@@ -2435,6 +2607,10 @@ mod tests {
 
     fn clone_state(state: &Arc<AppState>) -> AppState {
         AppState {
+            multichain: Arc::new(infrastructure::blockchain::MultiChainAdapter::empty()),
+            network_health: Arc::new(Mutex::new(HashMap::new())),
+            mev: state.mev.clone(),
+            rebate_bps: state.rebate_bps,
             orchestrator: state.orchestrator.clone(),
             storage: state.storage.clone(),
             bus: state.bus.clone(),
@@ -2505,7 +2681,10 @@ mod tests {
     async fn create_intent_rejects_long_text() {
         let state = test_state().await;
         let long_text = "lend ".to_string() + &"x".repeat(MAX_INTENT_TEXT_LEN);
-        let req = CreateIntentRequest { text: long_text };
+        let req = CreateIntentRequest {
+            text: long_text,
+            network: None,
+        };
         let response = create_intent(AxumState(state), Extension(None::<AuthUser>), Json(req))
             .await
             .into_response();
@@ -2585,6 +2764,7 @@ mod tests {
             Extension(Some(user_a.clone())),
             Json(CreateIntentRequest {
                 text: "lend 100 USDC on Aave".to_string(),
+                network: None,
             }),
         )
         .await
@@ -2629,6 +2809,7 @@ mod tests {
             raw_text: "lend 100 USDC on Aave if yield > 3%".to_string(),
             agent_id: "agent-1".to_string(),
             risk_profile: "Conservative".to_string(),
+            visibility: None,
         };
 
         let created = create_strategy(
@@ -2654,6 +2835,7 @@ mod tests {
             raw_text: "lend 100 USDC on Aave if yield > 3%".to_string(),
             agent_id: "agent-1".to_string(),
             risk_profile: "Conservative".to_string(),
+            visibility: None,
         };
 
         let created = create_strategy(
@@ -2691,6 +2873,7 @@ mod tests {
             raw_text: "lend 100 USDC on Aave if yield > 3%".to_string(),
             agent_id: "agent-1".to_string(),
             risk_profile: "Conservative".to_string(),
+            visibility: None,
         };
 
         let created = create_strategy(
@@ -2786,6 +2969,8 @@ mod tests {
             agent_id: "agent-1".to_string(),
             risk_profile: "Conservative".to_string(),
             copies: 0,
+            visibility: "private".to_string(),
+            fork_count: 0,
             total_volume: 0,
             apy: 0.0,
             created_at: 0,
@@ -2804,6 +2989,7 @@ mod tests {
             raw_text: "lend 100 USDC on Aave if yield > 3%".to_string(),
             agent_id: "agent-1".to_string(),
             risk_profile: "Wild".to_string(),
+            visibility: None,
         };
 
         let response =
