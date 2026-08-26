@@ -44,6 +44,7 @@ sol! {
 #[derive(Clone)]
 pub struct AlloyEvmAdapter {
     rpc_url: String,
+    searcher_url: Option<String>,
     signer: PrivateKeySigner,
     vault_address: Address,
 }
@@ -79,9 +80,18 @@ impl AlloyEvmAdapter {
 
         Ok(Self {
             rpc_url,
+            searcher_url: None,
             signer,
             vault_address,
         })
+    }
+
+    /// Configure an optional private-transaction RPC URL (Flashbots Protect,
+    /// MEV-Blocker, etc.). When set, transaction submissions are routed through
+    /// this endpoint instead of the public `rpc_url`.
+    pub fn with_searcher_url(mut self, url: Option<String>) -> Self {
+        self.searcher_url = url;
+        self
     }
 
     /// Register the given delegation on-chain. This must be called by the
@@ -404,14 +414,16 @@ impl AlloyEvmAdapter {
             .to
             .parse()
             .map_err(|e| EvmError::InvalidInput(format!("invalid to address: {}", e)))?;
-        let url = self
-            .rpc_url
+        let send_url = self
+            .searcher_url
+            .as_ref()
+            .unwrap_or(&self.rpc_url)
             .parse()
-            .map_err(|e| EvmError::SubmissionFailed(format!("invalid rpc url: {}", e)))?;
+            .map_err(|e| EvmError::SubmissionFailed(format!("invalid send rpc url: {}", e)))?;
         let provider = ProviderBuilder::new()
             .with_recommended_fillers()
             .wallet(EthereumWallet::from(self.signer.clone()))
-            .on_http(url);
+            .on_http(send_url);
 
         let tx_request = alloy::rpc::types::TransactionRequest::default()
             .to(to)

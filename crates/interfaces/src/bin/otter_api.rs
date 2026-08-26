@@ -1079,12 +1079,17 @@ fn resolve_jwt_secret(config: &Config) -> Result<String, String> {
 fn build_multichain_adapter(config: &Config) -> Arc<MultiChainAdapter> {
     let networks = config.resolve_networks();
     match load_private_key(config) {
-        Ok((key, _)) => MultiChainAdapter::new(&networks, &hex::encode(key), None)
-            .map(Arc::new)
-            .unwrap_or_else(|err| {
-                tracing::warn!(%err, "multi-chain adapter initialization failed");
-                Arc::new(MultiChainAdapter::empty())
-            }),
+        Ok((key, _)) => MultiChainAdapter::new(
+            &networks,
+            &hex::encode(key),
+            None,
+            config.mev_searcher_rpc_url.as_deref(),
+        )
+        .map(Arc::new)
+        .unwrap_or_else(|err| {
+            tracing::warn!(%err, "multi-chain adapter initialization failed");
+            Arc::new(MultiChainAdapter::empty())
+        }),
         Err(_) => {
             tracing::info!("no agent private key configured; multi-chain routing disabled");
             Arc::new(MultiChainAdapter::empty())

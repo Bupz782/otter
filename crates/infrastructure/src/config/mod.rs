@@ -148,6 +148,15 @@ pub struct Config {
     #[serde(default = "default_cors_allowed_origins")]
     pub cors_allowed_origins: String,
 
+    /// When true, intent transactions are sent through a private RPC (e.g.
+    /// Flashbots Protect / MEV-Blocker) instead of the public mempool.
+    #[serde(default)]
+    pub mev_searcher_enabled: bool,
+
+    /// Optional private-transaction RPC URL used when `mev_searcher_enabled` is true.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mev_searcher_rpc_url: Option<String>,
+
     /// Maximum number of requests per minute per IP. 0 disables rate limiting.
     #[serde(default = "default_rate_limit_per_minute")]
     pub rate_limit_per_minute: u32,
@@ -253,6 +262,8 @@ impl Default for Config {
             jwt_secret: String::new(),
             jwt_ttl_hours: default_jwt_ttl_hours(),
             cors_allowed_origins: default_cors_allowed_origins(),
+            mev_searcher_enabled: false,
+            mev_searcher_rpc_url: None,
             rate_limit_per_minute: default_rate_limit_per_minute(),
         }
     }
@@ -476,6 +487,12 @@ impl Config {
         }
         if let Ok(val) = std::env::var("OTTER_CORS_ALLOWED_ORIGINS") {
             self.cors_allowed_origins = val;
+        }
+        if let Ok(val) = std::env::var("OTTER_MEV_SEARCHER_ENABLED") {
+            self.mev_searcher_enabled = val.eq_ignore_ascii_case("true");
+        }
+        if let Ok(val) = std::env::var("OTTER_MEV_SEARCHER_RPC_URL") {
+            self.mev_searcher_rpc_url = Some(val);
         }
         if let Ok(val) = std::env::var("OTTER_RATE_LIMIT_PER_MINUTE")
             && let Ok(limit) = val.parse()

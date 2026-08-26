@@ -91,12 +91,14 @@ impl MultiChainAdapter {
         networks: &[NetworkSpec],
         private_key_hex: &str,
         _bb_bin: Option<&str>,
+        searcher_url: Option<&str>,
     ) -> Result<Self, MultichainError> {
         let mut adapters = HashMap::new();
         for spec in networks {
             let adapter =
                 AlloyEvmAdapter::new(spec.rpc_url.clone(), private_key_hex, &spec.vault_address)
-                    .map_err(MultichainError::Evm)?;
+                    .map_err(MultichainError::Evm)?
+                    .with_searcher_url(searcher_url.map(|s| s.to_string()));
             adapters.insert(spec.name.clone(), (adapter, spec.clone()));
         }
         Ok(Self {
