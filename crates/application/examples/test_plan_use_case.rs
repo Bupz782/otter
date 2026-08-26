@@ -37,6 +37,7 @@ fn main() {
             comparator: Comparator::GreaterThan,
             value: 3,
         }),
+        network: None,
     };
 
     match use_case.execute_conditional(&conditional) {

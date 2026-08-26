@@ -1,6 +1,6 @@
 use application::events::{Event, EventBus};
-use application::ports::ExecutionPort;
 use application::orchestrator::{ActiveIntent, Orchestrator};
+use application::ports::ExecutionPort;
 use axum::{
     Extension, Json, Router,
     body::Body,
@@ -1176,7 +1176,11 @@ async fn build_orchestrator(
     tracing::warn!(
         "running without on-chain execution; set OTTER_EXECUTION_ENABLED=true and provide OTTER_PRIVATE_KEY / OTTER_VAULT_ADDRESS to enable"
     );
-    (Orchestrator::new(parser, oracle, zkp, evm), false, mev_store)
+    (
+        Orchestrator::new(parser, oracle, zkp, evm),
+        false,
+        mev_store,
+    )
 }
 
 /// Build the intent parser for the API daemon. When a GGUF model exists at
@@ -3000,6 +3004,7 @@ mod tests {
                     protocol: domain::models::intent::LendingType::Aave,
                 },
                 condition: None,
+                network: None,
             })
             .unwrap(),
             creator_address: None,

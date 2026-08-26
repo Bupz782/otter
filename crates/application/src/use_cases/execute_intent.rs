@@ -172,12 +172,8 @@ where
         // 8. Record simulated MEV profit when a capture port is attached.
         // Best-effort: a capture failure must not fail an executed intent.
         if let Some(mev) = &self.mev
-            && let Err(err) = mev.capture_from_execution(
-                &tx_hash,
-                0,
-                amount_for_capture(&intent),
-                "vault-owner",
-            )
+            && let Err(err) =
+                mev.capture_from_execution(&tx_hash, 0, amount_for_capture(&intent), "vault-owner")
         {
             tracing::warn!(error = %err, "MEV capture failed (ignored)");
         }

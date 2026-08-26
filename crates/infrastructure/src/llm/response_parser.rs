@@ -253,6 +253,7 @@ mod tests {
                 comparator: Comparator::LessThanOrEqualTo,
                 value: 750,
             }),
+            network: None,
         };
         let json = serde_json::to_string(&original).unwrap();
 

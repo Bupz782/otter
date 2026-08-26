@@ -44,6 +44,10 @@ pub enum Protocol {
 pub struct ConditionalIntent {
     pub intent: Intent,
     pub condition: Option<Condition>,
+    /// Target network for execution (`OTTER_NETWORKS` key). `None` routes to
+    /// the default network.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub network: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]

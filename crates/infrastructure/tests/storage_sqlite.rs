@@ -34,6 +34,7 @@ fn sample_intent_record(id: &str) -> IntentRecord {
                 comparator: Comparator::GreaterThan,
                 value: 2_000,
             }),
+            network: None,
         },
         state: "active".to_string(),
         created_at: now_secs(),

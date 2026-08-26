@@ -102,6 +102,7 @@ mod tests {
                     comparator: Comparator::GreaterThan,
                     value: 3_00,
                 }),
+                network: None,
             },
             creator_address: None,
             agent_id: "agent-1".to_string(),
@@ -172,6 +173,7 @@ mod tests {
                 protocol: LendingType::Aave,
             },
             condition: None,
+            network: None,
         };
         assert!(matches!(
             strategy.validate(),

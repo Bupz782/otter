@@ -388,7 +388,11 @@ impl RegexParser {
             None
         };
 
-        Ok(ConditionalIntent { intent, condition })
+        Ok(ConditionalIntent {
+            intent,
+            condition,
+            network: None,
+        })
     }
 
     /// Get descriptions of all registered parsers

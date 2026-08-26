@@ -670,6 +670,7 @@ mod tests {
                     comparator: Comparator::GreaterThan,
                     value: 2_000,
                 }),
+                network: None,
             },
             state: "active".to_string(),
             created_at: now_secs(),

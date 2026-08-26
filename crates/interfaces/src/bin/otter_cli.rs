@@ -226,6 +226,7 @@ fn format_intent(conditional: &ConditionalIntent) -> String {
                     format_intent(&ConditionalIntent {
                         intent: i.clone(),
                         condition: None,
+                        network: None,
                     })
                 })
                 .collect();
