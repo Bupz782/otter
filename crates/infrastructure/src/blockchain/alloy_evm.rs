@@ -323,6 +323,21 @@ impl AlloyEvmAdapter {
         self.signer.address().to_string()
     }
 
+    /// Fetch the chain ID from the RPC endpoint (`eth_chainId`).
+    pub async fn get_chain_id_async(&self) -> Result<u64, EvmError> {
+        let url = self
+            .rpc_url
+            .parse()
+            .map_err(|e| EvmError::SubmissionFailed(format!("invalid rpc url: {}", e)))?;
+        let provider = ProviderBuilder::new()
+            .with_recommended_fillers()
+            .on_http(url);
+        provider
+            .get_chain_id()
+            .await
+            .map_err(|e| EvmError::SubmissionFailed(format!("chain id fetch failed: {}", e)))
+    }
+
     /// Return the current on-chain transaction count for the adapter's signer.
     pub async fn get_transaction_count(&self) -> Result<u64, EvmError> {
         let url = self

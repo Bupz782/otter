@@ -1,4 +1,4 @@
-use domain::models::delegation::{DelegationProof, PublicDelegationInputs};
+use domain::models::delegation::{DelegationMessage, DelegationProof, PublicDelegationInputs};
 use domain::models::transaction::{Transaction, TransactionReceipt};
 use domain::ports::evm_port::{EvmError, EvmPort};
 
@@ -108,6 +108,62 @@ impl EvmPort for MockEvmAdapter {
             status: true,
             gas_used: 21000,
         }))
+    }
+}
+
+impl domain::ports::multichain_evm_port::MultiChainEvmPort for MockEvmAdapter {
+    fn ensure_delegated_on(
+        &self,
+        _network: Option<&str>,
+        _delegation: &DelegationMessage,
+    ) -> Result<String, domain::ports::multichain_evm_port::MultichainError> {
+        Ok(format!("0x{}", hex::encode([3u8; 32])))
+    }
+
+    fn set_protocol_router_on(
+        &self,
+        _network: Option<&str>,
+        protocol: u64,
+        router: &str,
+    ) -> Result<String, domain::ports::multichain_evm_port::MultichainError> {
+        let _ = (protocol, router);
+        Ok(format!("0x{}", hex::encode([2u8; 32])))
+    }
+
+    fn execute_with_proof_on(
+        &self,
+        network: Option<&str>,
+        proof: &DelegationProof,
+        public_inputs: &PublicDelegationInputs,
+    ) -> Result<String, domain::ports::multichain_evm_port::MultichainError> {
+        // Record the routed network in the fake tx hash so tests can assert
+        // which adapter was selected.
+        let tag = match network.unwrap_or("default") {
+            n if n.contains("arbitrum") => [0xAAu8; 32],
+            _ => [0u8; 32],
+        };
+        EvmPort::execute_with_proof(self, proof, public_inputs)?;
+        Ok(format!("0x{}", hex::encode(tag)))
+    }
+
+    fn verify_onchain_on(
+        &self,
+        _network: Option<&str>,
+        _proof: &DelegationProof,
+        _public_inputs: &PublicDelegationInputs,
+    ) -> Result<bool, domain::ports::multichain_evm_port::MultichainError> {
+        Ok(true)
+    }
+
+    fn chain_id_of(
+        &self,
+        network: Option<&str>,
+    ) -> Result<u64, domain::ports::multichain_evm_port::MultichainError> {
+        match network.unwrap_or("default") {
+            n if n.contains("arbitrum") => Ok(421614),
+            "mainnet" => Ok(1),
+            _ => Ok(11155111),
+        }
     }
 }
 
