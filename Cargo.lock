@@ -1248,7 +1248,7 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "tracing",
- "uuid 1.23.4",
+ "uuid 1.24.1",
 ]
 
 [[package]]
@@ -4048,7 +4048,7 @@ dependencies = [
  "tower-http 0.5.2",
  "tracing",
  "tracing-subscriber",
- "uuid 1.23.4",
+ "uuid 1.24.1",
  "vaultrs",
 ]
 
@@ -8448,7 +8448,7 @@ dependencies = [
  "tokio-stream",
  "tracing",
  "url",
- "uuid 1.23.4",
+ "uuid 1.24.1",
 ]
 
 [[package]]
@@ -8528,7 +8528,7 @@ dependencies = [
  "stringprep",
  "thiserror 2.0.18",
  "tracing",
- "uuid 1.23.4",
+ "uuid 1.24.1",
  "whoami",
 ]
 
@@ -8566,7 +8566,7 @@ dependencies = [
  "stringprep",
  "thiserror 2.0.18",
  "tracing",
- "uuid 1.23.4",
+ "uuid 1.24.1",
  "whoami",
 ]
 
@@ -8592,7 +8592,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tracing",
  "url",
- "uuid 1.23.4",
+ "uuid 1.24.1",
 ]
 
 [[package]]
@@ -9445,9 +9445,9 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.23.4"
+version = "1.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf80a72845275afea99e7f2b434723d3bc7e38470fcd1c7ed39a599c73319a53"
+checksum = "2cefc03fd367c0c6d4305de1b312cf00248c4114f4a0418ce6a6af769e3b0bd9"
 dependencies = [
  "getrandom 0.4.3",
  "js-sys",
