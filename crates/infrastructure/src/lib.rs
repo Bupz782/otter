@@ -6,5 +6,6 @@ pub mod observability;
 pub mod parsers;
 pub mod protocols;
 pub mod services;
+pub mod solana;
 pub mod storage;
 pub mod zkp;

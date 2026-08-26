@@ -157,6 +157,22 @@ pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mev_searcher_rpc_url: Option<String>,
 
+    /// Enable the Solana attestation adapter.
+    #[serde(default)]
+    pub solana_enabled: bool,
+
+    /// Solana RPC URL (e.g. https://api.devnet.solana.com).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub solana_rpc_url: Option<String>,
+
+    /// Program id of the deployed `attestation_registry` Anchor program.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub solana_program_id: Option<String>,
+
+    /// Base58-encoded authority keypair used to sign Solana attestations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub solana_authority_keypair: Option<String>,
+
     /// Maximum number of requests per minute per IP. 0 disables rate limiting.
     #[serde(default = "default_rate_limit_per_minute")]
     pub rate_limit_per_minute: u32,
@@ -264,6 +280,10 @@ impl Default for Config {
             cors_allowed_origins: default_cors_allowed_origins(),
             mev_searcher_enabled: false,
             mev_searcher_rpc_url: None,
+            solana_enabled: false,
+            solana_rpc_url: None,
+            solana_program_id: None,
+            solana_authority_keypair: None,
             rate_limit_per_minute: default_rate_limit_per_minute(),
         }
     }
@@ -493,6 +513,18 @@ impl Config {
         }
         if let Ok(val) = std::env::var("OTTER_MEV_SEARCHER_RPC_URL") {
             self.mev_searcher_rpc_url = Some(val);
+        }
+        if let Ok(val) = std::env::var("OTTER_SOLANA_ENABLED") {
+            self.solana_enabled = val.eq_ignore_ascii_case("true");
+        }
+        if let Ok(val) = std::env::var("OTTER_SOLANA_RPC_URL") {
+            self.solana_rpc_url = Some(val);
+        }
+        if let Ok(val) = std::env::var("OTTER_SOLANA_PROGRAM_ID") {
+            self.solana_program_id = Some(val);
+        }
+        if let Ok(val) = std::env::var("OTTER_SOLANA_AUTHORITY_KEYPAIR") {
+            self.solana_authority_keypair = Some(val);
         }
         if let Ok(val) = std::env::var("OTTER_RATE_LIMIT_PER_MINUTE")
             && let Ok(limit) = val.parse()

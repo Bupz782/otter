@@ -19,7 +19,9 @@ use domain::ports::intent_parser_port::IntentParserPort;
 use domain::ports::price_oracle_port::PriceOraclePort;
 use domain::ports::storage_port::StrategyRecord;
 use domain::ports::wallet_port::WalletPort;
-use domain::ports::{BlockchainPort, DelegationRecord, ExecutionRecord, IntentRecord, StoragePort};
+use domain::ports::{
+    BlockchainPort, DelegationRecord, ExecutionRecord, IntentRecord, SolanaPort, StoragePort,
+};
 use infrastructure::blockchain::{
     AlloyEvmAdapter, CompositeOracle, HealthEntry, LocalWalletAdapter, MultiChainAdapter,
     OracleNetwork,
@@ -27,6 +29,7 @@ use infrastructure::blockchain::{
 use infrastructure::config::Config;
 use infrastructure::parsers::{HybridParser, LlmIntentParser, RegexParser};
 use infrastructure::services::OnChainExecutionService;
+use infrastructure::solana::SolanaAttestationAdapter;
 use infrastructure::storage::{PgStorage, SqliteStorage};
 use infrastructure::zkp::NoirAdapter;
 use interfaces::auth::{AuthService, AuthUser, Role};
@@ -75,6 +78,8 @@ struct AppState {
     rebate_bps: u64,
     /// Optional on-chain SolvencyRegistry address used by `/api/v1/solvency/status`.
     solvency_registry_address: Option<String>,
+    /// Optional Solana attestation adapter.
+    solana: Option<Arc<dyn SolanaPort>>,
 }
 
 #[derive(Debug, Clone)]
@@ -503,6 +508,12 @@ fn app(state: Arc<AppState>) -> Router {
         .route("/api/v1/rebates/pending", post(pending_rebates))
         .route("/api/v1/auth/roles/:address", post(set_role))
         .route("/api/v1/solvency/status", get(solvency_status))
+        .route("/api/v1/solana/attest", post(solana_attest))
+        .route(
+            "/api/v1/solana/attestations/:authority",
+            get(solana_get_attestation),
+        )
+        .route("/api/v1/solana/verify", post(solana_verify))
         .route("/api/v1/orchestrator/state", get(orchestrator_state))
         .merge(demo)
         .route_layer(from_fn_with_state(state.clone(), auth_middleware));
@@ -995,6 +1006,7 @@ async fn main() {
         mev: mev_store.clone(),
         rebate_bps: infrastructure::mev::rebate_bps_from_env(),
         solvency_registry_address: config.solvency_registry_address.clone(),
+        solana: build_solana_adapter(&config),
     });
 
     // Background monitoring loop: fetch on-chain metrics for active intents.
@@ -1097,6 +1109,23 @@ fn build_multichain_adapter(config: &Config) -> Arc<MultiChainAdapter> {
     }
 }
 
+/// Build the optional Solana attestation adapter from config.
+fn build_solana_adapter(config: &Config) -> Option<Arc<dyn SolanaPort>> {
+    if !config.solana_enabled {
+        return None;
+    }
+    let rpc_url = config.solana_rpc_url.as_deref()?;
+    let program_id = config.solana_program_id.as_deref()?;
+    let keypair = config.solana_authority_keypair.as_deref()?;
+    match SolanaAttestationAdapter::new(rpc_url, program_id, keypair) {
+        Ok(adapter) => Some(Arc::new(adapter)),
+        Err(err) => {
+            tracing::warn!(%err, "solana adapter initialization failed");
+            None
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 struct NetworkStatusResponse {
     name: String,
@@ -1192,6 +1221,95 @@ async fn solvency_status(AxumState(state): AxumState<Arc<AppState>>) -> Response
                 .into_response()
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct SolanaAttestRequest {
+    payload_hash: String,
+}
+
+#[derive(Debug, Serialize)]
+struct SolanaAttestResponse {
+    signature: String,
+}
+
+#[derive(Debug, Serialize)]
+struct SolanaAttestationResponse {
+    authority: String,
+    payload_hash: String,
+    timestamp: i64,
+}
+
+#[derive(Debug, Deserialize)]
+struct SolanaVerifyRequest {
+    authority: String,
+    payload_hash: String,
+}
+
+#[derive(Debug, Serialize)]
+struct SolanaVerifyResponse {
+    valid: bool,
+}
+
+fn parse_hash32(value: &str) -> Result<[u8; 32], AppError> {
+    let hex_str = value.strip_prefix("0x").unwrap_or(value);
+    let mut out = [0u8; 32];
+    hex::decode_to_slice(hex_str, &mut out)
+        .map_err(|e| AppError::Validation(format!("invalid 32-byte hash: {}", e)))?;
+    Ok(out)
+}
+
+async fn solana_attest(
+    AxumState(state): AxumState<Arc<AppState>>,
+    Extension(user): Extension<AuthUser>,
+    Json(body): Json<SolanaAttestRequest>,
+) -> Result<Json<SolanaAttestResponse>, AppError> {
+    require_writer(&Some(user))?;
+    let adapter = state
+        .solana
+        .as_ref()
+        .ok_or_else(|| AppError::Config("solana adapter is not configured".to_string()))?;
+    let hash = parse_hash32(&body.payload_hash)?;
+    let signature = adapter
+        .attest(hash)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    Ok(Json(SolanaAttestResponse { signature }))
+}
+
+async fn solana_get_attestation(
+    AxumState(state): AxumState<Arc<AppState>>,
+    Path(authority): Path<String>,
+) -> Result<Json<SolanaAttestationResponse>, AppError> {
+    let adapter = state
+        .solana
+        .as_ref()
+        .ok_or_else(|| AppError::Config("solana adapter is not configured".to_string()))?;
+    let record = adapter
+        .get_attestation(&authority)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    Ok(Json(SolanaAttestationResponse {
+        authority: record.authority,
+        payload_hash: format!("0x{}", hex::encode(record.payload_hash)),
+        timestamp: record.timestamp,
+    }))
+}
+
+async fn solana_verify(
+    AxumState(state): AxumState<Arc<AppState>>,
+    Json(body): Json<SolanaVerifyRequest>,
+) -> Result<Json<SolanaVerifyResponse>, AppError> {
+    let adapter = state
+        .solana
+        .as_ref()
+        .ok_or_else(|| AppError::Config("solana adapter is not configured".to_string()))?;
+    let hash = parse_hash32(&body.payload_hash)?;
+    let valid = adapter
+        .verify(&body.authority, hash)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    Ok(Json(SolanaVerifyResponse { valid }))
 }
 
 #[derive(Debug, Serialize)]
@@ -2551,6 +2669,7 @@ mod tests {
             mev: None,
             rebate_bps: infrastructure::mev::DEFAULT_REBATE_BPS,
             solvency_registry_address: None,
+            solana: None,
         })
     }
 
@@ -2606,6 +2725,7 @@ mod tests {
             mev: None,
             rebate_bps: infrastructure::mev::DEFAULT_REBATE_BPS,
             solvency_registry_address: None,
+            solana: None,
         });
 
         let response = metrics(AxumState(disabled_state)).await;
@@ -2822,6 +2942,7 @@ mod tests {
             mev: state.mev.clone(),
             rebate_bps: state.rebate_bps,
             solvency_registry_address: state.solvency_registry_address.clone(),
+            solana: state.solana.clone(),
             orchestrator: state.orchestrator.clone(),
             storage: state.storage.clone(),
             bus: state.bus.clone(),

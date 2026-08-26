@@ -37,6 +37,17 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 sqlx = { version = "0.8.1", default-features = false, features = ["runtime-tokio-native-tls", "postgres", "migrate", "macros", "uuid"] }
 async-trait = "0.1"
 
+# Optional Solana/Anchor integration, enabled with the `solana` feature.
+solana-sdk = { version = "2.0", optional = true }
+solana-client = { version = "2.0", optional = true }
+solana-program = { version = "2.0", optional = true }
+borsh = { version = "1.5", optional = true }
+bs58 = { version = "0.5", optional = true }
+
+[features]
+default = []
+solana = ["dep:solana-sdk", "dep:solana-client", "dep:solana-program", "dep:borsh", "dep:bs58"]
+
 [dev-dependencies]
 rand = "0.8"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
