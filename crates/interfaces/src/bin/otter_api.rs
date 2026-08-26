@@ -501,6 +501,7 @@ fn app(state: Arc<AppState>) -> Router {
         .route("/api/v1/executions", get(list_executions))
         .route("/api/v1/rebates", get(list_rebates))
         .route("/api/v1/rebates/pending", post(pending_rebates))
+        .route("/api/v1/auth/roles/:address", post(set_role))
         .route("/api/v1/solvency/status", get(solvency_status))
         .route("/api/v1/orchestrator/state", get(orchestrator_state))
         .merge(demo)
@@ -705,6 +706,34 @@ async fn auth_me(Extension(user): Extension<Option<AuthUser>>) -> Response {
         )
             .into_response(),
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct SetRoleRequest {
+    role: String,
+}
+
+async fn set_role(
+    AxumState(state): AxumState<Arc<AppState>>,
+    Extension(user): Extension<Option<AuthUser>>,
+    Path(address): Path<String>,
+    Json(body): Json<SetRoleRequest>,
+) -> Result<StatusCode, AppError> {
+    let caller = user
+        .as_ref()
+        .ok_or_else(|| AppError::Forbidden("authentication required".to_string()))?;
+    let role: Role = body
+        .role
+        .parse()
+        .map_err(|e: String| AppError::Validation(e))?;
+    let service = state
+        .auth_service
+        .as_ref()
+        .ok_or_else(|| AppError::Internal("authentication disabled".to_string()))?;
+    service
+        .set_role(&caller.address, &address, role)
+        .map_err(|e| AppError::Forbidden(e.to_string()))?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// Require a non-Viewer role when authentication is enabled.
@@ -1625,7 +1654,7 @@ async fn set_delegation(
     Extension(user): Extension<Option<AuthUser>>,
     Json(body): Json<SetDelegationRequest>,
 ) -> Result<Json<SetDelegationResponse>, AppError> {
-    let _user = require_writer(&user)?;
+    require_writer(&user)?;
     validate_delegation_fields(
         &body.pubkey_x,
         &body.pubkey_y,
@@ -1770,7 +1799,7 @@ async fn create_strategy(
     Extension(user): Extension<Option<AuthUser>>,
     Json(body): Json<CreateStrategyRequest>,
 ) -> Result<Json<StrategyCreatedResponse>, AppError> {
-    let _user = require_writer(&user)?;
+    require_writer(&user)?;
     let conditional = {
         let mut orchestrator = state.write_orchestrator().await;
         orchestrator.parse(&body.raw_text)?
@@ -2108,7 +2137,7 @@ async fn create_intent(
     Extension(user): Extension<Option<AuthUser>>,
     Json(body): Json<CreateIntentRequest>,
 ) -> Result<Json<CreateIntentResponse>, AppError> {
-    let _user = require_writer(&user)?;
+    require_writer(&user)?;
     validate_intent_text(&body.text)?;
 
     // Reject unknown networks up front so intents never silently fall back to
@@ -2197,7 +2226,7 @@ async fn delete_intent(
     Extension(user): Extension<Option<AuthUser>>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
-    let _user = require_writer(&user)?;
+    require_writer(&user)?;
     let user = user.map(|u| u.address);
     let record = state.storage.get_intent(&id).await?;
     if let Some(ref rec) = record
