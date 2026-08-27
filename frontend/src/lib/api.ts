@@ -658,11 +658,9 @@ export const api = {
         method: "POST",
         body: JSON.stringify(body),
       }),
-    // The optional filter matches on source chain id (backend param name is
-    // "network" but it compares against source_chain_id).
     transfers: (sourceChainId?: number) =>
       request<BackendBridgeTransfer[]>(
-        `/api/v1/bridge/transfers${sourceChainId !== undefined ? `?network=${sourceChainId}` : ""}`
+        `/api/v1/bridge/transfers${sourceChainId !== undefined ? `?chain_id=${sourceChainId}` : ""}`
       ),
   },
 };

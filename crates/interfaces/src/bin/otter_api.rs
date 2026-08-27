@@ -1557,11 +1557,11 @@ async fn bridge_transfers(
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    let filter_network = params.get("network");
+    let filter_chain_id = params.get("chain_id");
     let items: Vec<BridgeTransferItem> = records
         .into_iter()
         .filter(|r| {
-            filter_network
+            filter_chain_id
                 .map(|n| n.as_str() == r.source_chain_id.to_string())
                 .unwrap_or(true)
         })
