@@ -6,6 +6,9 @@
 //! and partially rebated to the vault owner. Contracts and the Noir circuit
 //! are untouched.
 
+pub mod bundle_searcher;
+pub mod mempool_monitor;
+
 use std::sync::Arc;
 
 use rusqlite::Connection;

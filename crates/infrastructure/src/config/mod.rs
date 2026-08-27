@@ -173,6 +173,19 @@ pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub solana_authority_keypair: Option<String>,
 
+    /// Enable the real bundle-based MEV searcher.
+    #[serde(default)]
+    pub mev_bundle_enabled: bool,
+    /// Flashbots-compatible relay URL (e.g. https://relay.flashbots.net).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mev_bundle_relay_url: Option<String>,
+    /// Hex-encoded secp256k1 private key used to sign bundle submissions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mev_bundle_private_key: Option<String>,
+    /// Address that receives the searcher rebate share.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mev_bundle_beneficiary: Option<String>,
+
     /// Maximum number of requests per minute per IP. 0 disables rate limiting.
     #[serde(default = "default_rate_limit_per_minute")]
     pub rate_limit_per_minute: u32,
@@ -284,6 +297,10 @@ impl Default for Config {
             solana_rpc_url: None,
             solana_program_id: None,
             solana_authority_keypair: None,
+            mev_bundle_enabled: false,
+            mev_bundle_relay_url: None,
+            mev_bundle_private_key: None,
+            mev_bundle_beneficiary: None,
             rate_limit_per_minute: default_rate_limit_per_minute(),
         }
     }
@@ -525,6 +542,18 @@ impl Config {
         }
         if let Ok(val) = std::env::var("OTTER_SOLANA_AUTHORITY_KEYPAIR") {
             self.solana_authority_keypair = Some(val);
+        }
+        if let Ok(val) = std::env::var("OTTER_MEV_BUNDLE_ENABLED") {
+            self.mev_bundle_enabled = val.eq_ignore_ascii_case("true");
+        }
+        if let Ok(val) = std::env::var("OTTER_MEV_BUNDLE_RELAY_URL") {
+            self.mev_bundle_relay_url = Some(val);
+        }
+        if let Ok(val) = std::env::var("OTTER_MEV_BUNDLE_PRIVATE_KEY") {
+            self.mev_bundle_private_key = Some(val);
+        }
+        if let Ok(val) = std::env::var("OTTER_MEV_BUNDLE_BENEFICIARY") {
+            self.mev_bundle_beneficiary = Some(val);
         }
         if let Ok(val) = std::env::var("OTTER_RATE_LIMIT_PER_MINUTE")
             && let Ok(limit) = val.parse()

@@ -20,13 +20,15 @@ use domain::ports::price_oracle_port::PriceOraclePort;
 use domain::ports::storage_port::StrategyRecord;
 use domain::ports::wallet_port::WalletPort;
 use domain::ports::{
-    BlockchainPort, DelegationRecord, ExecutionRecord, IntentRecord, SolanaPort, StoragePort,
+    BlockchainPort, BundleSearcherPort, DelegationRecord, ExecutionRecord, IntentRecord,
+    SolanaPort, StoragePort,
 };
 use infrastructure::blockchain::{
     AlloyEvmAdapter, CompositeOracle, HealthEntry, LocalWalletAdapter, MultiChainAdapter,
     OracleNetwork,
 };
 use infrastructure::config::Config;
+use infrastructure::mev::bundle_searcher::FlashbotsBundleSearcher;
 use infrastructure::parsers::{HybridParser, LlmIntentParser, RegexParser};
 use infrastructure::services::OnChainExecutionService;
 use infrastructure::solana::SolanaAttestationAdapter;
@@ -78,8 +80,10 @@ struct AppState {
     rebate_bps: u64,
     /// Optional on-chain SolvencyRegistry address used by `/api/v1/solvency/status`.
     solvency_registry_address: Option<String>,
-    /// Optional Solana attestation adapter.
+    /// Optional feature-gated Solana attestation adapter.
     solana: Option<Arc<dyn SolanaPort>>,
+    /// Optional real bundle-based MEV searcher.
+    bundle_searcher: Option<Arc<dyn BundleSearcherPort>>,
 }
 
 #[derive(Debug, Clone)]
@@ -514,6 +518,7 @@ fn app(state: Arc<AppState>) -> Router {
             get(solana_get_attestation),
         )
         .route("/api/v1/solana/verify", post(solana_verify))
+        .route("/api/v1/mev/bundle", post(submit_bundle))
         .route("/api/v1/orchestrator/state", get(orchestrator_state))
         .merge(demo)
         .route_layer(from_fn_with_state(state.clone(), auth_middleware));
@@ -1007,6 +1012,7 @@ async fn main() {
         rebate_bps: infrastructure::mev::rebate_bps_from_env(),
         solvency_registry_address: config.solvency_registry_address.clone(),
         solana: build_solana_adapter(&config),
+        bundle_searcher: build_bundle_searcher(&config),
     });
 
     // Background monitoring loop: fetch on-chain metrics for active intents.
@@ -1114,13 +1120,29 @@ fn build_solana_adapter(config: &Config) -> Option<Arc<dyn SolanaPort>> {
     if !config.solana_enabled {
         return None;
     }
-    let rpc_url = config.solana_rpc_url.as_deref()?;
+    let rpc = config.solana_rpc_url.as_deref()?;
     let program_id = config.solana_program_id.as_deref()?;
     let keypair = config.solana_authority_keypair.as_deref()?;
-    match SolanaAttestationAdapter::new(rpc_url, program_id, keypair) {
+    match SolanaAttestationAdapter::new(rpc, program_id, keypair) {
         Ok(adapter) => Some(Arc::new(adapter)),
         Err(err) => {
             tracing::warn!(%err, "solana adapter initialization failed");
+            None
+        }
+    }
+}
+
+/// Build the optional bundle-based MEV searcher from config.
+fn build_bundle_searcher(config: &Config) -> Option<Arc<dyn BundleSearcherPort>> {
+    if !config.mev_bundle_enabled {
+        return None;
+    }
+    let relay = config.mev_bundle_relay_url.as_deref()?;
+    let pk = config.mev_bundle_private_key.as_deref()?;
+    match FlashbotsBundleSearcher::new(relay, pk) {
+        Ok(searcher) => Some(Arc::new(searcher)),
+        Err(err) => {
+            tracing::warn!(%err, "bundle searcher initialization failed");
             None
         }
     }
@@ -1251,6 +1273,18 @@ struct SolanaVerifyResponse {
     valid: bool,
 }
 
+#[derive(Debug, Deserialize)]
+struct SubmitBundleRequest {
+    txs: Vec<String>,
+    #[serde(default)]
+    block_number: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+struct SubmitBundleResponse {
+    bundle_hash: String,
+}
+
 fn parse_hash32(value: &str) -> Result<[u8; 32], AppError> {
     let hex_str = value.strip_prefix("0x").unwrap_or(value);
     let mut out = [0u8; 32];
@@ -1310,6 +1344,41 @@ async fn solana_verify(
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
     Ok(Json(SolanaVerifyResponse { valid }))
+}
+
+async fn submit_bundle(
+    AxumState(state): AxumState<Arc<AppState>>,
+    Extension(user): Extension<AuthUser>,
+    Json(body): Json<SubmitBundleRequest>,
+) -> Result<Json<SubmitBundleResponse>, AppError> {
+    require_writer(&Some(user))?;
+    let searcher = state
+        .bundle_searcher
+        .as_ref()
+        .ok_or_else(|| AppError::Config("bundle searcher is not configured".to_string()))?;
+
+    let txs: Vec<Vec<u8>> = body
+        .txs
+        .iter()
+        .map(|raw| {
+            let hex = raw.strip_prefix("0x").unwrap_or(raw);
+            hex::decode(hex).map_err(|e| AppError::Validation(format!("invalid tx hex: {}", e)))
+        })
+        .collect::<Result<_, _>>()?;
+
+    let bundle = domain::ports::Bundle {
+        txs,
+        block_number: body.block_number,
+        min_timestamp: None,
+        max_timestamp: None,
+    };
+
+    let bundle_hash = searcher
+        .submit_bundle(bundle)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok(Json(SubmitBundleResponse { bundle_hash }))
 }
 
 #[derive(Debug, Serialize)]
@@ -2670,6 +2739,7 @@ mod tests {
             rebate_bps: infrastructure::mev::DEFAULT_REBATE_BPS,
             solvency_registry_address: None,
             solana: None,
+            bundle_searcher: None,
         })
     }
 
@@ -2726,6 +2796,7 @@ mod tests {
             rebate_bps: infrastructure::mev::DEFAULT_REBATE_BPS,
             solvency_registry_address: None,
             solana: None,
+            bundle_searcher: None,
         });
 
         let response = metrics(AxumState(disabled_state)).await;
@@ -2943,6 +3014,7 @@ mod tests {
             rebate_bps: state.rebate_bps,
             solvency_registry_address: state.solvency_registry_address.clone(),
             solana: state.solana.clone(),
+            bundle_searcher: state.bundle_searcher.clone(),
             orchestrator: state.orchestrator.clone(),
             storage: state.storage.clone(),
             bus: state.bus.clone(),
