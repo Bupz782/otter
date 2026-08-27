@@ -1,113 +1,50 @@
+version: "3.8"
+
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: otter-postgres
-    environment:
-      POSTGRES_USER: otter
-      POSTGRES_PASSWORD: otter
-      POSTGRES_DB: otter
-    volumes:
-      - otter-postgres-data:/var/lib/postgresql/data
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:latest
+    command: ["anvil", "--host", "0.0.0.0", "--fork-url", "${ANVIL_FORK_URL:-}"]
+    ports:
+      - "8545:8545"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U otter -d otter"]
+      test: ["CMD", "cast", "chain-id", "--rpc-url", "http://localhost:8545"]
       interval: 5s
       timeout: 5s
-      retries: 5
-    expose:
-      - "5432"
+      retries: 10
 
   api:
-    image: ${OTTER_API_IMAGE:-otter-api:latest}
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: otter-api
+      args:
+        NOIR_VERSION: ${NOIR_VERSION:-1.0.0-beta.22}
+        BB_VERSION: ${BB_VERSION:-0.82.2}
     ports:
       - "3001:3001"
+    environment:
+      OTTER_API_PORT: "3001"
+      OTTER_DATABASE_URL: "/data/otter.db"
+      OTTER_NETWORKS: "${OTTER_NETWORKS:-default=http://anvil:8545|0x0000000000000000000000000000000000000000|31337}"
+      OTTER_PRIVATE_KEY: "${OTTER_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
+      OTTER_CIRCUIT_DIR: "/app/delegation_circuit"
+      OTTER_NARGO_BIN: "/usr/local/bin/nargo"
+      OTTER_BB_BIN: "/usr/local/bin/bb"
+      OTTER_MIGRATIONS_DIR: "/app/crates/infrastructure/migrations"
+      RUST_LOG: "info"
     volumes:
       - otter-data:/data
-    environment:
-      - OTTER_DATABASE_URL=postgres://otter:otter@postgres:5432/otter
-      - OTTER_API_PORT=3001
-      - OTTER_RPC_URL=${OTTER_RPC_URL:-https://ethereum-sepolia-rpc.publicnode.com}
-      - OTTER_CHAIN_ID=${OTTER_CHAIN_ID:-11155111}
-      - OTTER_NETWORK=${OTTER_NETWORK:-sepolia}
-      - OTTER_VAULT_ADDRESS=${OTTER_VAULT_ADDRESS}
-      - OTTER_PRIVATE_KEY=${OTTER_PRIVATE_KEY}
-      - OTTER_PRIVATE_KEY_FILE=${OTTER_PRIVATE_KEY_FILE}
-      - OTTER_PRIVATE_KEY_SOURCE=${OTTER_PRIVATE_KEY_SOURCE:-env-file}
-      - OTTER_NONCE_STORE_PATH=${OTTER_NONCE_STORE_PATH:-/data/otter-nonce.txt}
-      - OTTER_CIRCUIT_DIR=/app/delegation_circuit
-      - OTTER_NARGO_BIN=${OTTER_NARGO_BIN:-/usr/local/bin/nargo}
-      - OTTER_BB_BIN=${OTTER_BB_BIN:-/usr/local/bin/bb}
-      - OTTER_EXECUTION_ENABLED=${OTTER_EXECUTION_ENABLED:-false}
-      - OTTER_DELEGATE_ON_CREATE=${OTTER_DELEGATE_ON_CREATE:-false}
-      - OTTER_METRICS_ENABLED=${OTTER_METRICS_ENABLED:-true}
-      - OTTER_MONITORING_INTERVAL_SECS=${OTTER_MONITORING_INTERVAL_SECS:-60}
-      - RUST_LOG=${RUST_LOG:-info}
     depends_on:
-      postgres:
+      anvil:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
 
   frontend:
-    image: ${OTTER_FRONTEND_IMAGE:-otter-frontend:latest}
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
-    container_name: otter-frontend
     ports:
-      - "3000:3000"
+      - "3000:80"
     depends_on:
-      api:
-        condition: service_healthy
-
-  # Supervision : demarrer avec `docker compose --profile monitoring up -d`.
-  prometheus:
-    image: prom/prometheus:v2.54.1
-    container_name: otter-prometheus
-    profiles: ["monitoring"]
-    volumes:
-      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./alerting.yml:/etc/prometheus/alerting.yml:ro
-      - otter-prometheus-data:/prometheus
-    ports:
-      - "127.0.0.1:9090:9090"
-    depends_on:
-      api:
-        condition: service_healthy
-      alertmanager:
-        condition: service_started
-
-  alertmanager:
-    image: prom/alertmanager:v0.27.0
-    container_name: otter-alertmanager
-    profiles: ["monitoring"]
-    volumes:
-      - ./deploy/alertmanager.yml:/etc/alertmanager/alertmanager.yml.tmpl:ro
-    environment:
-      # Canal de signalement : URL de webhook (healthchecks.io, ntfy, endpoint maison).
-      - ALERT_WEBHOOK_URL=${ALERT_WEBHOOK_URL:-http://host.docker.internal:9876/alert}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    ports:
-      - "127.0.0.1:9093:9093"
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - >-
-        sed "s|__ALERT_WEBHOOK_URL__|$${ALERT_WEBHOOK_URL}|g"
-        /etc/alertmanager/alertmanager.yml.tmpl > /tmp/alertmanager.yml
-        && exec alertmanager --config.file=/tmp/alertmanager.yml
-        --storage.path=/tmp/alertmanager
+      - api
 
 volumes:
   otter-data:
-  otter-postgres-data:
-  otter-prometheus-data:
