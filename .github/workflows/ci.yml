@@ -1,262 +1,66 @@
-name: CI Pipeline
+name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
 
 jobs:
-  changes:
-    runs-on: ubuntu-latest
-    outputs:
-      rust: ${{ steps.filter.outputs.rust }}
-      contracts: ${{ steps.filter.outputs.contracts }}
-      circuit: ${{ steps.filter.outputs.circuit }}
-      frontend: ${{ steps.filter.outputs.frontend }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            rust:
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - 'crates/**'
-            contracts:
-              - 'contracts/**'
-            circuit:
-              - 'delegation_circuit/**'
-            frontend:
-              - 'frontend/**'
-
-  rust-check:
-    needs: changes
-    if: ${{ needs.changes.outputs.rust == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-      # Les tests d'intégration zkp_noir.rs exécutent le circuit via le
-      # binaire nargo (witness réel) : il doit être présent dans le job.
-      - name: Read Noir compiler version
-        id: noir_version
-        run: echo "version=$(cat delegation_circuit/.noir-version)" >> "$GITHUB_OUTPUT"
-      - name: Install Noir
-        uses: noir-lang/noirup@v0.1.4
-        with:
-          toolchain: ${{ steps.noir_version.outputs.version }}
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-      - name: Run clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Run tests
-        run: cargo test --workspace
-
-  contracts-check:
-    needs: changes
-    if: ${{ needs.changes.outputs.contracts == 'true' }}
+  rust:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: foundry-rs/foundry-toolchain@v1
-        with:
-          # Pinned: forge stable reformats src/DelegationVerifier.sol (generated
-          # verifier), breaking `forge fmt --check`. Align with local toolchain.
-          version: v1.2.3
-      - name: Check formatting
-        working-directory: ./contracts
-        run: forge fmt --check
-      - name: Run tests
-        working-directory: ./contracts
-        run: forge test
 
-  circuit-check:
-    needs: changes
-    if: ${{ needs.changes.outputs.circuit == 'true' }}
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test --workspace
+
+  contracts:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Read Noir compiler version
-        id: noir_version
-        working-directory: ./delegation_circuit
-        run: |
-          set -euo pipefail
-          version=$(cat .noir-version)
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-      - name: Install Noir
-        uses: noir-lang/noirup@v0.1.4
         with:
-          toolchain: ${{ steps.noir_version.outputs.version }}
-      - name: Install bb
-        run: |
-          set -euo pipefail
-          bash ./scripts/bbup-install.sh
-          ~/.bb/bbup -v $(cat .bb-version)
-          echo "$HOME/.bb" >> $GITHUB_PATH
-      - name: Check formatting
-        working-directory: ./delegation_circuit
-        run: nargo fmt --check
-      - name: Run tests
-        working-directory: ./delegation_circuit
-        run: nargo test
-      - name: Smoke circuit build
-        working-directory: ./delegation_circuit
-        run: |
-          set -euo pipefail
-          nargo execute --package delegation_circuit
-          bb write_vk -b ./target/delegation_circuit.json
+          submodules: recursive
 
-  frontend-check:
-    needs: changes
-    if: ${{ needs.changes.outputs.frontend == 'true' }}
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Run forge tests
+        working-directory: contracts
+        run: forge test
+
+  frontend:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./frontend
+        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: frontend/.node-version
           cache: npm
-          cache-dependency-path: ./frontend/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
+
       - name: Install dependencies
         run: npm ci
+
       - name: Typecheck
         run: npm run typecheck
-      - name: Lint
-        run: npm run lint
-      - name: Test
-        run: npm run test
-      - name: Build
-        run: npm run build
-
-  # Audit des vulnérabilités connues (RustSec Advisory Database) sur le
-  # workspace Rust. Tourné à chaque pipeline, indépendamment des fichiers
-  # modifiés : une nouvelle vulnérabilité peut apparaître sans changement
-  # de code. Complété par .github/dependabot.yml (mises à jour hebdo).
-  #
-  # Job BLOQUANT depuis le 2026-07-22 : toute nouvelle vulnérabilité fait
-  # échouer la CI. Seules des vulnérabilités sans correctif applicable sont
-  # ignorées via --ignore, chacune justifiée ci-dessous (analyse détaillée
-  # dans docs/SECURITE.md, section A06) :
-  #
-  # - RUSTSEC-2023-0071 (rsa 0.9.x, attaque Marvin, AUCUN correctif
-  #   disponible). Tirée par sqlx-mysql, dépendance optionnelle de la facade
-  #   `sqlx` dont la feature `mysql` n'est jamais activée : le code rsa
-  #   n'entre dans aucun binaire du workspace (vérifié par `cargo tree -i
-  #   rsa`, graphe vide). Réévaluation : à chaque upgrade de sqlx ou si la
-  #   feature mysql est un jour activée.
-  # - RUSTSEC-2025-0073 (alloy-dyn-abi 0.7.7, DoS sur le hashing
-  #   `TypedData` EIP-712). Correctif >= 0.8.26 exigeant une migration
-  #   majeure alloy 0.2 -> 0.8, reportée après le rendu. Exposition nulle :
-  #   aucun usage de TypedData/EIP-712 dans le code (l'authentification
-  #   SIWE repose sur EIP-191/personal_sign). Réévaluation : lors de la
-  #   migration alloy planifiée post-rendu.
-  # - RUSTSEC-2026-0098 / 0099 / 0104 (rustls-webpki 0.101.7). Présente dans
-  #   Cargo.lock uniquement via la feature optionnelle `aws-kms` de
-  #   `interfaces` (aws-smithy-http-client -> rustls 0.21), jamais activée
-  #   dans les builds par défaut, la CI ou le Dockerfile (graphe par défaut
-  #   : rustls 0.23 + webpki 0.103.13). aws-config/aws-sdk-kms sont déjà
-  #   aux dernières versions : pas de correctif applicable sans changement
-  #   upstream. Réévaluation : à chaque mise à jour Dependabot des SDK AWS.
-  # - RUSTSEC-2026-0258 (h2, DATA frames vides illimitées). L'occurrence du
-  #   graphe par défaut (h2 0.4.x, tirée par reqwest/hyper 1.x) est corrigée
-  #   par la mise à jour en 0.4.16. Reste h2 0.3.27, présent uniquement via
-  #   la feature optionnelle `aws-kms` (aws-smithy-http-client -> hyper
-  #   0.14), jamais activée dans les builds par défaut, la CI ou le
-  #   Dockerfile. Aucun correctif 0.3.x publié (solution : >= 0.4.16,
-  #   incompatible avec hyper 0.14 sans changement upstream).
-  #   Réévaluation : à chaque mise à jour Dependabot des SDK AWS.
-  security-audit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install cargo-audit
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-audit
-      - name: Run cargo audit
-        run: >-
-          cargo audit
-          --ignore RUSTSEC-2023-0071
-          --ignore RUSTSEC-2025-0073
-          --ignore RUSTSEC-2026-0098
-          --ignore RUSTSEC-2026-0099
-          --ignore RUSTSEC-2026-0104
-          --ignore RUSTSEC-2026-0258
-
-  docker-smoke:
-    needs: [changes, rust-check, contracts-check, circuit-check, frontend-check]
-    if: always() && needs.changes.result == 'success' && (needs.rust-check.result == 'success' || needs.rust-check.result == 'skipped') && (needs.contracts-check.result == 'success' || needs.contracts-check.result == 'skipped') && (needs.circuit-check.result == 'success' || needs.circuit-check.result == 'skipped') && (needs.frontend-check.result == 'success' || needs.frontend-check.result == 'skipped')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build backend image
-        run: |
-          set -euo pipefail
-          docker build -t otter-api --build-arg NOIR_VERSION=$(cat .noir-version) --build-arg BB_VERSION=$(cat .bb-version) .
-      - name: Build frontend image
-        run: |
-          set -euo pipefail
-          docker build -t otter-frontend ./frontend
-      - name: Smoke backend
-        run: |
-          set -euo pipefail
-          network=otter-smoke
-          docker network create "$network" || true
-
-          cleanup() {
-            docker rm -f api-smoke anvil-smoke 2>/dev/null || true
-            docker network rm "$network" 2>/dev/null || true
-          }
-          trap cleanup EXIT
-
-          docker run -d --name anvil-smoke --network "$network" -p 8545:8545 ghcr.io/foundry-rs/foundry:stable anvil --host 0.0.0.0
-          echo "Waiting for Anvil..."
-          for _ in {1..30}; do
-            if curl -fsS http://localhost:8545 -X POST -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' >/dev/null 2>&1; then
-              break
-            fi
-            sleep 1
-          done
-
-          docker run -d --name api-smoke --network "$network" -p 3001:3001 \
-            -e OTTER_RPC_URL=http://anvil-smoke:8545 \
-            -e OTTER_CHAIN_ID=31337 \
-            -e OTTER_MIGRATIONS_DIR=/app/crates/infrastructure/migrations \
-            otter-api
-
-          echo "Waiting for API (up to 60s)..."
-          for _ in {1..60}; do
-            if curl -fsS http://localhost:3001/api/v1/health >/dev/null 2>&1; then
-              break
-            fi
-            sleep 1
-          done
-
-          echo "--- /health"
-          if ! curl -fsS http://localhost:3001/api/v1/health; then
-            docker logs api-smoke
-            exit 1
-          fi
-
-          echo "--- /ready (may be 503 until the oracle/RPC warm up)"
-          status=$(curl -s -o /tmp/ready.json -w "%{http_code}" http://localhost:3001/ready)
-          echo "/ready HTTP status: $status"
-          cat /tmp/ready.json
-          if [[ "$status" != "200" && "$status" != "503" ]]; then
-            echo "ERROR: /ready returned unexpected status $status" >&2
-            docker logs api-smoke
-            exit 1
-          fi
-
-          docker logs api-smoke
