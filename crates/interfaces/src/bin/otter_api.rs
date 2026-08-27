@@ -78,7 +78,9 @@ struct AppState {
     /// (e.g. non-SQLite storage), in which case rebates read as zero.
     mev: Option<Arc<infrastructure::mev::SimulatedMevCapture>>,
     /// Share of captured profit rebated to the vault owner, in basis points.
-    rebate_bps: u64,
+    /// Mutable at runtime via `POST /api/v1/mev/config`; the environment only
+    /// sets the boot value.
+    rebate_bps: Arc<AtomicU64>,
     /// Optional on-chain SolvencyRegistry address used by `/api/v1/solvency/status`.
     solvency_registry_address: Option<String>,
     /// Optional feature-gated Solana attestation adapter.
@@ -522,6 +524,11 @@ fn app(state: Arc<AppState>) -> Router {
         )
         .route("/api/v1/solana/verify", post(solana_verify))
         .route("/api/v1/mev/bundle", post(submit_bundle))
+        .route("/api/v1/mev/bundles", get(list_mev_bundles))
+        .route(
+            "/api/v1/mev/config",
+            get(get_mev_config).post(set_mev_config),
+        )
         .route("/api/v1/bridge/lock", post(bridge_lock))
         .route("/api/v1/bridge/mint", post(bridge_mint))
         .route("/api/v1/bridge/transfers", get(bridge_transfers))
@@ -1015,7 +1022,7 @@ async fn main() {
         multichain: build_multichain_adapter(&config),
         network_health: Arc::new(Mutex::new(HashMap::new())),
         mev: mev_store.clone(),
-        rebate_bps: infrastructure::mev::rebate_bps_from_env(),
+        rebate_bps: Arc::new(AtomicU64::new(infrastructure::mev::rebate_bps_from_env())),
         solvency_registry_address: config.solvency_registry_address.clone(),
         solana: build_solana_adapter(&config),
         bundle_searcher: build_bundle_searcher(&config),
@@ -1028,6 +1035,25 @@ async fn main() {
     tokio::spawn(async move {
         monitoring_loop(monitor_state, monitor_interval).await;
     });
+
+    // Mempool backrun monitor (bundle MEV V2): watches the configured target
+    // address and submits a rebate bundle per detected transaction.
+    if let (Some(target), Some(searcher), Some(pk)) = (
+        config.mev_bundle_target_address.as_deref(),
+        state.bundle_searcher.clone(),
+        config.mev_bundle_private_key.as_deref(),
+    ) {
+        infrastructure::mev::backrun::spawn_backrun_monitor(
+            config.rpc_url.clone(),
+            config.chain_id,
+            target,
+            config.mev_bundle_beneficiary.as_deref(),
+            pk,
+            Duration::from_millis(config.mev_bundle_poll_interval_ms),
+            searcher,
+            state.storage.clone(),
+        );
+    }
 
     // Event processor loop: drive the orchestrator state machine.
     let processor_state = Arc::clone(&state);
@@ -1426,7 +1452,91 @@ async fn submit_bundle(
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| AppError::Internal(e.to_string()))?
+        .as_secs() as i64;
+    if let Err(e) = state
+        .storage
+        .save_mev_bundle(&domain::ports::storage_port::MevBundleRecord {
+            bundle_hash: bundle_hash.clone(),
+            target_tx_hash: None,
+            status: "submitted".to_string(),
+            created_at: now,
+        })
+        .await
+    {
+        tracing::warn!(%e, "failed to persist mev bundle record");
+    }
+
     Ok(Json(SubmitBundleResponse { bundle_hash }))
+}
+
+#[derive(Debug, Serialize)]
+struct MevBundleItem {
+    bundle_hash: String,
+    target_tx_hash: Option<String>,
+    status: String,
+    created_at: i64,
+}
+
+async fn list_mev_bundles(
+    AxumState(state): AxumState<Arc<AppState>>,
+    Extension(_user): Extension<AuthUser>,
+) -> Result<Json<Vec<MevBundleItem>>, AppError> {
+    let records = state
+        .storage
+        .list_mev_bundles()
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    let items = records
+        .into_iter()
+        .map(|r| MevBundleItem {
+            bundle_hash: r.bundle_hash,
+            target_tx_hash: r.target_tx_hash,
+            status: r.status,
+            created_at: r.created_at,
+        })
+        .collect();
+
+    Ok(Json(items))
+}
+
+#[derive(Debug, Serialize)]
+struct MevConfigResponse {
+    rebate_bps: u64,
+}
+
+async fn get_mev_config(
+    AxumState(state): AxumState<Arc<AppState>>,
+    Extension(_user): Extension<AuthUser>,
+) -> Json<MevConfigResponse> {
+    Json(MevConfigResponse {
+        rebate_bps: state.rebate_bps.load(Ordering::Relaxed),
+    })
+}
+
+#[derive(Debug, Deserialize)]
+struct SetMevConfigRequest {
+    rebate_bps: u64,
+}
+
+async fn set_mev_config(
+    AxumState(state): AxumState<Arc<AppState>>,
+    Extension(user): Extension<AuthUser>,
+    Json(body): Json<SetMevConfigRequest>,
+) -> Result<Json<MevConfigResponse>, AppError> {
+    require_writer(&Some(user))?;
+    if body.rebate_bps > 10_000 {
+        return Err(AppError::Validation(
+            "rebate_bps must be at most 10000".to_string(),
+        ));
+    }
+    state.rebate_bps.store(body.rebate_bps, Ordering::Relaxed);
+    Ok(Json(MevConfigResponse {
+        rebate_bps: body.rebate_bps,
+    }))
 }
 
 #[derive(Debug, Deserialize)]
@@ -1595,7 +1705,7 @@ async fn list_rebates(
     let Some(mev) = &state.mev else {
         return Ok(Json(RebatesResponse {
             total_rebated_wei: "0".to_string(),
-            rebate_bps: state.rebate_bps,
+            rebate_bps: state.rebate_bps.load(Ordering::Relaxed),
         }));
     };
     // Without auth, attribute all captures to the single local operator.
@@ -1608,7 +1718,7 @@ async fn list_rebates(
         .map_err(|e| AppError::Internal(format!("rebate lookup failed: {e}")))?;
     Ok(Json(RebatesResponse {
         total_rebated_wei: total.to_string(),
-        rebate_bps: state.rebate_bps,
+        rebate_bps: state.rebate_bps.load(Ordering::Relaxed),
     }))
 }
 
@@ -2936,7 +3046,7 @@ mod tests {
             multichain: Arc::new(infrastructure::blockchain::MultiChainAdapter::empty()),
             network_health: Arc::new(Mutex::new(HashMap::new())),
             mev: None,
-            rebate_bps: infrastructure::mev::DEFAULT_REBATE_BPS,
+            rebate_bps: Arc::new(AtomicU64::new(infrastructure::mev::DEFAULT_REBATE_BPS)),
             solvency_registry_address: None,
             solana: None,
             bundle_searcher: None,
@@ -2994,7 +3104,7 @@ mod tests {
             multichain: Arc::new(infrastructure::blockchain::MultiChainAdapter::empty()),
             network_health: Arc::new(Mutex::new(HashMap::new())),
             mev: None,
-            rebate_bps: infrastructure::mev::DEFAULT_REBATE_BPS,
+            rebate_bps: Arc::new(AtomicU64::new(infrastructure::mev::DEFAULT_REBATE_BPS)),
             solvency_registry_address: None,
             solana: None,
             bundle_searcher: None,
@@ -3213,7 +3323,7 @@ mod tests {
             multichain: Arc::new(infrastructure::blockchain::MultiChainAdapter::empty()),
             network_health: Arc::new(Mutex::new(HashMap::new())),
             mev: state.mev.clone(),
-            rebate_bps: state.rebate_bps,
+            rebate_bps: state.rebate_bps.clone(),
             solvency_registry_address: state.solvency_registry_address.clone(),
             solana: state.solana.clone(),
             bundle_searcher: state.bundle_searcher.clone(),

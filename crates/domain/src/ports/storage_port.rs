@@ -65,6 +65,18 @@ pub struct BridgeTransferRecord {
     pub updated_at: i64,
 }
 
+/// A persisted MEV bundle submission record.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MevBundleRecord {
+    pub bundle_hash: String,
+    /// Pending transaction that triggered the backrun, when the bundle came
+    /// from the mempool monitor; `None` for manual API submissions.
+    pub target_tx_hash: Option<String>,
+    /// `submitted` or `failed`.
+    pub status: String,
+    pub created_at: i64,
+}
+
 /// A persisted strategy template record.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StrategyRecord {
@@ -175,4 +187,10 @@ pub trait StoragePort: Send + Sync {
         status: &str,
         mint_tx_hash: Option<&str>,
     ) -> Result<(), StorageError>;
+
+    /// Persist a MEV bundle submission.
+    async fn save_mev_bundle(&self, record: &MevBundleRecord) -> Result<(), StorageError>;
+
+    /// Return all stored MEV bundle records, most recent first.
+    async fn list_mev_bundles(&self) -> Result<Vec<MevBundleRecord>, StorageError>;
 }

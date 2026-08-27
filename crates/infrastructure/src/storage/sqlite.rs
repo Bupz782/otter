@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use domain::models::intent::ConditionalIntent;
 use domain::ports::storage_port::{
-    BridgeTransferRecord, DelegationRecord, ExecutionRecord, IntentRecord, StorageError, StoragePort,
-    StrategyRecord,
+    BridgeTransferRecord, DelegationRecord, ExecutionRecord, IntentRecord, MevBundleRecord,
+    StorageError, StoragePort, StrategyRecord,
 };
 use rusqlite::{Connection, OptionalExtension};
 
@@ -722,6 +722,60 @@ impl StoragePort for SqliteStorage {
         .map_err(|e| StorageError::SaveFailed(e.to_string()))?
     }
 
+    async fn save_mev_bundle(&self, record: &MevBundleRecord) -> Result<(), StorageError> {
+        let conn = self.conn.clone();
+        let record = record.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn
+                .lock()
+                .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            conn.execute(
+                "INSERT INTO mev_bundles (bundle_hash, target_tx_hash, status, created_at) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(bundle_hash) DO UPDATE SET status = excluded.status",
+                rusqlite::params![
+                    &record.bundle_hash,
+                    &record.target_tx_hash,
+                    &record.status,
+                    record.created_at,
+                ],
+            )
+            .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| StorageError::SaveFailed(e.to_string()))?
+    }
+
+    async fn list_mev_bundles(&self) -> Result<Vec<MevBundleRecord>, StorageError> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn
+                .lock()
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+            let mut stmt = conn
+                .prepare(
+                    "SELECT bundle_hash, target_tx_hash, status, created_at FROM mev_bundles ORDER BY created_at DESC",
+                )
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok(MevBundleRecord {
+                        bundle_hash: row.get(0)?,
+                        target_tx_hash: row.get(1)?,
+                        status: row.get(2)?,
+                        created_at: row.get(3)?,
+                    })
+                })
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+            let mut records = Vec::new();
+            for row in rows {
+                records.push(row.map_err(|e| StorageError::ReadFailed(e.to_string()))?);
+            }
+            Ok(records)
+        })
+        .await
+        .map_err(|e| StorageError::ReadFailed(e.to_string()))?
+    }
+
     async fn delete_strategy(&self, id: &str) -> Result<(), StorageError> {
         let conn = self.conn.clone();
         let id = id.to_string();
@@ -1118,6 +1172,24 @@ mod tests {
         // SqliteStorage has no Debug impl, so use matches! instead of unwrap_err.
         let result = SqliteStorage::new("/nonexistent-dir-otter-zzz/nested/test.db");
         assert!(matches!(result, Err(StorageError::InitFailed(_))));
+    }
+
+    #[tokio::test]
+    async fn save_and_list_mev_bundle() {
+        let storage = SqliteStorage::in_memory().unwrap();
+        let record = MevBundleRecord {
+            bundle_hash: "0xbundle1".to_string(),
+            target_tx_hash: Some("0xtarget1".to_string()),
+            status: "submitted".to_string(),
+            created_at: 1_700_000_000,
+        };
+        storage.save_mev_bundle(&record).await.unwrap();
+
+        let bundles = storage.list_mev_bundles().await.unwrap();
+        assert_eq!(bundles.len(), 1);
+        assert_eq!(bundles[0].bundle_hash, "0xbundle1");
+        assert_eq!(bundles[0].target_tx_hash.as_deref(), Some("0xtarget1"));
+        assert_eq!(bundles[0].status, "submitted");
     }
 
     #[tokio::test]

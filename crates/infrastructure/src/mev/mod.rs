@@ -6,6 +6,7 @@
 //! and partially rebated to the vault owner. Contracts and the Noir circuit
 //! are untouched.
 
+pub mod backrun;
 pub mod bundle_searcher;
 pub mod mempool_monitor;
 

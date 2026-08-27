@@ -10,6 +10,7 @@ import {
   Plus,
   Coins,
   Zap,
+  Package,
   ArrowRightLeft,
   Globe,
 } from "lucide-react";
@@ -63,6 +64,7 @@ const navGroups: NavGroup[] = [
       { to: "/app/proofs", label: "Proofs", icon: <ShieldCheck className="h-4 w-4" /> },
       { to: "/app/solvency", label: "Solvency", icon: <Coins className="h-4 w-4" /> },
       { to: "/app/rebates", label: "Rebates", icon: <Zap className="h-4 w-4" /> },
+      { to: "/app/mev", label: "MEV", icon: <Package className="h-4 w-4" /> },
     ],
   },
   {

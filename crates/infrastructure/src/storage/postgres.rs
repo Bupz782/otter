@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use domain::ports::storage_port::{
-    BridgeTransferRecord, DelegationRecord, ExecutionRecord, IntentRecord, StorageError, StoragePort,
-    StrategyRecord,
+    BridgeTransferRecord, DelegationRecord, ExecutionRecord, IntentRecord, MevBundleRecord,
+    StorageError, StoragePort, StrategyRecord,
 };
 use sqlx::{Pool, Postgres, Row};
 
@@ -695,5 +695,40 @@ impl StoragePort for PgStorage {
         .await
         .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
         Ok(())
+    }
+
+    async fn save_mev_bundle(&self, record: &MevBundleRecord) -> Result<(), StorageError> {
+        sqlx::query(
+            "INSERT INTO mev_bundles (bundle_hash, target_tx_hash, status, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (bundle_hash) DO UPDATE SET status = EXCLUDED.status",
+        )
+        .bind(&record.bundle_hash)
+        .bind(&record.target_tx_hash)
+        .bind(&record.status)
+        .bind(record.created_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn list_mev_bundles(&self) -> Result<Vec<MevBundleRecord>, StorageError> {
+        let rows = sqlx::query(
+            "SELECT bundle_hash, target_tx_hash, status, created_at FROM mev_bundles ORDER BY created_at DESC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+
+        rows.into_iter()
+            .map(|r| {
+                Ok(MevBundleRecord {
+                    bundle_hash: r.try_get("bundle_hash")?,
+                    target_tx_hash: r.try_get("target_tx_hash")?,
+                    status: r.try_get("status")?,
+                    created_at: r.try_get("created_at")?,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e: sqlx::Error| StorageError::ReadFailed(e.to_string()))
     }
 }

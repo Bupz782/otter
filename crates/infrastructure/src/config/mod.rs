@@ -185,6 +185,13 @@ pub struct Config {
     /// Address that receives the searcher rebate share.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mev_bundle_beneficiary: Option<String>,
+    /// Mempool target address watched by the backrun handler (e.g. the vault
+    /// or a protocol router). When unset, no mempool monitor is spawned.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mev_bundle_target_address: Option<String>,
+    /// Mempool poll interval in milliseconds for the backrun monitor.
+    #[serde(default = "default_mev_bundle_poll_interval_ms")]
+    pub mev_bundle_poll_interval_ms: u64,
 
     /// Maximum number of requests per minute per IP. 0 disables rate limiting.
     #[serde(default = "default_rate_limit_per_minute")]
@@ -215,6 +222,10 @@ fn default_cors_allowed_origins() -> String {
 
 fn default_rate_limit_per_minute() -> u32 {
     100
+}
+
+fn default_mev_bundle_poll_interval_ms() -> u64 {
+    1_000
 }
 
 fn default_monitoring_interval() -> u64 {
@@ -301,6 +312,8 @@ impl Default for Config {
             mev_bundle_relay_url: None,
             mev_bundle_private_key: None,
             mev_bundle_beneficiary: None,
+            mev_bundle_target_address: None,
+            mev_bundle_poll_interval_ms: default_mev_bundle_poll_interval_ms(),
             rate_limit_per_minute: default_rate_limit_per_minute(),
         }
     }
@@ -558,6 +571,14 @@ impl Config {
         }
         if let Ok(val) = std::env::var("OTTER_MEV_BUNDLE_BENEFICIARY") {
             self.mev_bundle_beneficiary = Some(val);
+        }
+        if let Ok(val) = std::env::var("OTTER_MEV_BUNDLE_TARGET_ADDRESS") {
+            self.mev_bundle_target_address = Some(val);
+        }
+        if let Ok(val) = std::env::var("OTTER_MEV_BUNDLE_POLL_INTERVAL_MS")
+            && let Ok(ms) = val.parse()
+        {
+            self.mev_bundle_poll_interval_ms = ms;
         }
         if let Ok(val) = std::env::var("OTTER_RATE_LIMIT_PER_MINUTE")
             && let Ok(limit) = val.parse()

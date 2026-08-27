@@ -25,6 +25,10 @@ OTTER_MEV_BUNDLE_ENABLED=true
 OTTER_MEV_BUNDLE_RELAY_URL=https://relay.flashbots.net
 OTTER_MEV_BUNDLE_PRIVATE_KEY=0x...
 OTTER_MEV_BUNDLE_BENEFICIARY=0x...
+# Backrun monitor (optional): watch a target address and auto-submit a rebate
+# bundle for every pending transaction hitting it.
+OTTER_MEV_BUNDLE_TARGET_ADDRESS=0x...
+OTTER_MEV_BUNDLE_POLL_INTERVAL_MS=1000
 ```
 
 ### API
@@ -43,6 +47,25 @@ and returns:
 ```json
 { "bundle_hash": "0x..." }
 ```
+
+`GET /api/v1/mev/bundles` lists recorded submissions (hash, triggering target
+transaction when automated, status, timestamp), most recent first.
+
+`GET /api/v1/mev/config` / `POST /api/v1/mev/config` (`{ "rebate_bps": 5000 }`,
+writer role) read and override the rebate share at runtime. The override is
+in-memory only: `OTTER_MEV_REBATE_BPS` remains the boot value.
+
+### Backrun handler
+
+When `OTTER_MEV_BUNDLE_TARGET_ADDRESS` is set, the API spawns the mempool
+monitor at startup. `crates/infrastructure/src/mev/backrun.rs` implements the
+handler: for each detected target transaction it signs a zero-value rebate
+transfer (searcher key → beneficiary, falling back to the searcher address
+itself) and submits it as a single-transaction bundle for the next block. Every
+attempt — submitted or failed — is recorded in the `mev_bundles` table.
+Including the target transaction itself in the bundle requires its raw signed
+bytes, which the monitor does not reconstruct; that ordering guarantee is a
+strategy-level follow-up.
 
 ### Mempool monitor
 

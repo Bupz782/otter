@@ -278,6 +278,13 @@ export interface BackendBridgeTransfer {
   updated_at: number;
 }
 
+export interface BackendMevBundle {
+  bundle_hash: string;
+  target_tx_hash: string | null;
+  status: string;
+  created_at: number;
+}
+
 export interface VerifyResponse {
   access_token: string;
   refresh_token: string;
@@ -662,5 +669,14 @@ export const api = {
       request<BackendBridgeTransfer[]>(
         `/api/v1/bridge/transfers${sourceChainId !== undefined ? `?chain_id=${sourceChainId}` : ""}`
       ),
+  },
+  mev: {
+    bundles: () => request<BackendMevBundle[]>("/api/v1/mev/bundles"),
+    getConfig: () => request<{ rebate_bps: number }>("/api/v1/mev/config"),
+    setConfig: (rebateBps: number) =>
+      request<{ rebate_bps: number }>("/api/v1/mev/config", {
+        method: "POST",
+        body: JSON.stringify({ rebate_bps: rebateBps }),
+      }),
   },
 };

@@ -52,6 +52,7 @@ const SolvencyPage = lazy(() =>
 const RebatesPage = lazy(() =>
   import("./pages/app/RebatesPage").then((m) => ({ default: m.RebatesPage }))
 );
+const MevPage = lazy(() => import("./pages/app/MevPage").then((m) => ({ default: m.MevPage })));
 const BridgePage = lazy(() =>
   import("./pages/app/BridgePage").then((m) => ({ default: m.BridgePage }))
 );
@@ -82,6 +83,7 @@ export function AppRoutes() {
           <Route path="proofs" element={<ProofsPage />} />
           <Route path="solvency" element={<SolvencyPage />} />
           <Route path="rebates" element={<RebatesPage />} />
+          <Route path="mev" element={<MevPage />} />
           <Route path="bridge" element={<BridgePage />} />
           <Route path="solana" element={<SolanaPage />} />
           <Route path="settings" element={<SettingsPage />} />
