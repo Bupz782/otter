@@ -259,6 +259,25 @@ export interface ChallengeResponse {
   message: string;
 }
 
+export interface BackendNetworkStatus {
+  name: string;
+  chain_id: number;
+  vault_address: string;
+  healthy: boolean;
+}
+
+export interface BackendBridgeTransfer {
+  bridge_id: string;
+  source_chain_id: number;
+  destination_chain_id: number;
+  amount_wei: string;
+  lock_tx_hash: string | null;
+  mint_tx_hash: string | null;
+  status: string;
+  created_at: number;
+  updated_at: number;
+}
+
 export interface VerifyResponse {
   access_token: string;
   refresh_token: string;
@@ -619,5 +638,31 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ authority, payload_hash: payloadHash }),
       }),
+  },
+  networks: {
+    list: () => request<BackendNetworkStatus[]>("/api/v1/networks"),
+  },
+  bridge: {
+    lock: (body: { network: string; amount_wei: string; destination_chain_id: number }) =>
+      request<{ bridge_id: string; tx_hash: string }>("/api/v1/bridge/lock", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    mint: (body: {
+      network: string;
+      user_address: string;
+      amount_wei: string;
+      bridge_id: string;
+    }) =>
+      request<{ tx_hash: string }>("/api/v1/bridge/mint", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    // The optional filter matches on source chain id (backend param name is
+    // "network" but it compares against source_chain_id).
+    transfers: (sourceChainId?: number) =>
+      request<BackendBridgeTransfer[]>(
+        `/api/v1/bridge/transfers${sourceChainId !== undefined ? `?network=${sourceChainId}` : ""}`
+      ),
   },
 };

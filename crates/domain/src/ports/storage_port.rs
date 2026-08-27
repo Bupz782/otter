@@ -50,6 +50,21 @@ pub struct ExecutionRecord {
     pub created_at: i64,
 }
 
+/// A persisted cross-chain bridge transfer record.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BridgeTransferRecord {
+    pub bridge_id: String,
+    pub source_chain_id: u64,
+    pub destination_chain_id: u64,
+    pub user_address: String,
+    pub amount_wei: String,
+    pub lock_tx_hash: Option<String>,
+    pub mint_tx_hash: Option<String>,
+    pub status: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
 /// A persisted strategy template record.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StrategyRecord {
@@ -143,4 +158,21 @@ pub trait StoragePort: Send + Sync {
 
     /// Remove a strategy by id.
     async fn delete_strategy(&self, id: &str) -> Result<(), StorageError>;
+
+    /// Persist a cross-chain bridge transfer.
+    async fn save_bridge_transfer(&self, record: &BridgeTransferRecord) -> Result<(), StorageError>;
+
+    /// Return bridge transfers for a given user, most recent first.
+    async fn list_bridge_transfers_by_user(
+        &self,
+        user_address: &str,
+    ) -> Result<Vec<BridgeTransferRecord>, StorageError>;
+
+    /// Update the status and optional mint tx hash of a bridge transfer.
+    async fn update_bridge_transfer_status(
+        &self,
+        bridge_id: &str,
+        status: &str,
+        mint_tx_hash: Option<&str>,
+    ) -> Result<(), StorageError>;
 }

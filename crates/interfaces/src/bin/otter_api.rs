@@ -5,7 +5,7 @@ use axum::{
     Extension, Json, Router,
     body::Body,
     extract::ws::{Message, WebSocket},
-    extract::{ConnectInfo, Path, State as AxumState, WebSocketUpgrade},
+    extract::{ConnectInfo, Path, Query, State as AxumState, WebSocketUpgrade},
     http::{Request, StatusCode, header},
     middleware::{Next, from_fn, from_fn_with_state},
     response::{IntoResponse, Response},
@@ -20,13 +20,14 @@ use domain::ports::price_oracle_port::PriceOraclePort;
 use domain::ports::storage_port::StrategyRecord;
 use domain::ports::wallet_port::WalletPort;
 use domain::ports::{
-    BlockchainPort, BundleSearcherPort, DelegationRecord, ExecutionRecord, IntentRecord,
+    BlockchainPort, BridgePort, BundleSearcherPort, DelegationRecord, ExecutionRecord, IntentRecord,
     SolanaPort, StoragePort,
 };
 use infrastructure::blockchain::{
     AlloyEvmAdapter, CompositeOracle, HealthEntry, LocalWalletAdapter, MultiChainAdapter,
     OracleNetwork,
 };
+use infrastructure::blockchain::bridge_adapter::OtterBridgeAdapter;
 use infrastructure::config::Config;
 use infrastructure::mev::bundle_searcher::FlashbotsBundleSearcher;
 use infrastructure::parsers::{HybridParser, LlmIntentParser, RegexParser};
@@ -84,6 +85,8 @@ struct AppState {
     solana: Option<Arc<dyn SolanaPort>>,
     /// Optional real bundle-based MEV searcher.
     bundle_searcher: Option<Arc<dyn BundleSearcherPort>>,
+    /// Per-network bridge adapters, keyed by network name.
+    bridges: HashMap<String, Arc<dyn BridgePort>>,
 }
 
 #[derive(Debug, Clone)]
@@ -519,6 +522,9 @@ fn app(state: Arc<AppState>) -> Router {
         )
         .route("/api/v1/solana/verify", post(solana_verify))
         .route("/api/v1/mev/bundle", post(submit_bundle))
+        .route("/api/v1/bridge/lock", post(bridge_lock))
+        .route("/api/v1/bridge/mint", post(bridge_mint))
+        .route("/api/v1/bridge/transfers", get(bridge_transfers))
         .route("/api/v1/orchestrator/state", get(orchestrator_state))
         .merge(demo)
         .route_layer(from_fn_with_state(state.clone(), auth_middleware));
@@ -1013,6 +1019,7 @@ async fn main() {
         solvency_registry_address: config.solvency_registry_address.clone(),
         solana: build_solana_adapter(&config),
         bundle_searcher: build_bundle_searcher(&config),
+        bridges: build_bridges(&config),
     });
 
     // Background monitoring loop: fetch on-chain metrics for active intents.
@@ -1146,6 +1153,47 @@ fn build_bundle_searcher(config: &Config) -> Option<Arc<dyn BundleSearcherPort>>
             None
         }
     }
+}
+
+/// Look up the chain id for a configured network by name.
+fn chain_id_for_network(state: &AppState, name: &str) -> Option<u64> {
+    state
+        .multichain
+        .network_summaries()
+        .into_iter()
+        .find(|s| s.name == name)
+        .map(|s| s.chain_id)
+}
+
+/// Build a map of bridge adapters for every configured network that has a bridge
+/// contract address. Requires the agent private key for signing lock/mint
+/// transactions; returns an empty map when no key is available.
+fn build_bridges(config: &Config) -> HashMap<String, Arc<dyn BridgePort>> {
+    let private_key_hex = match load_private_key(config) {
+        Ok((key, _)) => hex::encode(key),
+        Err(_) => return HashMap::new(),
+    };
+
+    let mut bridges: HashMap<String, Arc<dyn BridgePort>> = HashMap::new();
+    for spec in config.resolve_networks() {
+        let Some(bridge_address) = spec.bridge_address.as_ref() else {
+            continue;
+        };
+        match OtterBridgeAdapter::new(
+            &spec.rpc_url,
+            bridge_address,
+            &private_key_hex,
+            spec.chain_id,
+        ) {
+            Ok(adapter) => {
+                bridges.insert(spec.name.clone(), Arc::new(adapter));
+            }
+            Err(err) => {
+                tracing::warn!(network = %spec.name, %err, "failed to initialize bridge adapter");
+            }
+        }
+    }
+    bridges
 }
 
 #[derive(Debug, Serialize)]
@@ -1379,6 +1427,158 @@ async fn submit_bundle(
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
     Ok(Json(SubmitBundleResponse { bundle_hash }))
+}
+
+#[derive(Debug, Deserialize)]
+struct BridgeLockRequest {
+    network: String,
+    amount_wei: String,
+    destination_chain_id: u64,
+}
+
+#[derive(Debug, Serialize)]
+struct BridgeLockResponse {
+    bridge_id: String,
+    tx_hash: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct BridgeMintRequest {
+    network: String,
+    user_address: String,
+    amount_wei: String,
+    bridge_id: String,
+}
+
+#[derive(Debug, Serialize)]
+struct BridgeMintResponse {
+    tx_hash: String,
+}
+
+#[derive(Debug, Serialize)]
+struct BridgeTransferItem {
+    bridge_id: String,
+    source_chain_id: u64,
+    destination_chain_id: u64,
+    amount_wei: String,
+    lock_tx_hash: Option<String>,
+    mint_tx_hash: Option<String>,
+    status: String,
+    created_at: i64,
+    updated_at: i64,
+}
+
+async fn bridge_lock(
+    AxumState(state): AxumState<Arc<AppState>>,
+    Extension(user): Extension<AuthUser>,
+    Json(body): Json<BridgeLockRequest>,
+) -> Result<Json<BridgeLockResponse>, AppError> {
+    require_writer(&Some(user.clone()))?;
+
+    let adapter = state
+        .bridges
+        .get(&body.network)
+        .ok_or_else(|| {
+            AppError::Config(format!("bridge adapter for network '{}' is not configured", body.network))
+        })?;
+
+    let source_chain_id = chain_id_for_network(&state, &body.network)
+        .ok_or_else(|| AppError::Config(format!("unknown network '{}'", body.network)))?;
+
+    let result = adapter
+        .lock(user.address.clone(), body.amount_wei.clone(), body.destination_chain_id)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| AppError::Internal(e.to_string()))?
+        .as_secs() as i64;
+
+    state
+        .storage
+        .save_bridge_transfer(&domain::ports::storage_port::BridgeTransferRecord {
+            bridge_id: result.bridge_id.clone(),
+            source_chain_id,
+            destination_chain_id: body.destination_chain_id,
+            user_address: user.address.clone(),
+            amount_wei: body.amount_wei.clone(),
+            lock_tx_hash: Some(result.tx_hash.clone()),
+            mint_tx_hash: None,
+            status: "pending".to_string(),
+            created_at: now,
+            updated_at: now,
+        })
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok(Json(BridgeLockResponse {
+        bridge_id: result.bridge_id,
+        tx_hash: result.tx_hash,
+    }))
+}
+
+async fn bridge_mint(
+    AxumState(state): AxumState<Arc<AppState>>,
+    Extension(user): Extension<AuthUser>,
+    Json(body): Json<BridgeMintRequest>,
+) -> Result<Json<BridgeMintResponse>, AppError> {
+    require_writer(&Some(user.clone()))?;
+
+    let adapter = state
+        .bridges
+        .get(&body.network)
+        .ok_or_else(|| {
+            AppError::Config(format!("bridge adapter for network '{}' is not configured", body.network))
+        })?;
+
+    let tx_hash = adapter
+        .mint(body.user_address.clone(), body.amount_wei.clone(), body.bridge_id.clone())
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    state
+        .storage
+        .update_bridge_transfer_status(&body.bridge_id, "minted", Some(&tx_hash))
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok(Json(BridgeMintResponse { tx_hash }))
+}
+
+async fn bridge_transfers(
+    AxumState(state): AxumState<Arc<AppState>>,
+    Extension(user): Extension<AuthUser>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<Vec<BridgeTransferItem>>, AppError> {
+    let records = state
+        .storage
+        .list_bridge_transfers_by_user(&user.address)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    let filter_network = params.get("network");
+    let items: Vec<BridgeTransferItem> = records
+        .into_iter()
+        .filter(|r| {
+            filter_network
+                .map(|n| n.as_str() == r.source_chain_id.to_string())
+                .unwrap_or(true)
+        })
+        .map(|r| BridgeTransferItem {
+            bridge_id: r.bridge_id,
+            source_chain_id: r.source_chain_id,
+            destination_chain_id: r.destination_chain_id,
+            amount_wei: r.amount_wei,
+            lock_tx_hash: r.lock_tx_hash,
+            mint_tx_hash: r.mint_tx_hash,
+            status: r.status,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+        })
+        .collect();
+
+    Ok(Json(items))
 }
 
 #[derive(Debug, Serialize)]
@@ -2740,6 +2940,7 @@ mod tests {
             solvency_registry_address: None,
             solana: None,
             bundle_searcher: None,
+        bridges: HashMap::new(),
         })
     }
 
@@ -2797,6 +2998,7 @@ mod tests {
             solvency_registry_address: None,
             solana: None,
             bundle_searcher: None,
+        bridges: HashMap::new(),
         });
 
         let response = metrics(AxumState(disabled_state)).await;
@@ -3015,6 +3217,7 @@ mod tests {
             solvency_registry_address: state.solvency_registry_address.clone(),
             solana: state.solana.clone(),
             bundle_searcher: state.bundle_searcher.clone(),
+        bridges: HashMap::new(),
             orchestrator: state.orchestrator.clone(),
             storage: state.storage.clone(),
             bus: state.bus.clone(),

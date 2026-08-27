@@ -323,6 +323,8 @@ pub struct NetworkSpec {
     pub rpc_url: String,
     pub vault_address: String,
     pub chain_id: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bridge_address: Option<String>,
 }
 
 pub fn parse_networks_spec(spec: &str) -> Result<Vec<NetworkSpec>, ConfigError> {
@@ -339,9 +341,9 @@ pub fn parse_networks_spec(spec: &str) -> Result<Vec<NetworkSpec>, ConfigError> 
             ))
         })?;
         let parts: Vec<&str> = rest.split('|').collect();
-        if parts.len() != 3 {
+        if parts.len() < 3 {
             return Err(ConfigError::ParseFailed(format!(
-                "invalid OTTER_NETWORKS entry '{}': expected rpc|vault|chainid",
+                "invalid OTTER_NETWORKS entry '{}': expected name=rpc|vault|chainid[|bridge]",
                 entry
             )));
         }
@@ -356,6 +358,7 @@ pub fn parse_networks_spec(spec: &str) -> Result<Vec<NetworkSpec>, ConfigError> 
             rpc_url: parts[0].trim().to_string(),
             vault_address: parts[1].trim().to_string(),
             chain_id,
+            bridge_address: parts.get(3).map(|s| s.trim().to_string()),
         });
     }
     if networks.is_empty() {
@@ -379,6 +382,7 @@ impl Config {
                 rpc_url: self.rpc_url.clone(),
                 vault_address: vault.clone(),
                 chain_id: self.chain_id,
+                bridge_address: None,
             }],
             None => Vec::new(),
         }

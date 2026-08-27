@@ -1,3 +1,4 @@
+pub mod bridge_port;
 pub mod blockchain_port;
 pub mod evm_port;
 pub mod intent_parser_port;
@@ -12,6 +13,7 @@ pub mod wallet_port;
 pub mod zkp_port;
 
 pub use blockchain_port::BlockchainPort;
+pub use bridge_port::{BridgeError, BridgeLockEvent, BridgeLockResult, BridgePort};
 pub use mev_port::{MevCapture, MevPort};
 pub use searcher_port::{Bundle, BundleSearcherPort, SearcherError};
 pub use solana_port::{AttestationRecord, SolanaError, SolanaPort};

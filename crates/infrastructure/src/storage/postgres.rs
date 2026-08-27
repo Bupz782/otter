@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use domain::ports::storage_port::{
-    DelegationRecord, ExecutionRecord, IntentRecord, StorageError, StoragePort, StrategyRecord,
+    BridgeTransferRecord, DelegationRecord, ExecutionRecord, IntentRecord, StorageError, StoragePort,
+    StrategyRecord,
 };
 use sqlx::{Pool, Postgres, Row};
 
@@ -621,8 +622,78 @@ impl StoragePort for PgStorage {
             .bind(id)
             .execute(&self.pool)
             .await
-            .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            .map_err(|e| StorageError::DeleteFailed(e.to_string()))?;
 
+        Ok(())
+    }
+
+    async fn save_bridge_transfer(&self, record: &BridgeTransferRecord) -> Result<(), StorageError> {
+        sqlx::query(
+            "INSERT INTO bridge_transfers (bridge_id, source_chain_id, destination_chain_id, user_address, amount_wei, lock_tx_hash, mint_tx_hash, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT (bridge_id) DO UPDATE SET status = EXCLUDED.status, lock_tx_hash = EXCLUDED.lock_tx_hash, mint_tx_hash = EXCLUDED.mint_tx_hash, updated_at = EXCLUDED.updated_at",
+        )
+        .bind(&record.bridge_id)
+        .bind(record.source_chain_id as i64)
+        .bind(record.destination_chain_id as i64)
+        .bind(&record.user_address)
+        .bind(&record.amount_wei)
+        .bind(&record.lock_tx_hash)
+        .bind(&record.mint_tx_hash)
+        .bind(&record.status)
+        .bind(record.created_at)
+        .bind(record.updated_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn list_bridge_transfers_by_user(
+        &self,
+        user_address: &str,
+    ) -> Result<Vec<BridgeTransferRecord>, StorageError> {
+        let rows = sqlx::query(
+            "SELECT bridge_id, source_chain_id, destination_chain_id, user_address, amount_wei, lock_tx_hash, mint_tx_hash, status, created_at, updated_at FROM bridge_transfers WHERE user_address = $1 ORDER BY created_at DESC",
+        )
+        .bind(user_address)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+
+        rows.into_iter()
+            .map(|r| {
+                Ok(BridgeTransferRecord {
+                    bridge_id: r.try_get("bridge_id")?,
+                    source_chain_id: r.try_get::<i64, _>("source_chain_id")? as u64,
+                    destination_chain_id: r.try_get::<i64, _>("destination_chain_id")? as u64,
+                    user_address: r.try_get("user_address")?,
+                    amount_wei: r.try_get("amount_wei")?,
+                    lock_tx_hash: r.try_get("lock_tx_hash")?,
+                    mint_tx_hash: r.try_get("mint_tx_hash")?,
+                    status: r.try_get("status")?,
+                    created_at: r.try_get("created_at")?,
+                    updated_at: r.try_get("updated_at")?,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e: sqlx::Error| StorageError::ReadFailed(e.to_string()))
+    }
+
+    async fn update_bridge_transfer_status(
+        &self,
+        bridge_id: &str,
+        status: &str,
+        mint_tx_hash: Option<&str>,
+    ) -> Result<(), StorageError> {
+        sqlx::query(
+            "UPDATE bridge_transfers SET status = $1, mint_tx_hash = $2, updated_at = $3 WHERE bridge_id = $4",
+        )
+        .bind(status)
+        .bind(mint_tx_hash)
+        .bind(migrations::unix_now())
+        .bind(bridge_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
         Ok(())
     }
 }

@@ -1,3 +1,4 @@
+pub mod bridge_adapter;
 pub mod alloy_evm;
 pub mod chainlink_oracle;
 pub mod composite_oracle;

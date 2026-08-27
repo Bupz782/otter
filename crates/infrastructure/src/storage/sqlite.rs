@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use domain::models::intent::ConditionalIntent;
 use domain::ports::storage_port::{
-    DelegationRecord, ExecutionRecord, IntentRecord, StorageError, StoragePort, StrategyRecord,
+    BridgeTransferRecord, DelegationRecord, ExecutionRecord, IntentRecord, StorageError, StoragePort,
+    StrategyRecord,
 };
 use rusqlite::{Connection, OptionalExtension};
 
@@ -616,6 +617,103 @@ impl StoragePort for SqliteStorage {
             conn.execute(
                 "UPDATE strategies SET fork_count = fork_count + 1, updated_at = ?1 WHERE id = ?2",
                 rusqlite::params![migrations::unix_now(), id],
+            )
+            .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| StorageError::SaveFailed(e.to_string()))?
+    }
+
+
+    async fn save_bridge_transfer(&self, record: &BridgeTransferRecord) -> Result<(), StorageError> {
+        let conn = self.conn.clone();
+        let record = record.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn
+                .lock()
+                .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            conn.execute(
+                "INSERT INTO bridge_transfers (bridge_id, source_chain_id, destination_chain_id, user_address, amount_wei, lock_tx_hash, mint_tx_hash, status, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10) ON CONFLICT(bridge_id) DO UPDATE SET status = excluded.status, lock_tx_hash = excluded.lock_tx_hash, mint_tx_hash = excluded.mint_tx_hash, updated_at = excluded.updated_at",
+                rusqlite::params![
+                    &record.bridge_id,
+                    record.source_chain_id,
+                    record.destination_chain_id,
+                    &record.user_address,
+                    &record.amount_wei,
+                    record.lock_tx_hash,
+                    record.mint_tx_hash,
+                    &record.status,
+                    record.created_at,
+                    record.updated_at,
+                ],
+            )
+            .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| StorageError::SaveFailed(e.to_string()))?
+    }
+
+    async fn list_bridge_transfers_by_user(
+        &self,
+        user_address: &str,
+    ) -> Result<Vec<BridgeTransferRecord>, StorageError> {
+        let conn = self.conn.clone();
+        let user_address = user_address.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn
+                .lock()
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+            let mut stmt = conn
+                .prepare(
+                    "SELECT bridge_id, source_chain_id, destination_chain_id, user_address, amount_wei, lock_tx_hash, mint_tx_hash, status, created_at, updated_at FROM bridge_transfers WHERE user_address = ?1 ORDER BY created_at DESC",
+                )
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+            let rows = stmt
+                .query_map([&user_address], |row| {
+                    Ok(BridgeTransferRecord {
+                        bridge_id: row.get(0)?,
+                        source_chain_id: row.get(1)?,
+                        destination_chain_id: row.get(2)?,
+                        user_address: row.get(3)?,
+                        amount_wei: row.get(4)?,
+                        lock_tx_hash: row.get(5)?,
+                        mint_tx_hash: row.get(6)?,
+                        status: row.get(7)?,
+                        created_at: row.get(8)?,
+                        updated_at: row.get(9)?,
+                    })
+                })
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+            let mut records = Vec::new();
+            for row in rows {
+                records.push(row.map_err(|e| StorageError::ReadFailed(e.to_string()))?);
+            }
+            Ok(records)
+        })
+        .await
+        .map_err(|e| StorageError::ReadFailed(e.to_string()))?
+    }
+
+    async fn update_bridge_transfer_status(
+        &self,
+        bridge_id: &str,
+        status: &str,
+        mint_tx_hash: Option<&str>,
+    ) -> Result<(), StorageError> {
+        let conn = self.conn.clone();
+        let bridge_id = bridge_id.to_string();
+        let status = status.to_string();
+        let mint_tx_hash = mint_tx_hash.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || {
+            let now = migrations::unix_now();
+            let conn = conn
+                .lock()
+                .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            conn.execute(
+                "UPDATE bridge_transfers SET status = ?1, mint_tx_hash = ?2, updated_at = ?3 WHERE bridge_id = ?4",
+                rusqlite::params![status, mint_tx_hash, now, bridge_id],
             )
             .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
             Ok(())
