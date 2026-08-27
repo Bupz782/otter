@@ -36,7 +36,11 @@ docker compose up -d api
 
 See `.env.example` for the full list. Key variables:
 
-- `OTTER_NETWORKS` — multi-network EVM config.
+- `OTTER_NETWORKS` — multi-network EVM config, one `name=rpc_url|vault_address|chain_id[|bridge_address]`
+  entry per network, comma-separated. The optional 4th field is the `OtterBridge`
+  contract address; networks with it get a bridge adapter and serve
+  `/api/v1/bridge/{lock,mint,transfers}` (owner-gated V1: the API signer must
+  be the bridge owner).
 - `OTTER_PRIVATE_KEY` — agent signing key.
 - `OTTER_SOLVENCY_REGISTRY` — on-chain solvency registry.
 - `OTTER_SOLANA_ENABLED` / `OTTER_SOLANA_RPC_URL` / `OTTER_SOLANA_PROGRAM_ID` /
