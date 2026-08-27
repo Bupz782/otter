@@ -8,6 +8,10 @@ import {
   ShieldCheck,
   Settings,
   Plus,
+  Coins,
+  Zap,
+  ArrowRightLeft,
+  Globe,
 } from "lucide-react";
 import { useAccount } from "wagmi";
 import { cn, truncateHash } from "@/lib/utils";
@@ -55,7 +59,18 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "Verify",
-    items: [{ to: "/app/proofs", label: "Proofs", icon: <ShieldCheck className="h-4 w-4" /> }],
+    items: [
+      { to: "/app/proofs", label: "Proofs", icon: <ShieldCheck className="h-4 w-4" /> },
+      { to: "/app/solvency", label: "Solvency", icon: <Coins className="h-4 w-4" /> },
+      { to: "/app/rebates", label: "Rebates", icon: <Zap className="h-4 w-4" /> },
+    ],
+  },
+  {
+    label: "Cross-chain",
+    items: [
+      { to: "/app/bridge", label: "Bridge", icon: <ArrowRightLeft className="h-4 w-4" /> },
+      { to: "/app/solana", label: "Solana", icon: <Globe className="h-4 w-4" /> },
+    ],
   },
   {
     label: "System",

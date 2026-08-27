@@ -591,4 +591,33 @@ export const api = {
     get: () =>
       request<{ entries: BackendLeaderboardEntry[]; demo?: boolean }>("/api/v1/leaderboard"),
   },
+  solvency: {
+    status: () =>
+      request<{
+        registry?: string;
+        merkle_root?: string;
+        total_deposits_wei?: string;
+        last_proven_at?: number;
+      }>("/api/v1/solvency/status"),
+  },
+  rebates: {
+    list: () =>
+      request<{ total_rebated_wei: string; rebate_bps: number }>("/api/v1/rebates"),
+  },
+  solana: {
+    attest: (payloadHash: string) =>
+      request<{ signature: string }>("/api/v1/solana/attest", {
+        method: "POST",
+        body: JSON.stringify({ payload_hash: payloadHash }),
+      }),
+    get: (authority: string) =>
+      request<{ authority: string; payload_hash: string; timestamp: number }>(
+        `/api/v1/solana/attestations/${authority}`
+      ),
+    verify: (authority: string, payloadHash: string) =>
+      request<{ valid: boolean }>("/api/v1/solana/verify", {
+        method: "POST",
+        body: JSON.stringify({ authority, payload_hash: payloadHash }),
+      }),
+  },
 };

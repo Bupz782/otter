@@ -46,6 +46,18 @@ const ProofsPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import("./pages/app/SettingsPage").then((m) => ({ default: m.SettingsPage }))
 );
+const SolvencyPage = lazy(() =>
+  import("./pages/app/SolvencyPage").then((m) => ({ default: m.SolvencyPage }))
+);
+const RebatesPage = lazy(() =>
+  import("./pages/app/RebatesPage").then((m) => ({ default: m.RebatesPage }))
+);
+const BridgePage = lazy(() =>
+  import("./pages/app/BridgePage").then((m) => ({ default: m.BridgePage }))
+);
+const SolanaPage = lazy(() =>
+  import("./pages/app/SolanaPage").then((m) => ({ default: m.SolanaPage }))
+);
 
 const queryClient = new QueryClient();
 
@@ -68,6 +80,10 @@ export function AppRoutes() {
           <Route path="strategies/new" element={<CreateStrategyPage />} />
           <Route path="strategies/:strategyId" element={<StrategiesPage />} />
           <Route path="proofs" element={<ProofsPage />} />
+          <Route path="solvency" element={<SolvencyPage />} />
+          <Route path="rebates" element={<RebatesPage />} />
+          <Route path="bridge" element={<BridgePage />} />
+          <Route path="solana" element={<SolanaPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="marketplace" element={<Navigate to="/app/agents" replace />} />
         </Route>
