@@ -10,6 +10,8 @@ mod adapter;
 #[cfg(feature = "solana")]
 pub use adapter::SolanaAttestationAdapter;
 
+pub mod scheduler;
+
 #[cfg(not(feature = "solana"))]
 mod disabled;
 #[cfg(not(feature = "solana"))]

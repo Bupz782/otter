@@ -173,6 +173,12 @@ pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub solana_authority_keypair: Option<String>,
 
+    /// Interval in seconds between Solana attestations of the solvency Merkle
+    /// root. The scheduler only runs when the adapter and an on-chain
+    /// SolvencyRegistry are both configured.
+    #[serde(default = "default_solana_attest_interval_secs")]
+    pub solana_attest_interval_secs: u64,
+
     /// Enable the real bundle-based MEV searcher.
     #[serde(default)]
     pub mev_bundle_enabled: bool,
@@ -226,6 +232,10 @@ fn default_rate_limit_per_minute() -> u32 {
 
 fn default_mev_bundle_poll_interval_ms() -> u64 {
     1_000
+}
+
+fn default_solana_attest_interval_secs() -> u64 {
+    3_600
 }
 
 fn default_monitoring_interval() -> u64 {
@@ -308,6 +318,7 @@ impl Default for Config {
             solana_rpc_url: None,
             solana_program_id: None,
             solana_authority_keypair: None,
+            solana_attest_interval_secs: default_solana_attest_interval_secs(),
             mev_bundle_enabled: false,
             mev_bundle_relay_url: None,
             mev_bundle_private_key: None,
@@ -559,6 +570,11 @@ impl Config {
         }
         if let Ok(val) = std::env::var("OTTER_SOLANA_AUTHORITY_KEYPAIR") {
             self.solana_authority_keypair = Some(val);
+        }
+        if let Ok(val) = std::env::var("OTTER_SOLANA_ATTEST_INTERVAL_SECS")
+            && let Ok(secs) = val.parse()
+        {
+            self.solana_attest_interval_secs = secs;
         }
         if let Ok(val) = std::env::var("OTTER_MEV_BUNDLE_ENABLED") {
             self.mev_bundle_enabled = val.eq_ignore_ascii_case("true");

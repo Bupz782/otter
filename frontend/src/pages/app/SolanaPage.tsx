@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, Send, CheckCircle2, XCircle } from "lucide-react";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { Button } from "@/components/ui/button";
@@ -18,14 +18,38 @@ export function SolanaPage() {
   const [signature, setSignature] = useState<string | null>(null);
   const [attestation, setAttestation] = useState<{ payload_hash: string; timestamp: number } | null>(null);
   const [verifyResult, setVerifyResult] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState<"attest" | "get" | "verify" | null>(null);
+  const [solvencyRoot, setSolvencyRoot] = useState<string | null>(null);
+  const [nowSignature, setNowSignature] = useState<string | null>(null);
+  const [loading, setLoading] = useState<"attest" | "get" | "verify" | "now" | null>(null);
   const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    api.solvency
+      .status()
+      .then((s) => setSolvencyRoot(s.merkle_root ?? null))
+      .catch(() => setSolvencyRoot(null));
+  }, []);
 
   const clear = () => {
     setError(null);
     setSignature(null);
     setAttestation(null);
     setVerifyResult(null);
+    setNowSignature(null);
+  };
+
+  const handleAttestNow = async () => {
+    clear();
+    if (!solvencyRoot) return;
+    setLoading("now");
+    try {
+      const res = await api.solana.attest(solvencyRoot);
+      setNowSignature(res.signature);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error("Attest failed"));
+    } finally {
+      setLoading(null);
+    }
   };
 
   const handleAttest = async (e: React.FormEvent) => {
@@ -108,6 +132,33 @@ export function SolanaPage() {
                 </p>
               )}
             </form>
+          </SectionCard>
+
+          <SectionCard
+            title="Solvency attestation"
+            subtitle="The scheduler periodically anchors the current solvency Merkle root on-chain."
+          >
+            <div className="space-y-4">
+              <p className="break-all text-sm">
+                Current root:{" "}
+                {solvencyRoot ? (
+                  <span className="font-mono">{solvencyRoot}</span>
+                ) : (
+                  <span className="text-muted-foreground">
+                    unavailable (registry not configured or not proven yet)
+                  </span>
+                )}
+              </p>
+              <Button onClick={handleAttestNow} disabled={loading === "now" || !solvencyRoot}>
+                <Send className="mr-2 h-4 w-4" />
+                {loading === "now" ? "Submitting…" : "Attest now"}
+              </Button>
+              {nowSignature && (
+                <p className="break-all text-sm text-muted-foreground">
+                  Signature: <span className="font-mono">{nowSignature}</span>
+                </p>
+              )}
+            </div>
           </SectionCard>
 
           <SectionCard title="Read" subtitle="Fetch the attestation for an authority.">

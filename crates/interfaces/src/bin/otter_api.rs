@@ -1055,6 +1055,20 @@ async fn main() {
         );
     }
 
+    // Solana attestation scheduler: periodically anchors the current solvency
+    // Merkle root on Solana (requires the adapter and a configured registry).
+    if let (Some(solana), Some(registry)) = (
+        state.solana.clone(),
+        config.solvency_registry_address.clone(),
+    ) {
+        infrastructure::solana::scheduler::spawn_attestation_scheduler(
+            solana,
+            state.multichain.clone(),
+            registry,
+            Duration::from_secs(config.solana_attest_interval_secs.max(60)),
+        );
+    }
+
     // Event processor loop: drive the orchestrator state machine.
     let processor_state = Arc::clone(&state);
     tokio::spawn(async move {
