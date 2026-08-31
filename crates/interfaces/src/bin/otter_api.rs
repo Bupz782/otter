@@ -20,14 +20,14 @@ use domain::ports::price_oracle_port::PriceOraclePort;
 use domain::ports::storage_port::StrategyRecord;
 use domain::ports::wallet_port::WalletPort;
 use domain::ports::{
-    BlockchainPort, BridgePort, BundleSearcherPort, DelegationRecord, ExecutionRecord, IntentRecord,
-    SolanaPort, StoragePort,
+    BlockchainPort, BridgePort, BundleSearcherPort, DelegationRecord, ExecutionRecord,
+    IntentRecord, SolanaPort, StoragePort,
 };
+use infrastructure::blockchain::bridge_adapter::OtterBridgeAdapter;
 use infrastructure::blockchain::{
     AlloyEvmAdapter, CompositeOracle, HealthEntry, LocalWalletAdapter, MultiChainAdapter,
     OracleNetwork,
 };
-use infrastructure::blockchain::bridge_adapter::OtterBridgeAdapter;
 use infrastructure::config::Config;
 use infrastructure::mev::bundle_searcher::FlashbotsBundleSearcher;
 use infrastructure::parsers::{HybridParser, LlmIntentParser, RegexParser};
@@ -1219,12 +1219,7 @@ fn build_bridges(config: &Config) -> HashMap<String, Arc<dyn BridgePort>> {
         let Some(bridge_address) = spec.bridge_address.as_ref() else {
             continue;
         };
-        match OtterBridgeAdapter::new(
-            &spec.rpc_url,
-            bridge_address,
-            &private_key_hex,
-            spec.chain_id,
-        ) {
+        match OtterBridgeAdapter::new(&spec.rpc_url, bridge_address, &private_key_hex) {
             Ok(adapter) => {
                 bridges.insert(spec.name.clone(), Arc::new(adapter));
             }
@@ -1383,10 +1378,10 @@ fn parse_hash32(value: &str) -> Result<[u8; 32], AppError> {
 
 async fn solana_attest(
     AxumState(state): AxumState<Arc<AppState>>,
-    Extension(user): Extension<AuthUser>,
+    Extension(user): Extension<Option<AuthUser>>,
     Json(body): Json<SolanaAttestRequest>,
 ) -> Result<Json<SolanaAttestResponse>, AppError> {
-    require_writer(&Some(user))?;
+    require_writer(&user)?;
     let adapter = state
         .solana
         .as_ref()
@@ -1436,10 +1431,10 @@ async fn solana_verify(
 
 async fn submit_bundle(
     AxumState(state): AxumState<Arc<AppState>>,
-    Extension(user): Extension<AuthUser>,
+    Extension(user): Extension<Option<AuthUser>>,
     Json(body): Json<SubmitBundleRequest>,
 ) -> Result<Json<SubmitBundleResponse>, AppError> {
-    require_writer(&Some(user))?;
+    require_writer(&user)?;
     let searcher = state
         .bundle_searcher
         .as_ref()
@@ -1538,10 +1533,10 @@ struct SetMevConfigRequest {
 
 async fn set_mev_config(
     AxumState(state): AxumState<Arc<AppState>>,
-    Extension(user): Extension<AuthUser>,
+    Extension(user): Extension<Option<AuthUser>>,
     Json(body): Json<SetMevConfigRequest>,
 ) -> Result<Json<MevConfigResponse>, AppError> {
-    require_writer(&Some(user))?;
+    require_writer(&user)?;
     if body.rebate_bps > 10_000 {
         return Err(AppError::Validation(
             "rebate_bps must be at most 10000".to_string(),
@@ -1594,23 +1589,31 @@ struct BridgeTransferItem {
 
 async fn bridge_lock(
     AxumState(state): AxumState<Arc<AppState>>,
-    Extension(user): Extension<AuthUser>,
+    Extension(user): Extension<Option<AuthUser>>,
     Json(body): Json<BridgeLockRequest>,
 ) -> Result<Json<BridgeLockResponse>, AppError> {
-    require_writer(&Some(user.clone()))?;
+    require_writer(&user)?;
 
-    let adapter = state
-        .bridges
-        .get(&body.network)
-        .ok_or_else(|| {
-            AppError::Config(format!("bridge adapter for network '{}' is not configured", body.network))
-        })?;
+    let adapter = state.bridges.get(&body.network).ok_or_else(|| {
+        AppError::Config(format!(
+            "bridge adapter for network '{}' is not configured",
+            body.network
+        ))
+    })?;
 
     let source_chain_id = chain_id_for_network(&state, &body.network)
         .ok_or_else(|| AppError::Config(format!("unknown network '{}'", body.network)))?;
 
+    // The adapter signs with the agent key; the user address is recorded for
+    // tracking only. Empty when auth is disabled.
+    let user_address = user.map(|u| u.address).unwrap_or_default();
+
     let result = adapter
-        .lock(user.address.clone(), body.amount_wei.clone(), body.destination_chain_id)
+        .lock(
+            user_address.clone(),
+            body.amount_wei.clone(),
+            body.destination_chain_id,
+        )
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
@@ -1625,7 +1628,7 @@ async fn bridge_lock(
             bridge_id: result.bridge_id.clone(),
             source_chain_id,
             destination_chain_id: body.destination_chain_id,
-            user_address: user.address.clone(),
+            user_address: user_address.clone(),
             amount_wei: body.amount_wei.clone(),
             lock_tx_hash: Some(result.tx_hash.clone()),
             mint_tx_hash: None,
@@ -1644,20 +1647,24 @@ async fn bridge_lock(
 
 async fn bridge_mint(
     AxumState(state): AxumState<Arc<AppState>>,
-    Extension(user): Extension<AuthUser>,
+    Extension(user): Extension<Option<AuthUser>>,
     Json(body): Json<BridgeMintRequest>,
 ) -> Result<Json<BridgeMintResponse>, AppError> {
-    require_writer(&Some(user.clone()))?;
+    require_writer(&user)?;
 
-    let adapter = state
-        .bridges
-        .get(&body.network)
-        .ok_or_else(|| {
-            AppError::Config(format!("bridge adapter for network '{}' is not configured", body.network))
-        })?;
+    let adapter = state.bridges.get(&body.network).ok_or_else(|| {
+        AppError::Config(format!(
+            "bridge adapter for network '{}' is not configured",
+            body.network
+        ))
+    })?;
 
     let tx_hash = adapter
-        .mint(body.user_address.clone(), body.amount_wei.clone(), body.bridge_id.clone())
+        .mint(
+            body.user_address.clone(),
+            body.amount_wei.clone(),
+            body.bridge_id.clone(),
+        )
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
@@ -1672,12 +1679,13 @@ async fn bridge_mint(
 
 async fn bridge_transfers(
     AxumState(state): AxumState<Arc<AppState>>,
-    Extension(user): Extension<AuthUser>,
+    Extension(user): Extension<Option<AuthUser>>,
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<Vec<BridgeTransferItem>>, AppError> {
+    let user_address = user.map(|u| u.address).unwrap_or_default();
     let records = state
         .storage
-        .list_bridge_transfers_by_user(&user.address)
+        .list_bridge_transfers_by_user(&user_address)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
@@ -3064,7 +3072,7 @@ mod tests {
             solvency_registry_address: None,
             solana: None,
             bundle_searcher: None,
-        bridges: HashMap::new(),
+            bridges: HashMap::new(),
         })
     }
 
@@ -3122,7 +3130,7 @@ mod tests {
             solvency_registry_address: None,
             solana: None,
             bundle_searcher: None,
-        bridges: HashMap::new(),
+            bridges: HashMap::new(),
         });
 
         let response = metrics(AxumState(disabled_state)).await;
@@ -3341,7 +3349,7 @@ mod tests {
             solvency_registry_address: state.solvency_registry_address.clone(),
             solana: state.solana.clone(),
             bundle_searcher: state.bundle_searcher.clone(),
-        bridges: HashMap::new(),
+            bridges: HashMap::new(),
             orchestrator: state.orchestrator.clone(),
             storage: state.storage.clone(),
             bus: state.bus.clone(),

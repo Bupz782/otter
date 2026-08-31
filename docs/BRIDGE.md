@@ -40,3 +40,10 @@ for a controlled launch.
 - `contracts/src/OtterBridge.sol`
 - `contracts/src/BridgeToken.sol`
 - `contracts/test/OtterBridge.t.sol`
+
+## Operational notes
+- The locking account must `approve` the bridge for the ERC-20 amount first;
+  `lock` reverts with `ERC20InsufficientAllowance` otherwise.
+- E2E verified against anvil on 2026-08-31 via the API
+  (`POST /bridge/lock` → `GET /bridge/transfers` (pending) →
+  `POST /bridge/mint` → status `minted`), wrapped balance checked on-chain.
