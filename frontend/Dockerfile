@@ -8,7 +8,9 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+# Native deps (utf-8-validate) have no prebuilt binaries for alpine/arm64 and
+# fall back to node-gyp; the toolchain lives only in the builder stage.
+RUN apk add --no-cache python3 make g++ && npm ci
 
 COPY . .
 RUN npm run build
