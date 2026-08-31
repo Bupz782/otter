@@ -477,6 +477,11 @@ impl Config {
         if let Ok(val) = std::env::var("OTTER_VAULT_ADDRESS") {
             self.vault_address = Some(val);
         }
+        if let Ok(val) = std::env::var("OTTER_NETWORKS")
+            && let Ok(networks) = parse_networks_spec(&val)
+        {
+            self.networks = networks;
+        }
         if let Ok(val) = std::env::var("OTTER_PRIVATE_KEY") {
             self.private_key = Some(val);
         }
@@ -858,6 +863,10 @@ model_path = "model.gguf"
             std::env::set_var("OTTER_API_PORT", "8080");
             std::env::set_var("OTTER_NETWORK", "mainnet");
             std::env::set_var("OTTER_VAULT_ADDRESS", "0xEnvVault");
+            std::env::set_var(
+                "OTTER_NETWORKS",
+                "default=http://env:8545|0xEnvVault|8453,l2=http://l2:8545|0xEnvVault2|10",
+            );
             std::env::set_var("OTTER_PRIVATE_KEY", "0xenvkey");
             std::env::set_var("OTTER_NONCE_STORE_PATH", "/tmp/nonce.txt");
             std::env::set_var("OTTER_PRIVATE_KEY_FILE", "/tmp/key.hex");
@@ -891,6 +900,9 @@ model_path = "model.gguf"
         assert_eq!(config.api_port, 8080);
         assert_eq!(config.network.as_deref(), Some("mainnet"));
         assert_eq!(config.vault_address.as_deref(), Some("0xEnvVault"));
+        assert_eq!(config.networks.len(), 2);
+        assert_eq!(config.networks[0].name, "default");
+        assert_eq!(config.networks[1].chain_id, 10);
         assert_eq!(config.private_key.as_deref(), Some("0xenvkey"));
         assert_eq!(config.nonce_store_path, "/tmp/nonce.txt");
         assert_eq!(config.private_key_file.as_deref(), Some("/tmp/key.hex"));
