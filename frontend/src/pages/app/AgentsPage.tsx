@@ -90,7 +90,7 @@ export function AgentsPage() {
       <FadeIn>
         <PageHeader
           title="The Agent"
-          subtitle="Otter doesn't operate agents — it proves them. This deployment is connected to one execution agent: you sign the limits, it executes your intents inside them, and nowhere else."
+          subtitle="The execution agent operated by Otter. You sign the limits — it executes your intents inside them, and nowhere else. Every action is proven in ZK and verified on-chain."
         />
       </FadeIn>
 
@@ -135,7 +135,7 @@ export function AgentsPage() {
               <div className="min-w-0">
                 <p className="font-heading text-xl font-bold">{agent.name}</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Connected to this deployment · operated by {agent.operatedBy}
+                  Operated by {agent.operatedBy}
                   {agent.bond > 0 && ` · bonded $${agent.bond.toLocaleString()}`}
                 </p>
                 <p className="mt-2 text-sm text-muted-foreground">{agent.description}</p>

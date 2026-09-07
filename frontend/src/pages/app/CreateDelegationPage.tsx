@@ -155,7 +155,7 @@ export function CreateDelegationPage() {
       </FadeIn>
 
       <FadeIn delay={0.1}>
-        <SectionCard title="1. Agent" subtitle="The execution agent connected to this deployment.">
+        <SectionCard title="1. Agent" subtitle="The Otter-operated agent that executes for you.">
           {agentsLoading ? (
             <Skeleton className="h-24 w-full" />
           ) : (

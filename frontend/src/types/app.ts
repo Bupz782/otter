@@ -44,8 +44,7 @@ export interface Agent {
   id: string;
   name: string;
   avatarUrl?: string;
-  /// Free-form: Otter does not operate agents — the operator is whoever
-  /// runs the deployment the agent is connected to.
+  /// Free-form; "Otter" for protocol-operated agents.
   operatedBy: string;
   bond: number;
   proofsSubmitted: number;

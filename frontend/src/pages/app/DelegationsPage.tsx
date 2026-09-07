@@ -137,7 +137,7 @@ export function DelegationsPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">
-                        {delegation.agentName ?? "Execution agent"}
+                        {delegation.agentName ?? "Otter Agent"}
                       </p>
                       {(delegation.allowedProtocols || delegation.allowedChains) && (
                         <div className="mt-1.5 flex flex-wrap gap-1.5">

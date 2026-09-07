@@ -138,7 +138,7 @@ export const demoDelegations: Delegation[] = [
     createdAt: hoursAgo(72),
     userAddress: DEMO_ADDRESS,
     agentId: "otter-agent",
-    agentName: "Execution Agent",
+    agentName: "Otter Agent",
     maxAmounts: { lend: 5000, swap: 2000, withdraw: 3000, claim: 1000 },
     allowedProtocols: ["Aave", "Compound"],
     allowedChains: ["Ethereum", "Arbitrum"],
@@ -150,7 +150,7 @@ export const demoDelegations: Delegation[] = [
     createdAt: hoursAgo(20),
     userAddress: DEMO_ADDRESS,
     agentId: "otter-agent",
-    agentName: "Execution Agent",
+    agentName: "Otter Agent",
     maxAmounts: { lend: 1000, swap: 2500, withdraw: 1000, claim: 500 },
     allowedProtocols: ["Uniswap"],
     allowedChains: ["Ethereum"],
@@ -160,16 +160,15 @@ export const demoDelegations: Delegation[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Agent and strategies: exact mirrors of the backend seeds. Otter does not
-// operate agents — this entry is the execution agent connected to the
-// deployment; multi-agent stays possible (operators run their own).
+// Agent and strategies: exact mirrors of the backend seeds. Otter operates
+// the agents — users delegate to an Otter agent, they never create one.
 // ---------------------------------------------------------------------------
 
 export const demoAgents: Agent[] = [
   {
     id: "otter-agent",
-    name: "Execution Agent",
-    operatedBy: "Self-hosted",
+    name: "Otter Agent",
+    operatedBy: "Otter",
     bond: 0,
     proofsSubmitted: 30_366,
     yieldGenerated: 9_440_000,

@@ -337,14 +337,12 @@ first delegation**.
 
 ### 4.8 L'agent et les stratégies (`/app/agents`)
 
-La page **The Agent** présente l'agent d'exécution connecté à ce déploiement.
-Otter est une infrastructure *agent-agnostic* : elle ne crée ni n'opère
-d'agents — n'importe quel opérateur peut en exécuter un, et vous déléguez à la
-clé de l'agent. La page montre son identité, sa clé publique (BabyJubJub,
-visible quand le wallet est connecté), son nombre de preuves, sa disponibilité
-(*Uptime*) et les rabais MEV restitués. Il n'y a **pas de choix d'agent** dans
-ce déploiement : l'agent connecté n'agit que dans les limites signées de votre
-délégation — chaque exécution est prouvée en ZK et vérifiée on-chain.
+La page **The Agent** présente l'agent d'exécution opéré par Otter sur ce
+déploiement : son identité, sa clé publique (BabyJubJub, visible quand le
+wallet est connecté), son nombre de preuves, sa disponibilité (*Uptime*) et
+les rabais MEV restitués. Les agents sont gérés par Otter — vous n'en créez
+jamais un : vous signez une délégation, et l'agent n'agit que dans ses
+limites — chaque exécution est prouvée en ZK et vérifiée on-chain.
 
 La page liste aussi les **Official strategies** : des templates d'intention
 pré-écrits et audités. Le bouton **Use strategy** pré-remplit le formulaire de
