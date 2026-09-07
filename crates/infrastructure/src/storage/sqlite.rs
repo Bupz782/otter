@@ -625,8 +625,10 @@ impl StoragePort for SqliteStorage {
         .map_err(|e| StorageError::SaveFailed(e.to_string()))?
     }
 
-
-    async fn save_bridge_transfer(&self, record: &BridgeTransferRecord) -> Result<(), StorageError> {
+    async fn save_bridge_transfer(
+        &self,
+        record: &BridgeTransferRecord,
+    ) -> Result<(), StorageError> {
         let conn = self.conn.clone();
         let record = record.clone();
         tokio::task::spawn_blocking(move || {

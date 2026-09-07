@@ -172,7 +172,8 @@ pub trait StoragePort: Send + Sync {
     async fn delete_strategy(&self, id: &str) -> Result<(), StorageError>;
 
     /// Persist a cross-chain bridge transfer.
-    async fn save_bridge_transfer(&self, record: &BridgeTransferRecord) -> Result<(), StorageError>;
+    async fn save_bridge_transfer(&self, record: &BridgeTransferRecord)
+    -> Result<(), StorageError>;
 
     /// Return bridge transfers for a given user, most recent first.
     async fn list_bridge_transfers_by_user(

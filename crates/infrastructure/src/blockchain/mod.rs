@@ -1,5 +1,5 @@
-pub mod bridge_adapter;
 pub mod alloy_evm;
+pub mod bridge_adapter;
 pub mod chainlink_oracle;
 pub mod composite_oracle;
 pub mod local_wallet;

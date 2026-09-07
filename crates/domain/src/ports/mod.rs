@@ -1,5 +1,5 @@
-pub mod bridge_port;
 pub mod blockchain_port;
+pub mod bridge_port;
 pub mod evm_port;
 pub mod intent_parser_port;
 pub mod mev_port;

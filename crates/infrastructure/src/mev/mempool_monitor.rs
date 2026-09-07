@@ -86,7 +86,9 @@ impl MempoolMonitor {
                     }
                 };
 
-                if let Some(tx) = tx && tx.to == Some(self.target_address) {
+                if let Some(tx) = tx
+                    && tx.to == Some(self.target_address)
+                {
                     info!(%hash, "target transaction detected in mempool");
                     handler
                         .on_target_tx(PendingTransaction {

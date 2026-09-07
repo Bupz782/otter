@@ -627,7 +627,10 @@ impl StoragePort for PgStorage {
         Ok(())
     }
 
-    async fn save_bridge_transfer(&self, record: &BridgeTransferRecord) -> Result<(), StorageError> {
+    async fn save_bridge_transfer(
+        &self,
+        record: &BridgeTransferRecord,
+    ) -> Result<(), StorageError> {
         sqlx::query(
             "INSERT INTO bridge_transfers (bridge_id, source_chain_id, destination_chain_id, user_address, amount_wei, lock_tx_hash, mint_tx_hash, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT (bridge_id) DO UPDATE SET status = EXCLUDED.status, lock_tx_hash = EXCLUDED.lock_tx_hash, mint_tx_hash = EXCLUDED.mint_tx_hash, updated_at = EXCLUDED.updated_at",
         )
