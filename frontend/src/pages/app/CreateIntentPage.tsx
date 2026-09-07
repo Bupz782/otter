@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { Sparkles, Check, Loader2, ArrowRight, ShieldCheck, Bot } from "lucide-react";
@@ -24,7 +24,7 @@ import { useStrategy } from "@/hooks/useStrategy";
 import { useAuthToken } from "@/hooks/useAuthToken";
 import { matchMockIntent, type MockIntent } from "@/data/intents";
 import { truncateHash } from "@/lib/utils";
-import type { IntentType, ParsedIntent } from "@/types/app";
+import type { Delegation, IntentType, ParsedIntent } from "@/types/app";
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -180,24 +180,47 @@ export function CreateIntentPage() {
     selectedAgent?.name ??
     (selectedDelegation ? `Delegation ${truncateHash(selectedDelegation)}` : "Not specified");
 
-  // Warn when the parsed intent conflicts with the selected delegation's
-  // known fields. Only fields that exist on the record are checked; when the
-  // backend returns no limits there is nothing to compare and no warning.
-  const compatWarnings: string[] = [];
-  if (parsedDraft && activeDelegation) {
-    const allowed = activeDelegation.allowedProtocols;
+  // Per-delegation compatibility against the parsed draft: the intent is
+  // already known at this step, so a delegation that cannot cover it is not
+  // a real choice. Fields missing from the record can't be checked and
+  // yield no issue (same rule as before).
+  const delegationIssues = (delegation: Delegation): string[] => {
+    if (!parsedDraft) return [];
+    const issues: string[] = [];
+    const allowed = delegation.allowedProtocols;
     if (allowed && allowed.length > 0 && !allowed.includes(parsedDraft.protocol)) {
-      compatWarnings.push(
-        `${parsedDraft.protocol} is not in this delegation's protocol list (${allowed.join(", ")}).`
-      );
+      issues.push(`${parsedDraft.protocol} not allowed (${allowed.join(", ")} only)`);
     }
-    const max = activeDelegation.maxAmounts?.[parsedDraft.type];
+    const max = delegation.maxAmounts?.[parsedDraft.type];
     if (max !== undefined && parsedDraft.amount > max) {
-      compatWarnings.push(
-        `${parsedDraft.amount} ${parsedDraft.asset} is above this delegation's ${parsedDraft.type} limit of $${max.toLocaleString()}.`
+      issues.push(
+        `${parsedDraft.type} limit $${max.toLocaleString()} is below the $${parsedDraft.amount.toLocaleString()} needed`
       );
     }
-  }
+    return issues;
+  };
+
+  // Compatible delegations first, in their original order within each group.
+  const sortedDelegations = useMemo(
+    () =>
+      delegations
+        ? [...delegations].sort((a, b) => delegationIssues(a).length - delegationIssues(b).length)
+        : delegations,
+    [delegations, parsedDraft]
+  );
+
+  // Auto-select the first delegation that covers the intent; never overrides
+  // an explicit choice (click or ?delegation= URL param).
+  useEffect(() => {
+    if (step === 2 && !selectedDelegation && sortedDelegations) {
+      const firstFit = sortedDelegations.find((d) => delegationIssues(d).length === 0);
+      if (firstFit) setSelectedDelegation(firstFit.id);
+    }
+  }, [step, selectedDelegation, sortedDelegations]);
+
+  // Issues on the currently selected delegation (e.g. pre-selected via URL);
+  // an incompatible selection blocks Confirm with the reasons listed.
+  const selectedIssues = activeDelegation ? delegationIssues(activeDelegation) : [];
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -370,7 +393,7 @@ export function CreateIntentPage() {
             >
               <SectionCard
                 title="Choose a delegation"
-                subtitle="Pick the agent and the signed limits this intent runs under."
+                subtitle="Pick the signed limits this intent runs under."
               >
                 <div className="space-y-3">
                   {delegationsLoading ? (
@@ -396,19 +419,24 @@ export function CreateIntentPage() {
                     />
                   ) : (
                     <div role="radiogroup" aria-label="Choose a delegation" className="space-y-3">
-                      {delegations?.map((delegation) => {
+                      {sortedDelegations?.map((delegation) => {
                         const agent = agents?.find((a) => a.id === delegation.agentId);
+                        const issues = delegationIssues(delegation);
+                        const incompatible = issues.length > 0;
                         return (
                           <button
                             key={delegation.id}
                             type="button"
                             role="radio"
                             aria-checked={selectedDelegation === delegation.id}
+                            disabled={incompatible}
                             onClick={() => setSelectedDelegation(delegation.id)}
                             className={`w-full rounded-xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent ${
-                              selectedDelegation === delegation.id
-                                ? "border-accent bg-accent-subtle"
-                                : "border-border/60 bg-card hover:border-accent/40"
+                              incompatible
+                                ? "cursor-not-allowed border-border/40 bg-card opacity-50"
+                                : selectedDelegation === delegation.id
+                                  ? "border-accent bg-accent-subtle"
+                                  : "border-border/60 bg-card hover:border-accent/40"
                             }`}
                           >
                             <div className="flex items-center justify-between">
@@ -430,8 +458,11 @@ export function CreateIntentPage() {
                                   </p>
                                 </div>
                               </div>
-                              {selectedDelegation === delegation.id && (
+                              {selectedDelegation === delegation.id && !incompatible && (
                                 <Badge variant="default">Selected</Badge>
+                              )}
+                              {incompatible && (
+                                <Badge variant="outline">Doesn&apos;t cover this intent</Badge>
                               )}
                             </div>
                             <p className="mt-2 text-xs text-muted-foreground">
@@ -445,22 +476,49 @@ export function CreateIntentPage() {
                                 ? ` · Expires ${new Date(delegation.expiry).toLocaleDateString()}`
                                 : ""}
                             </p>
+                            {incompatible && (
+                              <ul className="mt-2 list-inside list-disc space-y-0.5 text-xs text-amber-400/90">
+                                {issues.map((issue) => (
+                                  <li key={issue}>{issue}</li>
+                                ))}
+                              </ul>
+                            )}
                           </button>
                         );
                       })}
                     </div>
                   )}
-                  {compatWarnings.length > 0 && (
+                  {sortedDelegations &&
+                    sortedDelegations.length > 0 &&
+                    sortedDelegations.every((d) => delegationIssues(d).length > 0) && (
+                      <div
+                        role="alert"
+                        className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3"
+                      >
+                        <p className="text-xs font-medium text-amber-400">
+                          No delegation covers this intent.
+                        </p>
+                        <Button
+                          onClick={() => navigate("/app/delegations/new")}
+                          variant="outline"
+                          size="sm"
+                          className="mt-2"
+                        >
+                          Create a delegation that does
+                        </Button>
+                      </div>
+                    )}
+                  {selectedIssues.length > 0 && (
                     <div
                       role="alert"
                       className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3"
                     >
                       <p className="text-xs font-medium text-amber-400">
-                        Heads up: this intent may not run under the selected delegation.
+                        This intent cannot run under the selected delegation.
                       </p>
                       <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs text-amber-400/90">
-                        {compatWarnings.map((warning) => (
-                          <li key={warning}>{warning}</li>
+                        {selectedIssues.map((issue) => (
+                          <li key={issue}>{issue}</li>
                         ))}
                       </ul>
                     </div>
@@ -472,7 +530,7 @@ export function CreateIntentPage() {
                   </Button>
                   <Button
                     onClick={handleDelegate}
-                    disabled={!selectedDelegation}
+                    disabled={!selectedDelegation || selectedIssues.length > 0}
                     className="rounded-full"
                   >
                     Confirm delegation

@@ -10,11 +10,12 @@ import {
 
 describe("mapBackendConditionalIntent", () => {
   it("maps a Lend intent with a yield condition", () => {
+    // Wire format: amounts are base units (USDC = 6 decimals).
     const backend: BackendConditionalIntent = {
       intent: {
         Lend: {
           asset: "Usdc",
-          amount: "1500.50",
+          amount: "1500500000",
           protocol: "Aave",
         },
       },
@@ -44,7 +45,7 @@ describe("mapBackendConditionalIntent", () => {
         Swap: {
           from_asset: "Eth",
           to_asset: "Dai",
-          amount: "2",
+          amount: "2000000000000000000",
           protocol: "Uniswap",
         },
       },
@@ -86,7 +87,7 @@ describe("mapBackendConditionalIntent", () => {
       intent: {
         Stake: {
           asset: "Eth",
-          amount: "0.25",
+          amount: "250000000000000000",
           protocol: "Compound",
         },
       },
@@ -108,7 +109,7 @@ describe("mapBackendConditionalIntent", () => {
       intent: {
         Borrow: {
           asset: "Dai",
-          amount: "800",
+          amount: "800000000000000000000",
           collateral: "Wbtc",
           collateral_amount: "0.05",
           protocol: "Aave",

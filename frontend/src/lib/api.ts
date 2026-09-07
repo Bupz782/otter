@@ -326,6 +326,24 @@ function formatCondition(condition: BackendCondition | null): string | undefined
   return `${c.metric} ${comparatorMap[c.comparator] || c.comparator} ${c.value}`;
 }
 
+function assetDecimals(asset: BackendAsset): number {
+  switch (asset) {
+    case "Usdc":
+      return 6;
+    case "Wbtc":
+      return 8;
+    case "Sol":
+      return 9;
+    default:
+      return 18; // Eth, Dai, Link
+  }
+}
+
+/** The backend carries amounts in base units; the UI works in human units. */
+function humanAmount(amount: string, asset: BackendAsset): number {
+  return Number(amount) / 10 ** assetDecimals(asset);
+}
+
 export function mapBackendConditionalIntent(conditional: BackendConditionalIntent): ParsedIntent {
   const condition = formatCondition(conditional.condition);
   const inner = conditional.intent;
@@ -334,7 +352,7 @@ export function mapBackendConditionalIntent(conditional: BackendConditionalInten
   if ("Lend" in inner) {
     return {
       type: "lend",
-      amount: Number(inner.Lend.amount),
+      amount: humanAmount(inner.Lend.amount, inner.Lend.asset),
       asset: assetSymbol(inner.Lend.asset),
       protocol: lendingProtocolName(inner.Lend.protocol),
       condition,
@@ -344,7 +362,7 @@ export function mapBackendConditionalIntent(conditional: BackendConditionalInten
   if ("Stake" in inner) {
     return {
       type: "lend",
-      amount: Number(inner.Stake.amount),
+      amount: humanAmount(inner.Stake.amount, inner.Stake.asset),
       asset: assetSymbol(inner.Stake.asset),
       protocol: lendingProtocolName(inner.Stake.protocol),
       condition,
@@ -354,7 +372,7 @@ export function mapBackendConditionalIntent(conditional: BackendConditionalInten
   if ("Borrow" in inner) {
     return {
       type: "withdraw",
-      amount: Number(inner.Borrow.amount),
+      amount: humanAmount(inner.Borrow.amount, inner.Borrow.asset),
       asset: assetSymbol(inner.Borrow.asset),
       protocol: lendingProtocolName(inner.Borrow.protocol),
       condition,
@@ -364,7 +382,7 @@ export function mapBackendConditionalIntent(conditional: BackendConditionalInten
   if ("Swap" in inner) {
     return {
       type: "swap",
-      amount: Number(inner.Swap.amount),
+      amount: humanAmount(inner.Swap.amount, inner.Swap.from_asset),
       asset: assetSymbol(inner.Swap.from_asset),
       protocol: dexProtocolName(inner.Swap.protocol),
       condition,
