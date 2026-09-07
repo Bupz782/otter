@@ -132,7 +132,7 @@ impl IntentParser for SwapParser {
 
     fn parse(&self, text: &str) -> Result<Intent, ParseError> {
         let re = SWAP_REGEX.get_or_init(|| {
-            Regex::new(r"(?i)swap\s+(?P<amount>[\d,\.]+)\s+(?P<from_asset>\w+)\s+for\s+(?P<to_asset>\w+)\s+on\s+(?P<protocol>\w+)")
+            Regex::new(r"(?i)swap\s+(?P<amount>[\d,\.]+)\s+(?P<from_asset>\w+)\s+(?:for|to|into)\s+(?P<to_asset>\w+)\s+on\s+(?P<protocol>\w+)")
                 .expect("Invalid SWAP_REGEX pattern")
         });
 
@@ -364,8 +364,9 @@ impl RegexParser {
 
     /// Parse a conditional intent (intent + optional condition)
     pub fn parse_conditional_intent(&self, text: &str) -> Result<ConditionalIntent, ParseError> {
-        let splitter = CONDITIONAL_SPLIT_REGEX
-            .get_or_init(|| Regex::new(r"(?i)\bif\b").expect("Invalid conditional split regex"));
+        let splitter = CONDITIONAL_SPLIT_REGEX.get_or_init(|| {
+            Regex::new(r"(?i)\b(?:if|when)\b").expect("Invalid conditional split regex")
+        });
 
         let text = text.trim();
         let (intent_part, condition_slice) = if let Some(mat) = splitter.find(text) {
@@ -457,6 +458,46 @@ mod tests {
     fn test_parse_swap_case_insensitive() {
         let result = RegexParser::parse_swap("swap 1,000 dai for wbtc on sushiswap");
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_swap_accepts_to_synonym() {
+        let result = RegexParser::parse_swap("Swap 500 USDC to ETH on Uniswap");
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Intent::Swap {
+                from_asset,
+                to_asset,
+                ..
+            } => {
+                assert_eq!(from_asset, Asset::Usdc);
+                assert_eq!(to_asset, Asset::Eth);
+            }
+            other => panic!("expected swap, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_conditional_swap_with_when_gas() {
+        // User-reported phrasing: "Swap 500 USDC to ETH on Uniswap when gas < 20 gwei".
+        let parser = RegexParser::new();
+        let result =
+            parser.parse_conditional_intent("Swap 500 USDC to ETH on Uniswap when gas < 20 gwei");
+        assert!(result.is_ok());
+        let ci = result.unwrap();
+        assert!(matches!(ci.intent, Intent::Swap { .. }));
+        match ci.condition {
+            Some(Condition::Comparison {
+                metric,
+                comparator,
+                value,
+            }) => {
+                assert_eq!(metric, Metric::GasCost);
+                assert_eq!(comparator, Comparator::LessThan);
+                assert_eq!(value, 20);
+            }
+            other => panic!("expected gas comparison, got {other:?}"),
+        }
     }
 
     #[test]

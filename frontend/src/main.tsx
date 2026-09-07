@@ -95,7 +95,15 @@ createRoot(document.getElementById("root")!).render(
     <MotionConfig reducedMotion="user">
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
-          <RainbowKitProvider theme={darkTheme()} modalSize="compact">
+          <RainbowKitProvider
+            theme={darkTheme({
+              // Otter palette (styles/tokens.css): amber accent on near-black.
+              accentColor: "#c8a46c",
+              accentColorForeground: "#050505",
+              borderRadius: "medium",
+            })}
+            modalSize="compact"
+          >
             <AppRoutes />
           </RainbowKitProvider>
         </QueryClientProvider>

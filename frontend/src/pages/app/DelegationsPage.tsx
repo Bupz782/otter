@@ -60,14 +60,14 @@ function delegationStatus(delegation: Delegation): StatusPresentation {
 
 export function DelegationsPage() {
   useDocumentTitle("Delegations");
-  const { data: delegations, isLoading, error, refetch } = useDelegations();
+  const { data: delegations, isLoading, error, refetch, isDemo } = useDelegations();
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <FadeIn>
         <PageHeader
           title="Delegations"
-          subtitle="Your agents, on a leash."
+          subtitle="Your agent, on a leash."
           action={
             <Button asChild className="rounded-full">
               <Link to="/app/delegations/new">
@@ -78,6 +78,26 @@ export function DelegationsPage() {
           }
         />
       </FadeIn>
+
+      {isDemo && (
+        <FadeIn delay={0.03}>
+          <SectionCard className="py-4">
+            <p className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">Demo data.</span> These delegations
+              are pre-made examples so you can explore. Nothing here is yours yet — your first
+              real step is{" "}
+              <Link
+                to="/app/delegations/new"
+                className="font-medium text-accent underline underline-offset-2"
+              >
+                creating your own delegation
+              </Link>
+              : you sign the limits (amounts, protocols, expiry), and the agent can only act
+              inside them.
+            </p>
+          </SectionCard>
+        </FadeIn>
+      )}
 
       <FadeIn delay={0.05}>
         <SectionCard

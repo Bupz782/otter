@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { Sparkles, Check, Loader2, ArrowRight, ShieldCheck, Bot } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -23,6 +23,7 @@ import { useStrategies } from "@/hooks/useStrategies";
 import { useStrategy } from "@/hooks/useStrategy";
 import { useAuthToken } from "@/hooks/useAuthToken";
 import { matchMockIntent, type MockIntent } from "@/data/intents";
+import { ApiClientError } from "@/lib/api";
 import { truncateHash } from "@/lib/utils";
 import type { Delegation, IntentType, ParsedIntent } from "@/types/app";
 
@@ -136,20 +137,27 @@ export function CreateIntentPage() {
     if (!text.trim()) return;
     setParseError(null);
     reset();
-    if (isDemo) {
-      // No session: parse locally with the landing-page mock parser.
-      setParsedDraft(mapMockToParsedIntent(matchMockIntent(text)));
-      setStep(1);
-      return;
-    }
     try {
+      // The real parser works without a session on the demo stack; the canned
+      // matcher is only a fallback for a fully offline landing page.
       const result = await parse(text);
       if (result) {
         setParsedDraft(result);
         setStep(1);
+        return;
       }
-    } catch {
-      setParseError("Couldn't parse that intent. Try rephrasing.");
+    } catch (err) {
+      // A real parse rejection (4xx) must surface — never mask it with a
+      // canned intent that doesn't match what the user typed.
+      const offline = !(err instanceof ApiClientError);
+      if (!isDemo || !offline) {
+        setParseError("Couldn't parse that intent. Try rephrasing.");
+        return;
+      }
+    }
+    if (isDemo) {
+      setParsedDraft(mapMockToParsedIntent(matchMockIntent(text)));
+      setStep(1);
     }
   };
 
@@ -396,6 +404,22 @@ export function CreateIntentPage() {
                 subtitle="Pick the signed limits this intent runs under."
               >
                 <div className="space-y-3">
+                  {isDemo && (
+                    <div className="rounded-lg border border-border/60 bg-secondary p-3">
+                      <p className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">Demo data.</span> These
+                        delegations are pre-made examples. With a connected wallet, your first
+                        step is{" "}
+                        <Link
+                          to="/app/delegations/new"
+                          className="font-medium text-accent underline underline-offset-2"
+                        >
+                          creating your own delegation
+                        </Link>{" "}
+                        — it sets the signed limits this intent runs under.
+                      </p>
+                    </div>
+                  )}
                   {delegationsLoading ? (
                     <div className="space-y-3">
                       <Skeleton className="h-24 w-full" />
