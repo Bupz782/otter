@@ -1424,7 +1424,7 @@ struct MevBundleItem {
 
 async fn list_mev_bundles(
     AxumState(state): AxumState<Arc<AppState>>,
-    Extension(_user): Extension<AuthUser>,
+    Extension(_user): Extension<Option<AuthUser>>,
 ) -> Result<Json<Vec<MevBundleItem>>, AppError> {
     let records = state
         .storage
@@ -1452,7 +1452,7 @@ struct MevConfigResponse {
 
 async fn get_mev_config(
     AxumState(state): AxumState<Arc<AppState>>,
-    Extension(_user): Extension<AuthUser>,
+    Extension(_user): Extension<Option<AuthUser>>,
 ) -> Json<MevConfigResponse> {
     Json(MevConfigResponse {
         rebate_bps: state.rebate_bps.load(Ordering::Relaxed),
