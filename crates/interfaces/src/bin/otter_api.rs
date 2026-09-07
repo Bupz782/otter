@@ -298,18 +298,14 @@ struct AgentSummary {
     id: String,
     name: String,
     operated_by: String,
-    /// Always true while agents come from `default_agents()` (anomaly A2);
-    /// remove once agents are served from persisted/on-chain data.
+    /// Always true while the agent comes from `default_agents()` (anomaly A2);
+    /// remove once the agent is served from persisted/on-chain data.
     demo: bool,
-    risk_profile: String,
     bond: u64,
-    reputation: f64,
     proofs_submitted: u64,
     yield_generated: u64,
     mev_captured: u64,
     uptime: f64,
-    strategies: u32,
-    followers: u64,
     description: String,
 }
 
@@ -394,30 +390,17 @@ struct ProofsResponse {
     demo: bool,
 }
 
-#[derive(Debug, Serialize)]
-struct LeaderboardEntry {
-    rank: u32,
-    agent_id: String,
-    agent_name: String,
-    proofs_submitted: u64,
-    yield_generated: u64,
-    mev_captured: u64,
-    uptime: f64,
-}
-
-#[derive(Debug, Serialize)]
-struct LeaderboardResponse {
-    entries: Vec<LeaderboardEntry>,
-    /// True while the payload embeds demonstration data (anomaly A2).
-    demo: bool,
-}
-
 #[derive(Debug, Deserialize)]
 struct CreateStrategyRequest {
     title: String,
     description: String,
     raw_text: String,
+    /// Deprecated marketplace fields: there is a single protocol-operated
+    /// agent and risk is bounded by the signed delegation, not a label.
+    /// Absent values fall back to the protocol agent / a neutral profile.
+    #[serde(default)]
     agent_id: String,
+    #[serde(default)]
     risk_profile: String,
     /// `private` (default) or `public` (shareable).
     visibility: Option<String>,
@@ -494,7 +477,6 @@ fn app(state: Arc<AppState>) -> Router {
         .route("/api/v1/agents/:id", get(get_agent))
         .route("/api/v1/strategies", get(list_strategies))
         .route("/api/v1/proofs", get(list_proofs))
-        .route("/api/v1/leaderboard", get(get_leaderboard))
         .route_layer(from_fn(demo_data_header));
 
     let protected = Router::new()
@@ -798,83 +780,34 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
 }
 
 fn default_agents() -> Vec<AgentSummary> {
-    vec![
-        AgentSummary {
-            id: "agent-1".to_string(),
-            name: "Aave Ace".to_string(),
-            operated_by: "Otter".to_string(),
-            demo: true,
-            risk_profile: "Conservative".to_string(),
-            bond: 50_000,
-            reputation: 4.9,
-            proofs_submitted: 12_403,
-            yield_generated: 2_450_000,
-            mev_captured: 18_400,
-            uptime: 99.98,
-            strategies: 12,
-            followers: 3_420,
-            description: "Otter-operated lending specialist. Executes conservative lending strategies across Aave markets with steady, audited yields.".to_string(),
-        },
-        AgentSummary {
-            id: "agent-2".to_string(),
-            name: "Uni-Unicorn".to_string(),
-            operated_by: "Otter".to_string(),
-            demo: true,
-            risk_profile: "Balanced".to_string(),
-            bond: 75_000,
-            reputation: 4.7,
-            proofs_submitted: 8_932,
-            yield_generated: 4_120_000,
-            mev_captured: 52_300,
-            uptime: 99.91,
-            strategies: 8,
-            followers: 2_180,
-            description: "Otter-operated liquidity execution agent. Runs protected swap and LP flows, capturing MEV rebates for depositors.".to_string(),
-        },
-        AgentSummary {
-            id: "agent-3".to_string(),
-            name: "Compound King".to_string(),
-            operated_by: "Otter".to_string(),
-            demo: true,
-            risk_profile: "Conservative".to_string(),
-            bond: 32_000,
-            reputation: 4.5,
-            proofs_submitted: 5_611,
-            yield_generated: 980_000,
-            mev_captured: 6_100,
-            uptime: 99.85,
-            strategies: 5,
-            followers: 890,
-            description: "Otter-operated Compound specialist. Automates rate arbitrage and rebalancing between Compound markets.".to_string(),
-        },
-        AgentSummary {
-            id: "agent-4".to_string(),
-            name: "Cross-Chain Carl".to_string(),
-            operated_by: "Otter".to_string(),
-            demo: true,
-            risk_profile: "Advanced".to_string(),
-            bond: 100_000,
-            reputation: 4.8,
-            proofs_submitted: 3_420,
-            yield_generated: 1_890_000,
-            mev_captured: 12_400,
-            uptime: 99.72,
-            strategies: 6,
-            followers: 1_560,
-            description: "Otter-operated multi-chain strategist. Chases the best risk-adjusted yields across Ethereum and Arbitrum.".to_string(),
-        },
-    ]
+    // Single protocol-operated agent: users delegate to *the* Otter agent,
+    // which executes their intents inside signed limits with a ZK proof
+    // verified on-chain. There is no agent marketplace; the Vec shape is
+    // kept so internal multi-agent support can land later.
+    vec![AgentSummary {
+        id: "otter-agent".to_string(),
+        name: "Otter Agent".to_string(),
+        operated_by: "Otter".to_string(),
+        demo: true,
+        bond: 100_000,
+        proofs_submitted: 30_366,
+        yield_generated: 9_440_000,
+        mev_captured: 89_200,
+        uptime: 99.9,
+        description: "The protocol-operated execution agent. It executes user intents inside the limits of their signed delegation, and every execution carries a ZK proof verified on-chain before funds move.".to_string(),
+    }]
 }
 
 fn default_strategies() -> Vec<StrategySummary> {
+    // Protocol-published intent templates, executed by the single Otter agent.
     vec![
         StrategySummary {
             id: "strategy-1".to_string(),
-            agent_id: "agent-1".to_string(),
-            agent_name: "Aave Ace".to_string(),
+            agent_id: "otter-agent".to_string(),
+            agent_name: "Otter Agent".to_string(),
             title: "Steady USDC Lending".to_string(),
             description: "Otter official strategy. Lend USDC on Aave Ethereum whenever supply APY exceeds 3%.".to_string(),
-            raw_text: "Lend USDC on Aave if yield > 3%".to_string(),
+            raw_text: "Lend 1000 USDC on Aave if yield > 3%".to_string(),
             risk_profile: "Conservative".to_string(),
             copies: 1_240,
             visibility: "public".to_string(),
@@ -886,11 +819,11 @@ fn default_strategies() -> Vec<StrategySummary> {
         },
         StrategySummary {
             id: "strategy-2".to_string(),
-            agent_id: "agent-2".to_string(),
-            agent_name: "Uni-Unicorn".to_string(),
+            agent_id: "otter-agent".to_string(),
+            agent_name: "Otter Agent".to_string(),
             title: "Low-Gas ETH Swaps".to_string(),
             description: "Otter official strategy. Swap USDC to ETH on Uniswap only when base fee is below 20 gwei.".to_string(),
-            raw_text: "Swap USDC to ETH on Uniswap when gas < 20 gwei".to_string(),
+            raw_text: "Swap 1000 USDC for ETH on Uniswap if gas < 20".to_string(),
             risk_profile: "Balanced".to_string(),
             copies: 856,
             visibility: "public".to_string(),
@@ -902,11 +835,11 @@ fn default_strategies() -> Vec<StrategySummary> {
         },
         StrategySummary {
             id: "strategy-3".to_string(),
-            agent_id: "agent-4".to_string(),
-            agent_name: "Cross-Chain Carl".to_string(),
-            title: "Arbitrum Yield Chase".to_string(),
-            description: "Otter official strategy. Move USDC to the highest yielding Aave or Compound market across chains.".to_string(),
-            raw_text: "Lend USDC on highest yield market across Ethereum and Arbitrum".to_string(),
+            agent_id: "otter-agent".to_string(),
+            agent_name: "Otter Agent".to_string(),
+            title: "Compound Rate Hunter".to_string(),
+            description: "Otter official strategy. Lend USDC on Compound whenever the supply APY exceeds 5%.".to_string(),
+            raw_text: "Lend 1000 USDC on Compound if yield > 5%".to_string(),
             risk_profile: "Advanced".to_string(),
             copies: 643,
             visibility: "public".to_string(),
@@ -2336,8 +2269,18 @@ async fn create_strategy(
         raw_text: body.raw_text,
         intent: conditional,
         creator_address: user.map(|u| u.address),
-        agent_id: body.agent_id,
-        risk_profile: body.risk_profile,
+        // Marketplace fields kept for storage compatibility; absent values
+        // resolve to the single protocol agent and a neutral risk label.
+        agent_id: if body.agent_id.is_empty() {
+            "otter-agent".to_string()
+        } else {
+            body.agent_id
+        },
+        risk_profile: if body.risk_profile.is_empty() {
+            "Balanced".to_string()
+        } else {
+            body.risk_profile
+        },
         copies: 0,
         visibility: domain::models::strategy::StrategyVisibility::parse(
             body.visibility.as_deref().unwrap_or("private"),
@@ -2447,13 +2390,9 @@ fn map_strategy_record_to_detail(
 }
 
 fn agent_name_fallback(agent_id: &str) -> String {
-    match agent_id {
-        "agent-1" => "Aave Ace".to_string(),
-        "agent-2" => "Uni-Unicorn".to_string(),
-        "agent-3" => "Compound King".to_string(),
-        "agent-4" => "Cross-Chain Carl".to_string(),
-        _ => "Otter Agent".to_string(),
-    }
+    // Single protocol-operated agent: every historical agent id resolves to it.
+    let _ = agent_id;
+    "Otter Agent".to_string()
 }
 
 async fn seed_default_strategies(
@@ -2562,30 +2501,6 @@ async fn list_proofs(
     });
     proofs.sort_by_key(|a| std::cmp::Reverse(a.timestamp));
     Ok(Json(ProofsResponse { proofs, demo: true }))
-}
-
-async fn get_leaderboard(AxumState(state): AxumState<Arc<AppState>>) -> Json<LeaderboardResponse> {
-    let mut entries: Vec<LeaderboardEntry> = state
-        .agents
-        .iter()
-        .map(|a| LeaderboardEntry {
-            rank: 0,
-            agent_id: a.id.clone(),
-            agent_name: a.name.clone(),
-            proofs_submitted: a.proofs_submitted,
-            yield_generated: a.yield_generated,
-            mev_captured: a.mev_captured,
-            uptime: a.uptime,
-        })
-        .collect();
-    entries.sort_by_key(|a| std::cmp::Reverse(a.proofs_submitted));
-    for (i, entry) in entries.iter_mut().enumerate() {
-        entry.rank = (i + 1) as u32;
-    }
-    Json(LeaderboardResponse {
-        entries,
-        demo: true,
-    })
 }
 
 async fn parse_intent(
@@ -3570,7 +3485,7 @@ mod tests {
         let listed = list_strategies(AxumState(state)).await.unwrap();
         assert_eq!(listed.strategies.len(), 1);
         assert_eq!(listed.strategies[0].id, created.id);
-        assert_eq!(listed.strategies[0].agent_name, "Aave Ace");
+        assert_eq!(listed.strategies[0].agent_name, "Otter Agent");
     }
 
     #[tokio::test]
@@ -3991,10 +3906,9 @@ mod tests {
 
         for uri in [
             "/api/v1/agents",
-            "/api/v1/agents/agent-1",
+            "/api/v1/agents/otter-agent",
             "/api/v1/strategies",
             "/api/v1/proofs",
-            "/api/v1/leaderboard",
         ] {
             let req = with_connect_info(
                 Request::builder()

@@ -335,26 +335,20 @@ formulaire de création.
 Si la liste est vide : *« No delegations yet »* avec un bouton **Create your
 first delegation**.
 
-### 4.8 Agents et stratégies (`/app/agents` et `/app/agents/:id`)
+### 4.8 L'agent et les stratégies (`/app/agents`)
 
-La page **Otter Agents** présente les agents vérifiés du protocole (chacun est
-opéré par le protocole, doté d'une caution et audité). Pour chaque agent :
-profil de risque (*Conservative*, *Balanced*, *Advanced*), rendement routé,
-nombre de preuves, disponibilité (*Uptime*) et rabais capturés.
+La page **The Otter Agent** présente l'agent d'exécution unique du protocole
+(opéré par le protocole, doté d'une caution) : son identité, sa clé publique
+(BabyJubJub, visible quand le wallet est connecté), son nombre de preuves, sa
+disponibilité (*Uptime*) et les rabais MEV restitués. Il n'y a **pas de choix
+d'agent** : vous déléguez à l'agent du protocole, qui n'agit que dans les
+limites signées de votre délégation — chaque exécution est prouvée en ZK et
+vérifiée on-chain.
 
-La page contient aussi :
-
-- **Official strategies** : stratégies pré-écrites et auditées. Le bouton
-  **Use strategy** pré-remplit le formulaire de création d'intention avec le
-  texte de la stratégie.
-- **Agent Leaderboard** : les cinq premiers agents classés par nombre de
-  preuves.
-
-La **page de détail d'un agent** affiche ses statistiques (rendement généré,
-preuves soumises, rabais capturés, uptime) et sa fiche (*Operated by*, profil
-de risque, caution, réputation, nombre de délégataires, stratégies). Le bouton
-**Create delegation** ouvre le formulaire de délégation avec cet agent
-présélectionné.
+La page liste aussi les **Official strategies** : des templates d'intention
+pré-écrits et audités. Le bouton **Use strategy** pré-remplit le formulaire de
+création d'intention avec le texte du template ; l'exécution se fait toujours
+dans *vos* limites signées.
 
 ### 4.9 Preuves (`/app/proofs`)
 
@@ -460,10 +454,9 @@ curl http://localhost:3001/api/v1/orchestrator/state  # état de l'orchestrateur
 curl http://localhost:3001/api/v1/executions          # historique des exécutions
 curl http://localhost:3001/api/v1/proofs              # preuves enregistrées
 curl http://localhost:3001/api/v1/portfolio           # portefeuille / vault
-curl http://localhost:3001/api/v1/agents              # agents
-curl http://localhost:3001/api/v1/agents/<id>         # détail d'un agent
+curl http://localhost:3001/api/v1/agents              # l'agent du protocole
+curl http://localhost:3001/api/v1/agents/<id>         # détail de l'agent
 curl http://localhost:3001/api/v1/strategies          # stratégies publiées
-curl http://localhost:3001/api/v1/leaderboard         # classement des agents
 ```
 
 Un flux WebSocket d'événements temps réel est disponible sur `/api/v1/ws`.

@@ -176,15 +176,11 @@ export interface BackendAgentSummary {
   operated_by: string;
   // Present (true) while the API serves built-in demonstration data (A2).
   demo?: boolean;
-  risk_profile: string;
   bond: number;
-  reputation: number;
   proofs_submitted: number;
   yield_generated: number;
   mev_captured: number;
   uptime: number;
-  strategies: number;
-  followers: number;
   description: string;
 }
 
@@ -243,16 +239,6 @@ export interface BackendProofSummary {
   timestamp: number;
   verified: boolean;
   tx_hash: string | null;
-}
-
-export interface BackendLeaderboardEntry {
-  rank: number;
-  agent_id: string;
-  agent_name: string;
-  proofs_submitted: number;
-  yield_generated: number;
-  mev_captured: number;
-  uptime: number;
 }
 
 export interface ChallengeResponse {
@@ -438,15 +424,11 @@ export function mapBackendAgent(agent: BackendAgentSummary): Agent {
     id: agent.id,
     name: agent.name,
     operatedBy: agent.operated_by as "Otter",
-    riskProfile: agent.risk_profile as "Conservative" | "Balanced" | "Advanced",
     bond: agent.bond,
-    reputation: agent.reputation,
     proofsSubmitted: agent.proofs_submitted,
     yieldGenerated: agent.yield_generated,
     mevCaptured: agent.mev_captured,
     uptime: agent.uptime,
-    strategies: agent.strategies,
-    followers: agent.followers,
     description: agent.description,
   };
 }
@@ -454,12 +436,9 @@ export function mapBackendAgent(agent: BackendAgentSummary): Agent {
 export function mapBackendStrategy(strategy: BackendStrategySummary): Strategy {
   return {
     id: strategy.id,
-    agentId: strategy.agent_id,
-    agentName: strategy.agent_name,
     title: strategy.title,
     description: strategy.description,
     rawText: strategy.raw_text,
-    riskProfile: strategy.risk_profile as "Conservative" | "Balanced" | "Advanced",
     copies: strategy.copies,
     totalVolume: strategy.total_volume,
     apy: strategy.apy,
@@ -507,18 +486,6 @@ export function mapBackendProof(proof: BackendProofSummary): Proof {
     timestamp: new Date(proof.timestamp * 1000).toISOString(),
     verified: proof.verified,
     txHash: proof.tx_hash ?? undefined,
-  };
-}
-
-export function mapBackendLeaderboardEntry(entry: BackendLeaderboardEntry): LeaderboardEntry {
-  return {
-    rank: entry.rank,
-    agentId: entry.agent_id,
-    agentName: entry.agent_name,
-    proofsSubmitted: entry.proofs_submitted,
-    yieldGenerated: entry.yield_generated,
-    mevCaptured: entry.mev_captured,
-    uptime: entry.uptime,
   };
 }
 
@@ -612,10 +579,6 @@ export const api = {
   },
   proofs: {
     list: () => request<{ proofs: BackendProofSummary[]; demo?: boolean }>("/api/v1/proofs"),
-  },
-  leaderboard: {
-    get: () =>
-      request<{ entries: BackendLeaderboardEntry[]; demo?: boolean }>("/api/v1/leaderboard"),
   },
   solvency: {
     status: () =>

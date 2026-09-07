@@ -14,12 +14,9 @@ export function useCreateStrategy() {
       const result = await api.strategies.create(payload);
       const strategy: Strategy = {
         id: result.id,
-        agentId: payload.agentId,
-        agentName: payload.agentId,
         title: payload.title,
         description: payload.description,
         rawText: payload.rawText,
-        riskProfile: payload.riskProfile,
         copies: 0,
         totalVolume: 0,
         apy: 0,

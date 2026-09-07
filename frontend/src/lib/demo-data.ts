@@ -3,7 +3,6 @@ import type {
   Agent,
   Delegation,
   Intent,
-  LeaderboardEntry,
   Portfolio,
   Proof,
   Strategy,
@@ -138,8 +137,8 @@ export const demoDelegations: Delegation[] = [
     id: "demo-deleg-1",
     createdAt: hoursAgo(72),
     userAddress: DEMO_ADDRESS,
-    agentId: "agent-1",
-    agentName: "Aave Ace",
+    agentId: "otter-agent",
+    agentName: "Otter Agent",
     maxAmounts: { lend: 5000, swap: 2000, withdraw: 3000, claim: 1000 },
     allowedProtocols: ["Aave", "Compound"],
     allowedChains: ["Ethereum", "Arbitrum"],
@@ -150,8 +149,8 @@ export const demoDelegations: Delegation[] = [
     id: "demo-deleg-2",
     createdAt: hoursAgo(20),
     userAddress: DEMO_ADDRESS,
-    agentId: "agent-2",
-    agentName: "Uni-Unicorn",
+    agentId: "otter-agent",
+    agentName: "Otter Agent",
     maxAmounts: { lend: 1000, swap: 2500, withdraw: 1000, claim: 500 },
     allowedProtocols: ["Uniswap"],
     allowedChains: ["Ethereum"],
@@ -161,133 +160,63 @@ export const demoDelegations: Delegation[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Agents and strategies: exact mirrors of the backend seeds.
+// Agent and strategies: exact mirrors of the backend seeds. Single
+// protocol-operated agent — users delegate to it, there is no marketplace.
 // ---------------------------------------------------------------------------
 
 export const demoAgents: Agent[] = [
   {
-    id: "agent-1",
-    name: "Aave Ace",
+    id: "otter-agent",
+    name: "Otter Agent",
     operatedBy: "Otter",
-    riskProfile: "Conservative",
-    bond: 50_000,
-    reputation: 4.9,
-    proofsSubmitted: 12_403,
-    yieldGenerated: 2_450_000,
-    mevCaptured: 18_400,
-    uptime: 99.98,
-    strategies: 12,
-    followers: 3_420,
-    description:
-      "Otter-operated lending specialist. Executes conservative lending strategies across Aave markets with steady, audited yields.",
-  },
-  {
-    id: "agent-2",
-    name: "Uni-Unicorn",
-    operatedBy: "Otter",
-    riskProfile: "Balanced",
-    bond: 75_000,
-    reputation: 4.7,
-    proofsSubmitted: 8_932,
-    yieldGenerated: 4_120_000,
-    mevCaptured: 52_300,
-    uptime: 99.91,
-    strategies: 8,
-    followers: 2_180,
-    description:
-      "Otter-operated liquidity execution agent. Runs protected swap and LP flows, capturing MEV rebates for depositors.",
-  },
-  {
-    id: "agent-3",
-    name: "Compound King",
-    operatedBy: "Otter",
-    riskProfile: "Conservative",
-    bond: 32_000,
-    reputation: 4.5,
-    proofsSubmitted: 5_611,
-    yieldGenerated: 980_000,
-    mevCaptured: 6_100,
-    uptime: 99.85,
-    strategies: 5,
-    followers: 890,
-    description:
-      "Otter-operated Compound specialist. Automates rate arbitrage and rebalancing between Compound markets.",
-  },
-  {
-    id: "agent-4",
-    name: "Cross-Chain Carl",
-    operatedBy: "Otter",
-    riskProfile: "Advanced",
     bond: 100_000,
-    reputation: 4.8,
-    proofsSubmitted: 3_420,
-    yieldGenerated: 1_890_000,
-    mevCaptured: 12_400,
-    uptime: 99.72,
-    strategies: 6,
-    followers: 1_560,
+    proofsSubmitted: 30_366,
+    yieldGenerated: 9_440_000,
+    mevCaptured: 89_200,
+    uptime: 99.9,
     description:
-      "Otter-operated multi-chain strategist. Chases the best risk-adjusted yields across Ethereum and Arbitrum.",
+      "The protocol-operated execution agent. It executes user intents inside the limits of their signed delegation, and every execution carries a ZK proof verified on-chain before funds move.",
   },
 ];
 
 export const demoStrategies: Strategy[] = [
   {
     id: "strategy-1",
-    agentId: "agent-1",
-    agentName: "Aave Ace",
     title: "Steady USDC Lending",
     description:
       "Otter official strategy. Lend USDC on Aave Ethereum whenever supply APY exceeds 3%.",
-    rawText: "Lend USDC on Aave if yield > 3%",
-    riskProfile: "Conservative",
+    rawText: "Lend 1000 USDC on Aave if yield > 3%",
     copies: 1_240,
     totalVolume: 5_400_000,
     apy: 4.1,
     createdAt: new Date(1_720_000_000 * 1000).toISOString(),
+    updatedAt: new Date(1_720_000_000 * 1000).toISOString(),
   },
   {
     id: "strategy-2",
-    agentId: "agent-2",
-    agentName: "Uni-Unicorn",
     title: "Low-Gas ETH Swaps",
     description:
       "Otter official strategy. Swap USDC to ETH on Uniswap only when base fee is below 20 gwei.",
-    rawText: "Swap USDC to ETH on Uniswap when gas < 20 gwei",
-    riskProfile: "Balanced",
+    rawText: "Swap 1000 USDC for ETH on Uniswap if gas < 20",
     copies: 856,
     totalVolume: 2_100_000,
     apy: 0,
     createdAt: new Date(1_720_500_000 * 1000).toISOString(),
+    updatedAt: new Date(1_720_500_000 * 1000).toISOString(),
   },
   {
     id: "strategy-3",
-    agentId: "agent-4",
-    agentName: "Cross-Chain Carl",
-    title: "Arbitrum Yield Chase",
+    title: "Compound Rate Hunter",
     description:
-      "Otter official strategy. Move USDC to the highest yielding Aave or Compound market across chains.",
-    rawText: "Lend USDC on highest yield market across Ethereum and Arbitrum",
-    riskProfile: "Advanced",
+      "Otter official strategy. Lend USDC on Compound whenever the supply APY exceeds 5%.",
+    rawText: "Lend 1000 USDC on Compound if yield > 5%",
     copies: 643,
     totalVolume: 1_800_000,
     apy: 5.2,
     createdAt: new Date(1_720_900_000 * 1000).toISOString(),
+    updatedAt: new Date(1_720_900_000 * 1000).toISOString(),
   },
 ];
-
-// Ranked by proof count, same rule as the backend leaderboard endpoint.
-export const demoLeaderboard: LeaderboardEntry[] = [...demoAgents]
-  .sort((a, b) => b.proofsSubmitted - a.proofsSubmitted)
-  .map((agent, index) => ({
-    rank: index + 1,
-    agentId: agent.id,
-    agentName: agent.name,
-    proofsSubmitted: agent.proofsSubmitted,
-    yieldGenerated: agent.yieldGenerated,
-    mevCaptured: agent.mevCaptured,
-    uptime: agent.uptime,
-  }));
 
 // ---------------------------------------------------------------------------
 // Proofs: verifier names and constraint counts mirror the backend response.

@@ -15,7 +15,6 @@ import { useCreateDelegation } from "@/hooks/useCreateDelegation";
 import { useAuthToken } from "@/hooks/useAuthToken";
 import { ConnectWalletState } from "@/components/app/ConnectWalletState";
 import { useStrategy } from "@/hooks/useStrategy";
-import { cn } from "@/lib/utils";
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -77,11 +76,18 @@ export function CreateDelegationPage() {
     }
   }, [searchParams, agents]);
 
-  // Prefill from a SocialFi strategy: its agent and protocol become the
-  // delegation defaults (forking a strategy starts a matching delegation).
+  // Single protocol-operated agent: select it as soon as it loads — there is
+  // nothing to compare or pick.
+  useEffect(() => {
+    if (!selectedAgent && agents && agents.length > 0) {
+      setSelectedAgent(agents[0].id);
+    }
+  }, [agents, selectedAgent]);
+
+  // Prefill from a strategy template: its protocol becomes the delegation
+  // default (forking a strategy starts a matching delegation).
   useEffect(() => {
     if (strategy?.intent) {
-      setSelectedAgent(strategy.agentId);
       if (strategy.intent.protocol && protocols.includes(strategy.intent.protocol)) {
         setAllowedProtocols([strategy.intent.protocol]);
       }
@@ -149,41 +155,24 @@ export function CreateDelegationPage() {
       </FadeIn>
 
       <FadeIn delay={0.1}>
-        <SectionCard title="1. Agent" subtitle="Pick the Otter agent that executes for you.">
+        <SectionCard title="1. Agent" subtitle="The protocol-operated agent that executes for you.">
           {agentsLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-24 w-full" />
-              <Skeleton className="h-24 w-full" />
-            </div>
+            <Skeleton className="h-24 w-full" />
           ) : (
-            <div role="radiogroup" aria-label="Select an agent" className="space-y-3">
-              {agents?.map((agent) => (
-                <button
-                  key={agent.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={selectedAgent === agent.id}
-                  onClick={() => setSelectedAgent(agent.id)}
-                  className={cn(
-                    "w-full rounded-xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent",
-                    selectedAgent === agent.id
-                      ? "border-accent bg-accent-subtle"
-                      : "border-border/60 bg-card hover:border-accent/40"
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="font-heading text-lg font-bold">{agent.name}</p>
-                    <div className="text-right">
-                      <p className="text-sm font-medium">{agent.reputation} ★</p>
-                      <p className="text-xs text-muted-foreground">
-                        {agent.proofsSubmitted.toLocaleString()} proofs
-                      </p>
-                    </div>
-                  </div>
-                  <p className="mt-1 text-sm text-muted-foreground">{agent.description}</p>
-                </button>
-              ))}
-            </div>
+            agents?.map((agent) => (
+              <div
+                key={agent.id}
+                className="w-full rounded-xl border border-accent bg-accent-subtle p-4 text-left"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="font-heading text-lg font-bold">{agent.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {agent.proofsSubmitted.toLocaleString()} proofs
+                  </p>
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">{agent.description}</p>
+              </div>
+            ))
           )}
         </SectionCard>
       </FadeIn>

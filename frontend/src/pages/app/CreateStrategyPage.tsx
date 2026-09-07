@@ -8,28 +8,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { badgeVariants } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useAgents } from "@/hooks/useAgents";
 import { useCreateStrategy } from "@/hooks/useCreateStrategy";
 import { useParseIntent } from "@/hooks/useParseIntent";
 import { Link } from "react-router-dom";
-import type { Strategy } from "@/types/app";
-
-const riskProfiles: Strategy["riskProfile"][] = ["Conservative", "Balanced", "Advanced"];
 
 export function CreateStrategyPage() {
   useDocumentTitle("Create Strategy");
   const navigate = useNavigate();
-  const { data: agents, isLoading: agentsLoading } = useAgents();
   const { mutate: create, isLoading: creating, data: created } = useCreateStrategy();
   const { parse, isLoading: parsing, data: parsed, reset } = useParseIntent();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [rawText, setRawText] = useState("");
-  const [agentId, setAgentId] = useState<string | null>(null);
-  const [riskProfile, setRiskProfile] = useState<Strategy["riskProfile"]>("Balanced");
 
   useEffect(() => {
     reset();
@@ -42,8 +33,8 @@ export function CreateStrategyPage() {
   };
 
   const handleSubmit = async () => {
-    if (!agentId || !parsed) return;
-    await create({ title, description, rawText, agentId, riskProfile });
+    if (!parsed) return;
+    await create({ title, description, rawText });
     setTimeout(() => navigate("/app/strategies"), 800);
   };
 
@@ -85,47 +76,9 @@ export function CreateStrategyPage() {
             </Button>
             {parsed && <p className="text-sm text-emerald-400">Parsed: {parsed.type} {parsed.amount} {parsed.asset} on {parsed.protocol}</p>}
           </div>
-          <div className="space-y-2">
-            <Label>Agent</Label>
-            {agentsLoading ? (
-              <Skeleton className="h-24 w-full" />
-            ) : (
-              <div className="grid gap-3">
-                {agents?.map((agent) => (
-                  <button
-                    key={agent.id}
-                    type="button"
-                    onClick={() => setAgentId(agent.id)}
-                    className={`rounded-xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent ${agentId === agent.id ? "border-accent bg-accent-subtle" : "border-border/60 bg-card hover:border-accent/40"}`}
-                  >
-                    <p className="font-heading text-lg font-bold">{agent.name}</p>
-                    <p className="text-sm text-muted-foreground">{agent.description}</p>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label>Risk profile</Label>
-            <div className="flex gap-2">
-              {riskProfiles.map((profile) => (
-                <button
-                  key={profile}
-                  type="button"
-                  aria-pressed={riskProfile === profile}
-                  onClick={() => setRiskProfile(profile)}
-                  className={badgeVariants({
-                    variant: riskProfile === profile ? "default" : "outline",
-                  })}
-                >
-                  {profile}
-                </button>
-              ))}
-            </div>
-          </div>
         </CardContent>
         <CardFooter>
-          <Button onClick={handleSubmit} disabled={!title || !description || !rawText || !agentId || !parsed || creating || !!created} className="w-full rounded-full">
+          <Button onClick={handleSubmit} disabled={!title || !description || !rawText || !parsed || creating || !!created} className="w-full rounded-full">
             {creating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Publishing...</> : created ? <><Check className="mr-2 h-4 w-4" /> Published</> : "Publish strategy"}
           </Button>
         </CardFooter>

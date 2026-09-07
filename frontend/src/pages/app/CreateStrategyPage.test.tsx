@@ -1,12 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { CreateStrategyPage } from "./CreateStrategyPage";
 
-// The page data hooks hit the API; the keyboard contract does not need them.
-vi.mock("@/hooks/useAgents", () => ({
-  useAgents: () => ({ data: [], isLoading: false }),
-}));
+// The page data hooks hit the API; the form contract does not need them.
 vi.mock("@/hooks/useCreateStrategy", () => ({
   useCreateStrategy: () => ({ mutate: vi.fn(), isLoading: false, data: null }),
 }));
@@ -25,29 +22,20 @@ function renderPage() {
   );
 }
 
-describe("CreateStrategyPage keyboard accessibility", () => {
-  it("renders the risk profile selector as real buttons with aria-pressed", () => {
+describe("CreateStrategyPage", () => {
+  it("renders no agent picker and no risk profile selector", () => {
     renderPage();
 
-    const balanced = screen.getByRole("button", { name: "Balanced" });
-    const conservative = screen.getByRole("button", { name: "Conservative" });
-
-    expect(balanced).toHaveAttribute("aria-pressed", "true");
-    expect(conservative).toHaveAttribute("aria-pressed", "false");
+    // Single protocol-operated agent: the user publishes an intent template,
+    // risk is bounded by their signed delegation, never by a label here.
+    expect(screen.queryByText("Agent")).not.toBeInTheDocument();
+    expect(screen.queryByText("Risk profile")).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
   });
 
-  it("updates the selected risk profile on activation", () => {
+  it("keeps publish disabled until the intent text is parsed", () => {
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
-
-    expect(screen.getByRole("button", { name: "Advanced" })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
-    expect(screen.getByRole("button", { name: "Balanced" })).toHaveAttribute(
-      "aria-pressed",
-      "false"
-    );
+    expect(screen.getByRole("button", { name: /publish strategy/i })).toBeDisabled();
   });
 });

@@ -18,14 +18,14 @@
 | F7 | Bridge cross-chain EVM V1 (lock/mint, `OtterBridge`/`BridgeToken`) + API + historique des transferts | commits `ec8bcc4`, `a36b74f` ; page `/app/bridge` ; `docs/BRIDGE.md` | PAGE ou DOC selon config |
 | F8 | MEV searcher V1 (tx privées) et V2 (bundles Flashbots, mempool monitor, backrun handler) + rebate_bps modifiable à chaud | commits `bd43b58`, `3785a50`, `bf3e3c7` ; page `/app/mev` ; `docs/MEV_SEARCHER.md` | PAGE ou DOC selon config |
 | F9 | Attestations Solana : programme Anchor `attestation_registry`, adapter Rust feature-gated, **scheduler d'attestation du merkle root solvency** | commits `cee90fc`, `68542ff` (2026-08-31) ; page `/app/solana` ; `docs/SOLANA.md` | PAGE (état configuré ou non) ou DOC |
-| F10 | Marketplace d'agents + stratégies SocialFi forkables | commit `cfbf746` ; pages `/app/agents`, `/app/strategies` | PAGE (données marquées démo dans l'API — header X-Demo-Data, à assumer) |
+| F10 | Agent d'exécution unique opéré par le protocole (page transparence : identité, clé publique, bond, preuves) + templates d'intents forkables | commit `cfbf746` + refonte agent unique (09/2026) ; pages `/app/agents`, `/app/strategies` | PAGE (données marquées démo dans l'API — header X-Demo-Data, à assumer) |
 | F11 | Observabilité : métriques `/metrics`, alertes Prometheus (`alerting.yml`), événements temps réel WebSocket | `alerting.yml`, `deploy/prometheus.yml`, preuve alerte horodatée `docs/preuves/alerte-test-20260819-094726.json` | DOC |
 | F12 | Packaging reproductible : stack Docker Compose (anvil + api + frontend), images CI | `docker-compose.yml`, `Dockerfile`, workflow Docker vert | LIVE (lancement de la stack en ouverture de démo) |
 
 ## Correspondance avec le périmètre annoncé
 
 - Source de référence : `BACKLOG.md` (481 US, vagues MVP) et `PRODUCT.md`.
-- Fonctionnalités marquées démo dans l'API (agents, leaderboard, proofs
+- Fonctionnalités marquées démo dans l'API (agent, proofs
   synthétiques) : signalées par le header `X-Demo-Data` et le champ `demo:
   true` des réponses — **dire au jury que le marquage est volontaire**
   (anomalie A2 tracée, retrait obligatoire avant mainnet).
@@ -43,4 +43,4 @@
 4. Retour UI : page solvency (F6), puis selon configuration bridge (F7),
    MEV (F8), solana (F9).
 5. Clôture : `forge test` (28/28 en < 1 s) ou scroll des pages
-   agents/strategies (F10) si le temps reste.
+   agent/strategies (F10) si le temps reste.

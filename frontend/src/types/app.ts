@@ -45,26 +45,19 @@ export interface Agent {
   name: string;
   avatarUrl?: string;
   operatedBy: "Otter";
-  riskProfile: "Conservative" | "Balanced" | "Advanced";
   bond: number;
-  reputation: number;
   proofsSubmitted: number;
   yieldGenerated: number;
   mevCaptured: number;
   uptime: number;
-  strategies: number;
-  followers: number;
   description: string;
 }
 
 export interface Strategy {
   id: string;
-  agentId: string;
-  agentName: string;
   title: string;
   description: string;
   rawText: string;
-  riskProfile: "Conservative" | "Balanced" | "Advanced";
   copies: number;
   totalVolume: number;
   apy: number;
@@ -78,8 +71,6 @@ export interface CreateStrategyPayload {
   title: string;
   description: string;
   rawText: string;
-  agentId: string;
-  riskProfile: Strategy["riskProfile"];
 }
 
 export interface Portfolio {
@@ -126,16 +117,6 @@ export interface Proof {
   timestamp: string;
   verified: boolean;
   txHash?: string;
-}
-
-export interface LeaderboardEntry {
-  rank: number;
-  agentId: string;
-  agentName: string;
-  proofsSubmitted: number;
-  yieldGenerated: number;
-  mevCaptured: number;
-  uptime: number;
 }
 
 export interface ActivityItem {

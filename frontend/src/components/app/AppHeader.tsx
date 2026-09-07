@@ -13,7 +13,7 @@ const breadcrumbMap: Record<string, string> = {
   "/app/intents/new": "Create Intent",
   "/app/delegations": "Delegations",
   "/app/delegations/new": "New Delegation",
-  "/app/agents": "Otter Agents",
+  "/app/agents": "The Agent",
   "/app/proofs": "Proofs",
   "/app/settings": "Settings",
 };
@@ -22,7 +22,6 @@ const breadcrumbMap: Record<string, string> = {
 // Checked after the exact map, so /app/intents/new still wins over /app/intents/:id.
 const detailRoutes: { pattern: RegExp; section: { label: string; to: string } }[] = [
   { pattern: /^\/app\/intents\/[^/]+$/, section: { label: "Intents", to: "/app/intents" } },
-  { pattern: /^\/app\/agents\/[^/]+$/, section: { label: "Agents", to: "/app/agents" } },
 ];
 
 interface Crumb {

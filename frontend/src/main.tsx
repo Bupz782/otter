@@ -31,9 +31,6 @@ const CreateDelegationPage = lazy(() =>
 const AgentsPage = lazy(() =>
   import("./pages/app/AgentsPage").then((m) => ({ default: m.AgentsPage }))
 );
-const AgentDetailPage = lazy(() =>
-  import("./pages/app/AgentDetailPage").then((m) => ({ default: m.AgentDetailPage }))
-);
 const StrategiesPage = lazy(() =>
   import("./pages/app/StrategiesPage").then((m) => ({ default: m.StrategiesPage }))
 );
@@ -76,7 +73,6 @@ export function AppRoutes() {
           <Route path="delegations" element={<DelegationsPage />} />
           <Route path="delegations/new" element={<CreateDelegationPage />} />
           <Route path="agents" element={<AgentsPage />} />
-          <Route path="agents/:agentId" element={<AgentDetailPage />} />
           <Route path="strategies" element={<StrategiesPage />} />
           <Route path="strategies/new" element={<CreateStrategyPage />} />
           <Route path="strategies/:strategyId" element={<StrategiesPage />} />

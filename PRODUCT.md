@@ -40,7 +40,7 @@ Otter is a **trustless DeFi automation protocol** where users describe strategie
    - Max swap per action: 2,000 USDC
    - Allowed protocols: Aave, Compound, Uniswap
    - Expiry: 30 days
-   - Agent selection: browse agent marketplace by reputation/bond
+   - Agent: the protocol-operated Otter agent (no marketplace — V1 ships a single bonded agent)
 3. Signs delegation message with wallet (EIP-712)
 4. Delegation is stored on-chain in the vault
 
@@ -62,10 +62,9 @@ User sees live updates:
 - **Submitted** → 0xabc...def
 - **Confirmed** → 1000 USDC lent on Aave (+ 0.45 USDC MEV rebate)
 
-### 2.6 Social Layer
+### 2.6 Strategy Templates
 - **Share Strategy:** Publish delegation + intent as a shareable link
-- **Copy Strategy:** Others delegate to the same agent with one click
-- **Leaderboard:** Top agents by proof count, yield generated, uptime
+- **Copy Strategy:** Others fork the template with one click — it executes inside *their* own signed limits
 - **Follow:** Get notified when someone publishes a new strategy
 
 ---
@@ -76,7 +75,7 @@ User sees live updates:
 ┌──────────────────────────────────────────────┐
 │           React + Vite Frontend               │
 │  (Intent input, Delegation wizard, Dashboard, │
-│   Marketplace, Social feed, Proof explorer)   │
+│   Agent page, Strategy templates, Proof explorer) │
 └──────────────┬───────────────────────────────┘
                │ HTTP / WebSocket
 ┌──────────────▼───────────────────────────────┐

@@ -54,7 +54,7 @@ const navGroups: NavGroup[] = [
   {
     label: "Discover",
     items: [
-      { to: "/app/agents", label: "Otter Agents", icon: <Bot className="h-4 w-4" /> },
+      { to: "/app/agents", label: "The Agent", icon: <Bot className="h-4 w-4" /> },
       { to: "/app/strategies", label: "Strategies", icon: <BookOpen className="h-4 w-4" /> },
     ],
   },

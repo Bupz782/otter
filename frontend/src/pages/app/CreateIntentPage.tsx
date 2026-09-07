@@ -425,7 +425,7 @@ export function CreateIntentPage() {
                                   </p>
                                   <p className="text-xs text-muted-foreground">
                                     {agent
-                                      ? `${agent.operatedBy}-operated · ${agent.riskProfile}`
+                                      ? `${agent.operatedBy}-operated`
                                       : "Agent details unavailable"}
                                   </p>
                                 </div>

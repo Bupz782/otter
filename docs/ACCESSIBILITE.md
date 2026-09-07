@@ -377,11 +377,10 @@ d'`AppHeader`, tiroir de navigation mobile d'`AppLayout`).
 | Create Intent | Textarea, chips d'exemples, inputs de révision, cartes radio de délégation, boutons d'étape | Native (radios = `<button role="radio">`) | **Ajouté** sur chips et cartes radio | Aucun | Corrigé ; navigation fléchée du radiogroup restante (§4.4) |
 | Intent Detail | Copy hash, block explorer, Cancel / Confirm / Keep, liens retour | Native | Présent (`Button`) | Aucun | Conforme |
 | Delegations | Lien New delegation | Native | Présent (`Button`) | Aucun | Conforme |
-| Create Delegation | Cartes radio d'agents, inputs limites/expiry, cases (`role="checkbox"` sur `<button>`), bouton Sign | Native | **Ajouté** sur les cartes radio | Aucun | Corrigé ; navigation fléchée du radiogroup restante (§4.4) |
-| Agents | Liens cartes agents, Use strategy, liens leaderboard | Native | Présent (`Button`, liens) | Aucun | Conforme |
-| Agent Detail | Liens Back / Create delegation | Native | Présent (`Button`) | Aucun | Conforme |
-| Strategies | Boutons Fork strategy, liens leaderboard, Publish strategy | Native | Présent (`Button`) | Aucun | Conforme |
-| Create Strategy | Inputs/textarea, boutons de sélection d'agent, sélecteur de profil de risque, Parse/Publish | Native **après correction** (sélecteur de risque) | **Ajouté** sur les boutons d'agents | Aucun | Corrigé |
+| Create Delegation | Carte de l'agent (statique, non interactive), inputs limites/expiry, cases (`role="checkbox"` sur `<button>`), bouton Sign | Native | Présent (`Button`, `focus-visible` du design system) | Aucun | Conforme |
+| The Agent | Use strategy (templates), rien d'autre d'interactif | Native | Présent (`Button`, liens) | Aucun | Conforme |
+| Strategies | Boutons Fork strategy, Publish strategy | Native | Présent (`Button`) | Aucun | Conforme |
+| Create Strategy | Inputs/textarea, Parse/Publish | Native | Présent (`Button`) | Aucun | Conforme |
 | Proofs | Boutons d'expansion (`aria-expanded`), lien View intent | Native | Présent (`Button`) | Aucun | Conforme |
 | Settings | Boutons Take the tour / Sign out | Native | Présent (`Button`) | Aucun | Conforme |
 | Shell (sidebar, header) | Liens de navigation sidebar, fil d'Ariane, menu d'aide (`role="menu"`), bouton wallet | Native | **Ajouté** sur liens sidebar, lien du fil d'Ariane, items du menu d'aide, bouton de fermeture de la modale | Focus traps sur les 3 dialogues (§4.1) | Corrigé |

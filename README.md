@@ -42,7 +42,7 @@ Connect Wallet → Deposit → Type Intent → Set Delegation → Agent Monitors
 | **ZKP Delegation** | Sign limits. Math enforces them. Server can't cheat. |
 | **MEV Rebates** | Agent captures MEV from execution. You get paid to automate. |
 | **Proof-of-Solvency** | Vault proves `Assets ≥ Deposits` without revealing balances. |
-| **Agent Marketplace** | Choose agents by reputation, bond size, and performance. |
+| **Protocol Agent** | One bonded, protocol-operated agent executes your intents — every action proven in ZK inside your signed limits. |
 | **Social Strategies** | Publish, share, and copy strategies. Creators earn fees. |
 | **Multi-Chain** | Ethereum + Arbitrum. Cross-chain intents supported. |
 
@@ -54,7 +54,7 @@ Connect Wallet → Deposit → Type Intent → Set Delegation → Agent Monitors
 ┌──────────────────────────────────────────────┐
 │           React + Vite Frontend               │
 │  (Intent input, Delegation wizard, Dashboard, │
-│   Marketplace, Social feed, Proof explorer)   │
+│   Agent page, Strategy templates, Proof explorer) │
 └──────────────┬───────────────────────────────┘
                │ HTTP / WebSocket
 ┌──────────────▼───────────────────────────────┐
@@ -112,7 +112,7 @@ Connect Wallet → Deposit → Type Intent → Set Delegation → Agent Monitors
 | 3 | FHE | **CUT** | — |
 | 4 | Encrypted Mempool | **CUT** | — |
 | 5 | Blockchain + MEV + Solvency | **MVP** | ~2% |
-| 6 | Orchestrator + Marketplace | **MVP** | ~3% |
+| 6 | Orchestrator + Agent | **MVP** | ~3% |
 | 6.5 | Web UI + Social | **MVP** | ~0% |
 | 7 | Production | **MVP** | ~0% |
 | 8+ | Advanced / Community | **Future** | — |

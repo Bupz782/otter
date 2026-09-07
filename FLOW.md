@@ -1,6 +1,13 @@
 # Otter — User Flows & Diagrams
 
 > Complete visual guide to every interaction in the Otter protocol.
+>
+> **Note (09/2026):** V1 ships a **single protocol-operated agent** — users
+> delegate to *the* Otter agent, there is no marketplace to browse. The
+> sections describing an agent marketplace (registration, reputation,
+> leaderboard, bond competition) document the **V2 vision**, not the shipped
+> product. Strategy sharing exists as forkable intent templates executed
+> inside each user's own signed limits.
 
 ---
 

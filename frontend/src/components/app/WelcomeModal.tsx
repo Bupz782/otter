@@ -9,7 +9,7 @@ const cards = [
     icon: <Vault className="h-6 w-6" />,
     title: "Your deposit stays in your vault",
     description:
-      "Funds remain in the StrategyVault. Agents can only act within signed limits you control.",
+      "Funds remain in the StrategyVault. The agent can only act within signed limits you control.",
   },
   {
     icon: <Pencil className="h-6 w-6" />,
