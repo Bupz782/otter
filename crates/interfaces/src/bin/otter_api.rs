@@ -165,7 +165,12 @@ struct ErrorResponse {
 struct IntentSummary {
     id: String,
     text: String,
+    /// Full parsed intent: the frontend renders condition/amount/protocol
+    /// straight from list rows.
+    intent: ConditionalIntent,
     state: String,
+    created_at: i64,
+    updated_at: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -2528,7 +2533,10 @@ async fn list_intents(
         .map(|r| IntentSummary {
             id: r.id,
             text: r.text,
+            intent: r.intent,
             state: r.state,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
         })
         .collect();
     Ok(Json(IntentsResponse { intents }))
