@@ -66,7 +66,7 @@ export function UseCases() {
               ease: [0.22, 1, 0.36, 1],
             }}
           >
-            <Card className="h-full border-border/50 bg-card/60 backdrop-blur-sm transition-colors hover:bg-card">
+            <Card className="chamfer facet-panel h-full transition-[filter] hover:brightness-110">
               <CardHeader>
                 <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-secondary">
                   <item.icon className="h-5 w-5 text-foreground" aria-hidden="true" />

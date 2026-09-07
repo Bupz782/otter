@@ -461,7 +461,7 @@ export function mapBackendAgent(agent: BackendAgentSummary): Agent {
   return {
     id: agent.id,
     name: agent.name,
-    operatedBy: agent.operated_by as "Otter",
+    operatedBy: agent.operated_by,
     bond: agent.bond,
     proofsSubmitted: agent.proofs_submitted,
     yieldGenerated: agent.yield_generated,

@@ -155,7 +155,7 @@ export function CreateDelegationPage() {
       </FadeIn>
 
       <FadeIn delay={0.1}>
-        <SectionCard title="1. Agent" subtitle="The protocol-operated agent that executes for you.">
+        <SectionCard title="1. Agent" subtitle="The execution agent connected to this deployment.">
           {agentsLoading ? (
             <Skeleton className="h-24 w-full" />
           ) : (

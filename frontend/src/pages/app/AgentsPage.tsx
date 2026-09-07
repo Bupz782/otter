@@ -89,8 +89,8 @@ export function AgentsPage() {
     <div className="mx-auto max-w-6xl space-y-6">
       <FadeIn>
         <PageHeader
-          title="The Otter Agent"
-          subtitle="One protocol-operated agent. You set the limits and sign them — it executes your intents inside them, and nowhere else."
+          title="The Agent"
+          subtitle="Otter doesn't operate agents — it proves them. This deployment is connected to one execution agent: you sign the limits, it executes your intents inside them, and nowhere else."
         />
       </FadeIn>
 
@@ -135,7 +135,8 @@ export function AgentsPage() {
               <div className="min-w-0">
                 <p className="font-heading text-xl font-bold">{agent.name}</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Operated by {agent.operatedBy} · bonded ${agent.bond.toLocaleString()}
+                  Connected to this deployment · operated by {agent.operatedBy}
+                  {agent.bond > 0 && ` · bonded $${agent.bond.toLocaleString()}`}
                 </p>
                 <p className="mt-2 text-sm text-muted-foreground">{agent.description}</p>
               </div>

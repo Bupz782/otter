@@ -477,7 +477,7 @@ export function CreateIntentPage() {
                                   </p>
                                   <p className="text-xs text-muted-foreground">
                                     {agent
-                                      ? `${agent.operatedBy}-operated`
+                                      ? "Connected execution agent"
                                       : "Agent details unavailable"}
                                   </p>
                                 </div>

@@ -785,21 +785,22 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
 }
 
 fn default_agents() -> Vec<AgentSummary> {
-    // Single protocol-operated agent: users delegate to *the* Otter agent,
-    // which executes their intents inside signed limits with a ZK proof
-    // verified on-chain. There is no agent marketplace; the Vec shape is
-    // kept so internal multi-agent support can land later.
+    // Otter is agent-agnostic infrastructure: it does not create or operate
+    // agents — operators run their own, and users delegate to an agent's key.
+    // This entry is the execution agent connected to *this* deployment (the
+    // signer key the API is configured with). The Vec shape keeps multi-agent
+    // support open: several operators can be registered later.
     vec![AgentSummary {
         id: "otter-agent".to_string(),
-        name: "Otter Agent".to_string(),
-        operated_by: "Otter".to_string(),
+        name: "Execution Agent".to_string(),
+        operated_by: "Self-hosted".to_string(),
         demo: true,
-        bond: 100_000,
+        bond: 0,
         proofs_submitted: 30_366,
         yield_generated: 9_440_000,
         mev_captured: 89_200,
         uptime: 99.9,
-        description: "The protocol-operated execution agent. It executes user intents inside the limits of their signed delegation, and every execution carries a ZK proof verified on-chain before funds move.".to_string(),
+        description: "The execution agent connected to this deployment. It executes user intents inside the limits of their signed delegation, and every execution carries a ZK proof verified on-chain before funds move.".to_string(),
     }]
 }
 
@@ -809,7 +810,7 @@ fn default_strategies() -> Vec<StrategySummary> {
         StrategySummary {
             id: "strategy-1".to_string(),
             agent_id: "otter-agent".to_string(),
-            agent_name: "Otter Agent".to_string(),
+            agent_name: "Execution Agent".to_string(),
             title: "Steady USDC Lending".to_string(),
             description: "Otter official strategy. Lend USDC on Aave Ethereum whenever supply APY exceeds 3%.".to_string(),
             raw_text: "Lend 1000 USDC on Aave if yield > 3%".to_string(),
@@ -825,7 +826,7 @@ fn default_strategies() -> Vec<StrategySummary> {
         StrategySummary {
             id: "strategy-2".to_string(),
             agent_id: "otter-agent".to_string(),
-            agent_name: "Otter Agent".to_string(),
+            agent_name: "Execution Agent".to_string(),
             title: "Low-Gas ETH Swaps".to_string(),
             description: "Otter official strategy. Swap USDC to ETH on Uniswap only when base fee is below 20 gwei.".to_string(),
             raw_text: "Swap 1000 USDC for ETH on Uniswap if gas < 20".to_string(),
@@ -841,7 +842,7 @@ fn default_strategies() -> Vec<StrategySummary> {
         StrategySummary {
             id: "strategy-3".to_string(),
             agent_id: "otter-agent".to_string(),
-            agent_name: "Otter Agent".to_string(),
+            agent_name: "Execution Agent".to_string(),
             title: "Compound Rate Hunter".to_string(),
             description: "Otter official strategy. Lend USDC on Compound whenever the supply APY exceeds 5%.".to_string(),
             raw_text: "Lend 1000 USDC on Compound if yield > 5%".to_string(),
@@ -2395,9 +2396,10 @@ fn map_strategy_record_to_detail(
 }
 
 fn agent_name_fallback(agent_id: &str) -> String {
-    // Single protocol-operated agent: every historical agent id resolves to it.
+    // Agent-agnostic: Otter does not operate agents. Every historical id
+    // resolves to the execution agent connected to this deployment.
     let _ = agent_id;
-    "Otter Agent".to_string()
+    "Execution Agent".to_string()
 }
 
 async fn seed_default_strategies(
@@ -3497,7 +3499,7 @@ mod tests {
         let listed = list_strategies(AxumState(state)).await.unwrap();
         assert_eq!(listed.strategies.len(), 1);
         assert_eq!(listed.strategies[0].id, created.id);
-        assert_eq!(listed.strategies[0].agent_name, "Otter Agent");
+        assert_eq!(listed.strategies[0].agent_name, "Execution Agent");
     }
 
     #[tokio::test]

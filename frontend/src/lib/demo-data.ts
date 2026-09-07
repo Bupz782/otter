@@ -138,7 +138,7 @@ export const demoDelegations: Delegation[] = [
     createdAt: hoursAgo(72),
     userAddress: DEMO_ADDRESS,
     agentId: "otter-agent",
-    agentName: "Otter Agent",
+    agentName: "Execution Agent",
     maxAmounts: { lend: 5000, swap: 2000, withdraw: 3000, claim: 1000 },
     allowedProtocols: ["Aave", "Compound"],
     allowedChains: ["Ethereum", "Arbitrum"],
@@ -150,7 +150,7 @@ export const demoDelegations: Delegation[] = [
     createdAt: hoursAgo(20),
     userAddress: DEMO_ADDRESS,
     agentId: "otter-agent",
-    agentName: "Otter Agent",
+    agentName: "Execution Agent",
     maxAmounts: { lend: 1000, swap: 2500, withdraw: 1000, claim: 500 },
     allowedProtocols: ["Uniswap"],
     allowedChains: ["Ethereum"],
@@ -160,22 +160,23 @@ export const demoDelegations: Delegation[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Agent and strategies: exact mirrors of the backend seeds. Single
-// protocol-operated agent — users delegate to it, there is no marketplace.
+// Agent and strategies: exact mirrors of the backend seeds. Otter does not
+// operate agents — this entry is the execution agent connected to the
+// deployment; multi-agent stays possible (operators run their own).
 // ---------------------------------------------------------------------------
 
 export const demoAgents: Agent[] = [
   {
     id: "otter-agent",
-    name: "Otter Agent",
-    operatedBy: "Otter",
-    bond: 100_000,
+    name: "Execution Agent",
+    operatedBy: "Self-hosted",
+    bond: 0,
     proofsSubmitted: 30_366,
     yieldGenerated: 9_440_000,
     mevCaptured: 89_200,
     uptime: 99.9,
     description:
-      "The protocol-operated execution agent. It executes user intents inside the limits of their signed delegation, and every execution carries a ZK proof verified on-chain before funds move.",
+      "The execution agent connected to this deployment. It executes user intents inside the limits of their signed delegation, and every execution carries a ZK proof verified on-chain before funds move.",
   },
 ];
 
