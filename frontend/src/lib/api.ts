@@ -529,9 +529,11 @@ export function mapBackendProof(proof: BackendProofSummary): Proof {
 
 export const api = {
   health: {
+    // /api/v1 prefix: nginx only proxies /api/ to the API; bare /health would
+    // hit the SPA fallback.
     get: () =>
       request<{ status: string; version: string; timestamp: number; auth_enabled?: boolean }>(
-        "/health"
+        "/api/v1/health"
       ),
   },
   auth: {
