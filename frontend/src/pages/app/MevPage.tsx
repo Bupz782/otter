@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { Zap, Package } from "lucide-react";
+import { Zap, Package, Percent } from "lucide-react";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useAuthToken } from "@/hooks/useAuthToken";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -29,9 +27,6 @@ export function MevPage() {
   const [bundlesError, setBundlesError] = useState<Error | null>(null);
 
   const [rebateBps, setRebateBps] = useState<number | null>(null);
-  const [rebateDraft, setRebateDraft] = useState("");
-  const [savingConfig, setSavingConfig] = useState(false);
-  const [configError, setConfigError] = useState<string | null>(null);
 
   const fetchBundles = useCallback(async () => {
     setBundlesLoading(true);
@@ -49,7 +44,6 @@ export function MevPage() {
     try {
       const config = await api.mev.getConfig();
       setRebateBps(config.rebate_bps);
-      setRebateDraft(String(config.rebate_bps));
     } catch {
       setRebateBps(null);
     }
@@ -65,34 +59,15 @@ export function MevPage() {
     }
   }, [isAuthenticated, fetchBundles, fetchConfig]);
 
-  const handleSaveConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const value = Number(rebateDraft);
-    if (!Number.isInteger(value) || value < 0 || value > 10_000) {
-      setConfigError("Rebate must be an integer between 0 and 10000 bps.");
-      return;
-    }
-    setSavingConfig(true);
-    setConfigError(null);
-    try {
-      const updated = await api.mev.setConfig(value);
-      setRebateBps(updated.rebate_bps);
-    } catch (err) {
-      setConfigError(err instanceof Error ? err.message : "Could not save the rebate share.");
-    } finally {
-      setSavingConfig(false);
-    }
-  };
-
   if (!isAuthenticated) {
     return (
       <div className="mx-auto max-w-6xl space-y-6">
-        <PageHeader title="MEV" subtitle="Bundle submissions and rebate configuration." />
+        <PageHeader title="MEV" subtitle="Bundle submissions and rebate share." />
         <SectionCard>
           <EmptyState
             icon={<Zap className="h-6 w-6" />}
             title="Sign in required"
-            description="Connect your wallet and sign in to view bundle submissions and tune the rebate share."
+            description="Connect your wallet to view bundle submissions and the rebate share."
           />
         </SectionCard>
       </div>
@@ -105,31 +80,23 @@ export function MevPage() {
 
       <SectionCard
         title="Rebate share"
-        subtitle="Share of captured profit rebated to the vault owner, in basis points. Runtime override; the boot value comes from OTTER_MEV_REBATE_BPS."
+        subtitle="Share of the MEV captured on your executions that the protocol pays back to you. Set by the platform operator — OTTER_MEV_REBATE_BPS at boot, runtime API override."
       >
-        <form onSubmit={handleSaveConfig} className="flex flex-wrap items-end gap-3">
-          <div className="space-y-2">
-            <Label htmlFor="rebate-bps">Rebate (bps)</Label>
-            <Input
-              id="rebate-bps"
-              type="number"
-              min={0}
-              max={10000}
-              value={rebateDraft}
-              onChange={(e) => setRebateDraft(e.target.value)}
-              placeholder={rebateBps !== null ? String(rebateBps) : "5000"}
-              className="w-40"
-              required
-            />
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-secondary">
+            <Percent className="h-4 w-4 text-accent" />
           </div>
-          <Button type="submit" disabled={savingConfig}>
-            {savingConfig ? "Saving…" : "Save"}
-          </Button>
-          {rebateBps !== null && (
-            <p className="text-sm text-muted-foreground">Current: {rebateBps / 100}%</p>
+          {rebateBps === null ? (
+            <Skeleton className="h-8 w-24" />
+          ) : (
+            <p className="font-heading text-2xl font-bold tabular-nums">
+              {(rebateBps / 100).toLocaleString()}%
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                of captured MEV is rebated to you
+              </span>
+            </p>
           )}
-        </form>
-        {configError && <p className="mt-3 text-sm text-destructive">{configError}</p>}
+        </div>
       </SectionCard>
 
       <SectionCard title="Submitted bundles" subtitle="Bundles sent to the private relay, most recent first.">
