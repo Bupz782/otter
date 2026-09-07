@@ -40,6 +40,26 @@ export function loadRefreshToken(): string | null {
   return localStorage.getItem(REFRESH_TOKEN_KEY);
 }
 
+// Auth bypass: set when the API reports auth_enabled=false (local demo
+// default) and a wallet is connected — no SIWE round-trip exists in that
+// mode, the middleware accepts requests without a token.
+const AUTH_BYPASS_KEY = "otter_auth_bypass";
+
+export function setAuthBypass(active: boolean) {
+  if (active) {
+    localStorage.setItem(AUTH_BYPASS_KEY, "1");
+  } else {
+    localStorage.removeItem(AUTH_BYPASS_KEY);
+  }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_TOKEN_CHANGED_EVENT));
+  }
+}
+
+export function loadAuthBypass(): boolean {
+  return localStorage.getItem(AUTH_BYPASS_KEY) === "1";
+}
+
 export function getAuthToken(): string | null {
   return authToken;
 }
@@ -508,6 +528,12 @@ export function mapBackendProof(proof: BackendProofSummary): Proof {
 }
 
 export const api = {
+  health: {
+    get: () =>
+      request<{ status: string; version: string; timestamp: number; auth_enabled?: boolean }>(
+        "/health"
+      ),
+  },
   auth: {
     challenge: (address: string) =>
       request<ChallengeResponse>("/api/v1/auth/challenge", {

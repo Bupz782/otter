@@ -2800,6 +2800,10 @@ async fn health(AxumState(state): AxumState<Arc<AppState>>) -> Response {
         "status": "up",
         "version": state.version,
         "timestamp": now_secs(),
+        // Lets the frontend skip the SIWE sign-in entirely when the API runs
+        // with auth disabled (local demo default) instead of erroring on
+        // /auth/challenge.
+        "auth_enabled": state.auth_enabled,
     });
     (StatusCode::OK, Json(body)).into_response()
 }
