@@ -118,6 +118,9 @@ fn row_to_record(row: &sqlx::postgres::PgRow) -> Result<IntentRecord, StorageErr
     let user_address: Option<String> = row
         .try_get("user_address")
         .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+    let delegation_id: Option<String> = row
+        .try_get("delegation_id")
+        .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
 
     let intent =
         serde_json::from_str(&intent_json).map_err(|e| StorageError::ReadFailed(e.to_string()))?;
@@ -130,6 +133,7 @@ fn row_to_record(row: &sqlx::postgres::PgRow) -> Result<IntentRecord, StorageErr
         created_at,
         updated_at,
         user_address,
+        delegation_id,
     })
 }
 
@@ -140,15 +144,16 @@ impl StoragePort for PgStorage {
             .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
 
         sqlx::query(
-            "INSERT INTO intents (id, text, intent_json, state, created_at, updated_at, user_address)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
+            "INSERT INTO intents (id, text, intent_json, state, created_at, updated_at, user_address, delegation_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
              ON CONFLICT (id) DO UPDATE SET
                  text = EXCLUDED.text,
                  intent_json = EXCLUDED.intent_json,
                  state = EXCLUDED.state,
                  created_at = EXCLUDED.created_at,
                  updated_at = EXCLUDED.updated_at,
-                 user_address = EXCLUDED.user_address",
+                 user_address = EXCLUDED.user_address,
+                 delegation_id = EXCLUDED.delegation_id",
         )
         .bind(&record.id)
         .bind(&record.text)
@@ -157,6 +162,7 @@ impl StoragePort for PgStorage {
         .bind(record.created_at)
         .bind(record.updated_at)
         .bind(record.user_address.as_ref())
+        .bind(record.delegation_id.as_ref())
         .execute(&self.pool)
         .await
         .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
@@ -166,7 +172,7 @@ impl StoragePort for PgStorage {
 
     async fn list_intents(&self) -> Result<Vec<IntentRecord>, StorageError> {
         let rows = sqlx::query(
-            "SELECT id, text, intent_json, state, created_at, updated_at, user_address
+            "SELECT id, text, intent_json, state, created_at, updated_at, user_address, delegation_id
              FROM intents
              ORDER BY updated_at DESC",
         )

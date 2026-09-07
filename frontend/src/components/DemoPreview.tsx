@@ -70,7 +70,17 @@ export function DemoPreview() {
         <PromptInput onSubmit={handleSubmit} isLoading={isLoading} />
 
         {showReasoning && (
-          <ReasoningSteps isActive={showReasoning} onComplete={handleReasoningComplete} />
+          <div>
+            <motion.img
+              src="/otter-dive.webp"
+              alt="Otter diving headfirst"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="mx-auto w-44 [mask-image:radial-gradient(closest-side,black_60%,transparent_98%)] [-webkit-mask-image:radial-gradient(closest-side,black_60%,transparent_98%)]"
+            />
+            <ReasoningSteps isActive={showReasoning} onComplete={handleReasoningComplete} />
+          </div>
         )}
 
         {isLoading && !showReasoning && (

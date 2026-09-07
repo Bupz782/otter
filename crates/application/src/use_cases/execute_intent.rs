@@ -22,6 +22,10 @@ pub struct ExecuteIntentUseCase<P, O, Z, E> {
     /// Optional MEV capture port. When set, a successful on-chain execution
     /// records a (simulated) MEV capture for later user rebates.
     mev: Option<std::sync::Arc<dyn domain::ports::mev_port::MevPort>>,
+    /// Optional lifecycle reporting: (event bus, intent id). When set, the
+    /// proof stage publishes ProofStarted/ProofGenerated so the API timeline
+    /// shows the ZK step live.
+    events: Option<(crate::events::EventBus, String)>,
 }
 
 #[derive(Debug)]
@@ -106,6 +110,7 @@ where
             evm,
             chain_id,
             mev: None,
+            events: None,
         }
     }
 
@@ -113,6 +118,13 @@ where
     /// Optional, so existing constructors keep working unchanged.
     pub fn with_mev(mut self, mev: std::sync::Arc<dyn domain::ports::mev_port::MevPort>) -> Self {
         self.mev = Some(mev);
+        self
+    }
+
+    /// Attach lifecycle reporting: proof stages are published on the bus under
+    /// the given intent id.
+    pub fn with_events(mut self, bus: crate::events::EventBus, intent_id: String) -> Self {
+        self.events = Some((bus, intent_id));
         self
     }
 
@@ -164,7 +176,21 @@ where
         };
 
         // 6. Generate the delegation proof.
+        if let Some((bus, intent_id)) = &self.events {
+            let _ = bus.publish(crate::events::Event::ProofStarted {
+                intent_id: intent_id.clone(),
+            });
+        }
         let proof = self.zkp.prove_delegation(&public_inputs, &private_inputs)?;
+        if let Some((bus, intent_id)) = &self.events {
+            use std::hash::{Hash, Hasher};
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            proof.proof.hash(&mut hasher);
+            let _ = bus.publish(crate::events::Event::ProofGenerated {
+                intent_id: intent_id.clone(),
+                proof_hash: format!("0x{:016x}", hasher.finish()),
+            });
+        }
 
         // 7. Submit the proof on-chain.
         let tx_hash = self.evm.execute_with_proof(&proof, &public_inputs)?;

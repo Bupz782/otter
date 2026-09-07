@@ -19,6 +19,8 @@ pub struct IntentRecord {
     pub updated_at: i64,
     /// Authenticated user address that created the intent, if auth is enabled.
     pub user_address: Option<String>,
+    /// Delegation (hash) this intent runs under, when supplied at creation.
+    pub delegation_id: Option<String>,
 }
 
 /// A persisted delegation record.

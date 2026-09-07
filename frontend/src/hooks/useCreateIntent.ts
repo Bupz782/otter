@@ -15,11 +15,10 @@ export function useCreateIntent() {
     setIsLoading(true);
     setError(null);
     try {
-      // The backend accepts only the raw text (CreateIntentRequest in
-      // crates/interfaces/src/bin/otter_api.rs) and re-parses it server-side.
-      // `parsed` and `delegationId` drive client-side checks and the confirm
-      // summary; sending them is a backend follow-up.
-      const { id } = await api.intents.create(payload.rawText);
+      // The backend re-parses the raw text server-side; `parsed` drives the
+      // client-side review. `delegationId` is recorded for traceability —
+      // the intent and delegation pages link to each other.
+      const { id } = await api.intents.create(payload.rawText, payload.delegationId);
       const record = await api.intents.get(id);
       const intent = mapBackendIntent(record);
       setData(intent);

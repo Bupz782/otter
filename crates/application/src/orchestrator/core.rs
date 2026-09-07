@@ -394,7 +394,9 @@ where
                     let bus_for_blocking = bus_for_task.clone();
                     let intent_id_for_blocking = intent_id_for_task.clone();
                     let task = tokio::task::spawn_blocking(move || {
-                        let tx_hash = execution.execute(&input).map_err(|e| e.to_string())?;
+                        let tx_hash = execution
+                            .execute(&intent_id_for_blocking, &input)
+                            .map_err(|e| e.to_string())?;
                         let _ = bus_for_blocking.publish(Event::TransactionSubmitted {
                             intent_id: intent_id_for_blocking.clone(),
                             tx_hash: tx_hash.clone(),
@@ -454,6 +456,10 @@ where
             Event::IntentParsed { .. } => {
                 // Intent submission is handled synchronously; this event is
                 // mainly for audit/logging in future versions.
+            }
+            Event::ProofStarted { .. } => {
+                // Informational: published when the ZK step begins; the state
+                // machine is already in State::Proving by then.
             }
             Event::ProofGenerated { intent_id, .. } => {
                 let _ = &intent_id;
@@ -564,7 +570,7 @@ mod tests {
     struct OkExecutionPort;
 
     impl ExecutionPort for OkExecutionPort {
-        fn execute(&self, _input: &str) -> Result<String, ExecutionError> {
+        fn execute(&self, _intent_id: &str, _input: &str) -> Result<String, ExecutionError> {
             Ok("0xdeadbeef".to_string())
         }
 

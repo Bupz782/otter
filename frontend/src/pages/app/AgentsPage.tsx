@@ -14,8 +14,10 @@ import { ErrorState } from "@/components/app/ErrorState";
 import { DemoDataNotice } from "@/components/app/DemoDataNotice";
 import { useAgents } from "@/hooks/useAgents";
 import { useStrategies } from "@/hooks/useStrategies";
+import { useDelegations } from "@/hooks/useDelegations";
 import { useAuthToken } from "@/hooks/useAuthToken";
 import { api } from "@/lib/api";
+import { truncateHash } from "@/lib/utils";
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -82,6 +84,8 @@ export function AgentsPage() {
     refetch: refetchStrategies,
   } = useStrategies();
   const pubkey = useAgentPubkey();
+  const { isAuthenticated } = useAuthToken();
+  const { data: delegations } = useDelegations();
 
   const agent = agents[0];
 
@@ -183,6 +187,34 @@ export function AgentsPage() {
               className="h-full"
             />
           </div>
+        </FadeIn>
+      )}
+
+      {agent && !isLoading && !error && isAuthenticated && delegations.length > 0 && (
+        <FadeIn delay={0.18}>
+          <SectionCard
+            title="Your delegations"
+            subtitle="The signed limits this agent runs under — nothing else."
+          >
+            <div className="space-y-3">
+              {delegations.map((delegation) => (
+                <DataRow key={delegation.id}>
+                  <span className="font-mono text-sm">{truncateHash(delegation.id)}</span>
+                  <span className="text-xs text-muted-foreground">
+                    Signed {new Date(delegation.createdAt).toLocaleDateString()}
+                    {delegation.expiry &&
+                      ` · expires ${new Date(delegation.expiry).toLocaleDateString()}`}
+                  </span>
+                </DataRow>
+              ))}
+            </div>
+            <Button asChild variant="ghost" size="sm" className="mt-3">
+              <Link to="/app/delegations">
+                Manage delegations
+                <ArrowRight className="ml-1 h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </SectionCard>
         </FadeIn>
       )}
 

@@ -49,6 +49,9 @@ pub struct OnChainExecutionService {
     /// Optional simulated MEV capture port, invoked after each successful
     /// execution so captured profit can be rebated to the vault owner.
     mev: Option<Arc<dyn MevPort>>,
+    /// Optional event bus: when set, executions report proof-stage lifecycle
+    /// events (ProofStarted/ProofGenerated) under the intent id.
+    bus: Option<application::events::EventBus>,
 }
 
 impl OnChainExecutionService {
@@ -102,12 +105,19 @@ impl OnChainExecutionService {
             delegated_hashes: Arc::new(Mutex::new(HashSet::new())),
             user_delegation: Arc::new(Mutex::new(None)),
             mev: None,
+            bus: None,
         })
     }
 
     /// Attach a simulated MEV capture port (see `infrastructure::mev`).
     pub fn with_mev(mut self, mev: Arc<dyn MevPort>) -> Self {
         self.mev = Some(mev);
+        self
+    }
+
+    /// Attach the event bus so executions report proof-stage lifecycle events.
+    pub fn with_bus(mut self, bus: application::events::EventBus) -> Self {
+        self.bus = Some(bus);
         self
     }
 }
@@ -184,7 +194,7 @@ impl OnChainExecutionService {
 }
 
 impl ExecutionPort for OnChainExecutionService {
-    fn execute(&self, input: &str) -> Result<String, ExecutionError> {
+    fn execute(&self, intent_id: &str, input: &str) -> Result<String, ExecutionError> {
         let target_contract = self.target_contract_for_input(input)?;
         let (delegation, signature) = self.prepare_delegation(target_contract)?;
         let hash = hash_delegation(&delegation);
@@ -210,6 +220,9 @@ impl ExecutionPort for OnChainExecutionService {
         );
         if let Some(mev) = &self.mev {
             use_case = use_case.with_mev(Arc::clone(mev));
+        }
+        if let Some(bus) = &self.bus {
+            use_case = use_case.with_events(bus.clone(), intent_id.to_string());
         }
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)

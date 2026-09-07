@@ -89,6 +89,10 @@ struct AppState {
     bundle_searcher: Option<Arc<dyn BundleSearcherPort>>,
     /// Per-network bridge adapters, keyed by network name.
     bridges: HashMap<String, Arc<dyn BridgePort>>,
+    /// Per-intent lifecycle event log fed by the bus forwarder (ring buffer,
+    /// 100 entries per intent). In-memory by design: the durable record of an
+    /// execution stays the executions table.
+    intent_events: Arc<Mutex<HashMap<String, Vec<IntentEventItem>>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -171,11 +175,27 @@ struct IntentSummary {
     state: String,
     created_at: i64,
     updated_at: i64,
+    delegation_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
 struct IntentsResponse {
     intents: Vec<IntentSummary>,
+}
+
+/// One step of an intent's lifecycle, as published on the event bus.
+#[derive(Debug, Clone, Serialize)]
+struct IntentEventItem {
+    /// parsed | condition_met | proof_started | proof_generated | submitted |
+    /// confirmed
+    kind: String,
+    detail: Option<String>,
+    at: i64,
+}
+
+#[derive(Debug, Serialize)]
+struct IntentEventsResponse {
+    events: Vec<IntentEventItem>,
 }
 
 #[derive(Debug, Serialize)]
@@ -212,6 +232,9 @@ struct CreateIntentRequest {
     /// Optional target network name (see `OTTER_NETWORKS`). Defaults to the
     /// `default` network when omitted.
     network: Option<String>,
+    /// Delegation (hash) this intent runs under. Recorded for traceability —
+    /// the UI links the intent and the delegation both ways.
+    delegation_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -282,6 +305,7 @@ struct IntentDetailResponse {
     state: String,
     created_at: i64,
     updated_at: i64,
+    delegation_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -488,6 +512,7 @@ fn app(state: Arc<AppState>) -> Router {
         .route("/api/v1/intents/parse", post(parse_intent))
         .route("/api/v1/intents/plan", post(plan_intent))
         .route("/api/v1/intents/:id", get(get_intent).delete(delete_intent))
+        .route("/api/v1/intents/:id/events", get(list_intent_events))
         .route("/api/v1/intents", get(list_intents).post(create_intent))
         .route(
             "/api/v1/delegation",
@@ -897,7 +922,10 @@ async fn main() {
         Arc::new(SqliteStorage::new(&config.database_url).expect("failed to open SQLite storage"))
     };
 
-    let (orchestrator, execution_enabled, mev_store) = build_orchestrator(&config).await;
+    // The bus is created before the orchestrator so the execution service can
+    // report proof-stage lifecycle events under each intent id.
+    let (bus, mut receiver) = EventBus::new(256);
+    let (orchestrator, execution_enabled, mev_store) = build_orchestrator(&config, &bus).await;
     let orchestrator = Arc::new(RwLock::new(orchestrator));
 
     // Hydrate in-memory active intents from storage so monitoring survives
@@ -919,9 +947,7 @@ async fn main() {
     }
 
     let metrics = Arc::new(Metrics::default());
-    let (bus, mut receiver) = EventBus::new(256);
     let (event_tx, _) = tokio::sync::broadcast::channel::<Event>(256);
-
     let auth_service = if config.auth_enabled {
         let secret = match resolve_jwt_secret(&config) {
             Ok(secret) => secret,
@@ -965,6 +991,7 @@ async fn main() {
         solana: build_solana_adapter(&config),
         bundle_searcher: build_bundle_searcher(&config),
         bridges: build_bridges(&config),
+        intent_events: Arc::new(Mutex::new(HashMap::new())),
     });
 
     // Background monitoring loop: fetch on-chain metrics for active intents.
@@ -1014,6 +1041,7 @@ async fn main() {
             let _ = processor_state.event_tx.send(event.clone());
 
             track_event(&processor_state, &event);
+            record_intent_event(&processor_state, &event).await;
             persist_event(&processor_state, &event).await;
 
             let mut orchestrator = processor_state.write_orchestrator().await;
@@ -1700,6 +1728,7 @@ fn parse_network(value: Option<&String>) -> OracleNetwork {
 
 async fn build_orchestrator(
     config: &Config,
+    bus: &EventBus,
 ) -> (
     AgentOrchestrator,
     bool,
@@ -1763,7 +1792,8 @@ async fn build_orchestrator(
                     config.chain_id,
                 )
                 .expect("failed to initialize execution service")
-                .with_mev(Arc::clone(mev) as Arc<dyn domain::ports::mev_port::MevPort>),
+                .with_mev(Arc::clone(mev) as Arc<dyn domain::ports::mev_port::MevPort>)
+                .with_bus(bus.clone()),
             )
         } else {
             Arc::new(
@@ -1777,7 +1807,8 @@ async fn build_orchestrator(
                     &config.nonce_store_path,
                     config.chain_id,
                 )
-                .expect("failed to initialize execution service"),
+                .expect("failed to initialize execution service")
+                .with_bus(bus.clone()),
             )
         };
         return (
@@ -1921,6 +1952,43 @@ fn collect_metric_pairs(intents: &[ActiveIntent]) -> HashSet<(Asset, Metric)> {
         }
     }
     pairs
+}
+
+/// Append a lifecycle event to the per-intent ring buffer (100 entries max).
+async fn record_intent_event(state: &AppState, event: &Event) {
+    let (intent_id, kind, detail) = match event {
+        Event::IntentParsed { intent_id, .. } => (intent_id, "parsed", None),
+        Event::ConditionMet { intent_id } => (intent_id, "condition_met", None),
+        Event::ProofStarted { intent_id } => (intent_id, "proof_started", None),
+        Event::ProofGenerated {
+            intent_id,
+            proof_hash,
+        } => (intent_id, "proof_generated", Some(proof_hash.clone())),
+        Event::TransactionSubmitted { intent_id, tx_hash } => {
+            (intent_id, "submitted", Some(tx_hash.clone()))
+        }
+        Event::TransactionConfirmed {
+            intent_id,
+            receipt,
+            gas_used,
+        } => (
+            intent_id,
+            "confirmed",
+            Some(format!("{receipt} · {gas_used} gas")),
+        ),
+        _ => return,
+    };
+    let mut guard = state.intent_events.lock().await;
+    let entries = guard.entry(intent_id.clone()).or_default();
+    entries.push(IntentEventItem {
+        kind: kind.to_string(),
+        detail,
+        at: now_secs(),
+    });
+    if entries.len() > 100 {
+        let overflow = entries.len() - 100;
+        entries.drain(0..overflow);
+    }
 }
 
 fn track_event(state: &AppState, event: &Event) {
@@ -2538,6 +2606,7 @@ async fn list_intents(
             state: r.state,
             created_at: r.created_at,
             updated_at: r.updated_at,
+            delegation_id: r.delegation_id,
         })
         .collect();
     Ok(Json(IntentsResponse { intents }))
@@ -2620,8 +2689,16 @@ async fn create_intent(
         created_at: now,
         updated_at: now,
         user_address,
+        delegation_id: body.delegation_id,
     };
     state.storage.save_intent(&record).await?;
+
+    // Lifecycle visibility: the timeline endpoint and WS subscribers see the
+    // parse stage right away (monitoring/proving/submission follow on the bus).
+    let _ = state.bus.publish(Event::IntentParsed {
+        intent_id: id.clone(),
+        conditional: conditional.clone(),
+    });
 
     {
         let mut orchestrator = state.write_orchestrator().await;
@@ -2666,7 +2743,35 @@ async fn get_intent(
         state: record.state,
         created_at: record.created_at,
         updated_at: record.updated_at,
+        delegation_id: record.delegation_id,
     }))
+}
+
+async fn list_intent_events(
+    AxumState(state): AxumState<Arc<AppState>>,
+    Extension(user): Extension<Option<AuthUser>>,
+    Path(id): Path<String>,
+) -> Result<Json<IntentEventsResponse>, AppError> {
+    // Same visibility rule as get_intent: unknown or foreign intents 404.
+    let user = user.map(|u| u.address);
+    let record = state
+        .storage
+        .get_intent(&id)
+        .await?
+        .ok_or(AppError::Storage(domain::ports::StorageError::NotFound(
+            id.clone(),
+        )))?;
+    if !matches_user(&record.user_address, &user) {
+        return Err(AppError::Storage(domain::ports::StorageError::NotFound(id)));
+    }
+    let events = state
+        .intent_events
+        .lock()
+        .await
+        .get(&record.id)
+        .cloned()
+        .unwrap_or_default();
+    Ok(Json(IntentEventsResponse { events }))
 }
 
 async fn delete_intent(
@@ -3001,6 +3106,7 @@ mod tests {
             solana: None,
             bundle_searcher: None,
             bridges: HashMap::new(),
+            intent_events: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -3059,6 +3165,7 @@ mod tests {
             solana: None,
             bundle_searcher: None,
             bridges: HashMap::new(),
+            intent_events: Arc::new(Mutex::new(HashMap::new())),
         });
 
         let response = metrics(AxumState(disabled_state)).await;
@@ -3278,6 +3385,7 @@ mod tests {
             solana: state.solana.clone(),
             bundle_searcher: state.bundle_searcher.clone(),
             bridges: HashMap::new(),
+            intent_events: Arc::new(Mutex::new(HashMap::new())),
             orchestrator: state.orchestrator.clone(),
             storage: state.storage.clone(),
             bus: state.bus.clone(),
@@ -3355,6 +3463,7 @@ mod tests {
         let req = CreateIntentRequest {
             text: long_text,
             network: None,
+            delegation_id: None,
         };
         let response = create_intent(AxumState(state), Extension(None::<AuthUser>), Json(req))
             .await
@@ -3440,6 +3549,7 @@ mod tests {
             Json(CreateIntentRequest {
                 text: "lend 100 USDC on Aave".to_string(),
                 network: None,
+                delegation_id: None,
             }),
         )
         .await

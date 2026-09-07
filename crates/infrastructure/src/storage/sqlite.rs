@@ -85,9 +85,12 @@ fn run_migrations(conn: &Connection) -> Result<(), StorageError> {
             // `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` syntax. SQLite does not
             // support `IF NOT EXISTS` on `ADD COLUMN`, so we apply the equivalent
             // idempotent change from Rust for SQLite deployments.
+            // Version 9 (`delegation_id` on intents) follows the same pattern.
             if version == 3 {
                 add_column_if_missing(conn, "intents", "user_address", "TEXT")?;
                 add_column_if_missing(conn, "delegations", "user_address", "TEXT")?;
+            } else if version == 9 {
+                add_column_if_missing(conn, "intents", "delegation_id", "TEXT")?;
             } else {
                 conn.execute_batch(&sql).map_err(|e| {
                     StorageError::InitFailed(format!(
@@ -146,8 +149,8 @@ impl StoragePort for SqliteStorage {
                 .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
             let conn = conn.lock().map_err(|e| StorageError::SaveFailed(e.to_string()))?;
             conn.execute(
-                "INSERT OR REPLACE INTO intents (id, text, intent_json, state, created_at, updated_at, user_address)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT OR REPLACE INTO intents (id, text, intent_json, state, created_at, updated_at, user_address, delegation_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                 rusqlite::params![
                     &record.id,
                     &record.text,
@@ -156,6 +159,7 @@ impl StoragePort for SqliteStorage {
                     &record.created_at.to_string(),
                     &record.updated_at.to_string(),
                     record.user_address.as_deref(),
+                    record.delegation_id.as_deref(),
                 ],
             )
             .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
@@ -173,7 +177,7 @@ impl StoragePort for SqliteStorage {
                 .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
             let mut stmt = conn
                 .prepare(
-                    "SELECT id, text, intent_json, state, created_at, updated_at, user_address
+                    "SELECT id, text, intent_json, state, created_at, updated_at, user_address, delegation_id
                      FROM intents
                      ORDER BY updated_at DESC",
                 )
@@ -187,6 +191,7 @@ impl StoragePort for SqliteStorage {
                     let created_at: i64 = row.get(4)?;
                     let updated_at: i64 = row.get(5)?;
                     let user_address: Option<String> = row.get(6)?;
+                    let delegation_id: Option<String> = row.get(7)?;
                     let intent: ConditionalIntent =
                         serde_json::from_str(&intent_json).map_err(|e| {
                             rusqlite::Error::FromSqlConversionFailure(
@@ -203,6 +208,7 @@ impl StoragePort for SqliteStorage {
                         created_at,
                         updated_at,
                         user_address,
+                        delegation_id,
                     })
                 })
                 .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
@@ -222,7 +228,7 @@ impl StoragePort for SqliteStorage {
                 .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
             let row = conn
                 .query_row(
-                    "SELECT id, text, intent_json, state, created_at, updated_at, user_address
+                    "SELECT id, text, intent_json, state, created_at, updated_at, user_address, delegation_id
                      FROM intents WHERE id = ?1",
                     [&id],
                     |row| {
@@ -243,6 +249,7 @@ impl StoragePort for SqliteStorage {
                             created_at: row.get(4)?,
                             updated_at: row.get(5)?,
                             user_address: row.get(6)?,
+                            delegation_id: row.get(7)?,
                         })
                     },
                 )
@@ -830,6 +837,7 @@ mod tests {
             created_at: now_secs(),
             updated_at: now_secs(),
             user_address: None,
+            delegation_id: None,
         }
     }
 

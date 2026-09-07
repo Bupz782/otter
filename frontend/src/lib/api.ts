@@ -172,6 +172,14 @@ export interface BackendIntentRecord {
   state: string;
   created_at: number;
   updated_at: number;
+  delegation_id?: string | null;
+}
+
+/** One lifecycle step of an intent (GET /api/v1/intents/:id/events). */
+export interface BackendIntentEvent {
+  kind: "parsed" | "condition_met" | "proof_started" | "proof_generated" | "submitted" | "confirmed";
+  detail: string | null;
+  at: number;
 }
 
 export interface BackendExecutionRecord {
@@ -443,7 +451,7 @@ export function mapBackendIntent(record: BackendIntentRecord): Intent {
     parsed: mapBackendConditionalIntent(record.intent),
     status,
     createdAt: new Date(record.created_at * 1000).toISOString(),
-    delegationId: "",
+    delegationId: record.delegation_id ?? "",
     executedAt:
       status === "confirmed" ? new Date(record.updated_at * 1000).toISOString() : undefined,
     txHash,
@@ -554,13 +562,15 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ text }),
       }),
-    create: (text: string) =>
+    create: (text: string, delegationId?: string) =>
       request<{ id: string }>("/api/v1/intents", {
         method: "POST",
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, delegation_id: delegationId ?? null }),
       }),
     list: () => request<{ intents: BackendIntentRecord[] }>("/api/v1/intents"),
     get: (id: string) => request<BackendIntentRecord>(`/api/v1/intents/${id}`),
+    events: (id: string) =>
+      request<{ events: BackendIntentEvent[] }>(`/api/v1/intents/${id}/events`),
     cancel: (id: string) => request<void>(`/api/v1/intents/${id}`, { method: "DELETE" }),
   },
   executions: {

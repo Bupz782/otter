@@ -90,28 +90,11 @@
     @apply border-b border-border/50 bg-background/75 backdrop-blur-xl;
   }
 
-  /* Low-poly foundations: chamfered corners (clip-path) + faceted matte panel. */
-  .chamfer {
-    clip-path: polygon(
-      12px 0,
-      100% 0,
-      100% calc(100% - 12px),
-      calc(100% - 12px) 100%,
-      0 100%,
-      0 12px
-    );
-  }
-
-  .facet-panel {
+  /* Painterly card surface: dark veil over the generated texture crop. */
+  .card-painterly {
     background:
-      linear-gradient(
-        135deg,
-        transparent 49.6%,
-        rgba(200, 164, 108, 0.22) 49.6% 50%,
-        transparent 50.4%
-      ),
-      linear-gradient(135deg, #141414 0%, #141414 49.9%, #0c0c0c 50%, #0c0c0c 100%);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+      linear-gradient(rgba(10, 10, 10, 0.84), rgba(10, 10, 10, 0.84)),
+      url("/card-texture.webp") center / cover;
   }
 
   @keyframes spotlight-rotate {

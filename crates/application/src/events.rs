@@ -21,6 +21,8 @@ pub enum Event {
         intent_id: String,
         conditional: ConditionalIntent,
     },
+    /// Proof generation for an intent has started (the heavy ZK step).
+    ProofStarted { intent_id: String },
     /// A zero-knowledge proof has been generated for an intent.
     ProofGenerated {
         intent_id: String,

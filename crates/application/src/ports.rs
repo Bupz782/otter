@@ -15,8 +15,9 @@ pub struct ExecutionResult {
 /// independent from any concrete ZKP or EVM adapter.
 pub trait ExecutionPort: Send + Sync {
     /// Execute the intent described by `input` and return the on-chain
-    /// transaction hash or identifier on success.
-    fn execute(&self, input: &str) -> Result<String, ExecutionError>;
+    /// transaction hash or identifier on success. `intent_id` is used for
+    /// lifecycle events (proof started/generated) published on the event bus.
+    fn execute(&self, intent_id: &str, input: &str) -> Result<String, ExecutionError>;
 
     /// Provide a user-signed delegation and its signature for upcoming
     /// executions. The service may fall back to an agent-generated delegation

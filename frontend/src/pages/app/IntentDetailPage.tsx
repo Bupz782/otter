@@ -15,6 +15,7 @@ import { useIntent } from "@/hooks/useIntent";
 import { useExecutionStatus } from "@/hooks/useExecutionStatus";
 import { api } from "@/lib/api";
 import { getStatusPresentation } from "@/lib/status";
+import { truncateHash } from "@/lib/utils";
 import type { IntentStatus } from "@/types/app";
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -201,6 +202,18 @@ export function IntentDetailPage() {
                   </div>
                 ))}
               </dl>
+              {intent.delegationId && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Runs under delegation{" "}
+                  <Link
+                    to="/app/delegations"
+                    className="font-mono text-accent underline underline-offset-2"
+                  >
+                    {truncateHash(intent.delegationId)}
+                  </Link>{" "}
+                  — the agent can only execute inside its signed limits.
+                </p>
+              )}
             </SectionCard>
           </FadeIn>
 
@@ -259,13 +272,21 @@ export function IntentDetailPage() {
               ) : status ? (
                 <KineticTimeline status={status} />
               ) : (
-                <div className="flex items-start gap-4 py-4">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-secondary">
-                    <IdleIcon className={`h-5 w-5 ${presentation.textClass}`} />
-                  </div>
-                  <div>
-                    <p className="font-medium">{presentation.label}</p>
-                    <p className="text-sm text-muted-foreground">{idleDetail(intent.status)}</p>
+                <div className="py-4">
+                  <img
+                    src="/otter-dive.webp"
+                    alt=""
+                    aria-hidden="true"
+                    className="mb-4 w-28 [mask-image:radial-gradient(closest-side,black_60%,transparent_98%)] [-webkit-mask-image:radial-gradient(closest-side,black_60%,transparent_98%)]"
+                  />
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-secondary">
+                      <IdleIcon className={`h-5 w-5 ${presentation.textClass}`} />
+                    </div>
+                    <div>
+                      <p className="font-medium">{presentation.label}</p>
+                      <p className="text-sm text-muted-foreground">{idleDetail(intent.status)}</p>
+                    </div>
                   </div>
                 </div>
               )}

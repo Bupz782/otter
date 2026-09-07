@@ -56,6 +56,9 @@ const BridgePage = lazy(() =>
 const SolanaPage = lazy(() =>
   import("./pages/app/SolanaPage").then((m) => ({ default: m.SolanaPage }))
 );
+const NotFoundPage = lazy(() =>
+  import("./pages/NotFoundPage").then((m) => ({ default: m.NotFoundPage }))
+);
 
 const queryClient = new QueryClient();
 
@@ -85,6 +88,7 @@ export function AppRoutes() {
           <Route path="settings" element={<SettingsPage />} />
           <Route path="marketplace" element={<Navigate to="/app/agents" replace />} />
         </Route>
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
   );

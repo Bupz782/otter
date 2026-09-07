@@ -12,6 +12,7 @@ import { DataRow } from "@/components/app/DataRow";
 import { EmptyState } from "@/components/app/EmptyState";
 import { ErrorState } from "@/components/app/ErrorState";
 import { useDelegations } from "@/hooks/useDelegations";
+import { useIntents } from "@/hooks/useIntents";
 import { getStatusPresentation, type StatusPresentation } from "@/lib/status";
 import { truncateHash, cn } from "@/lib/utils";
 import type { Delegation } from "@/types/app";
@@ -61,6 +62,8 @@ function delegationStatus(delegation: Delegation): StatusPresentation {
 export function DelegationsPage() {
   useDocumentTitle("Delegations");
   const { data: delegations, isLoading, error, refetch, isDemo } = useDelegations();
+  // Intents carry the delegation hash they run under — linked both ways.
+  const { data: intents } = useIntents();
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -153,6 +156,31 @@ export function DelegationsPage() {
                           ))}
                         </div>
                       )}
+                      {(() => {
+                        const underThis = (intents ?? []).filter(
+                          (intent) => intent.delegationId === delegation.id
+                        );
+                        if (underThis.length === 0) return null;
+                        return (
+                          <p className="mt-1.5 text-xs text-muted-foreground">
+                            {underThis.length} intent{underThis.length > 1 ? "s" : ""} running
+                            under this delegation:{" "}
+                            {underThis.slice(0, 3).map((intent, index) => (
+                              <span key={intent.id}>
+                                {index > 0 && " · "}
+                                <Link
+                                  to={`/app/intents/${intent.id}`}
+                                  className="text-accent underline underline-offset-2"
+                                >
+                                  {intent.rawText.length > 40
+                                    ? `${intent.rawText.slice(0, 40)}…`
+                                    : intent.rawText}
+                                </Link>
+                              </span>
+                            ))}
+                          </p>
+                        );
+                      })()}
                     </div>
                     <span
                       className={cn(

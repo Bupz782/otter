@@ -40,6 +40,7 @@ fn sample_intent_record(id: &str) -> IntentRecord {
         created_at: now_secs(),
         updated_at: now_secs(),
         user_address: None,
+        delegation_id: None,
     }
 }
 
