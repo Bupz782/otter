@@ -40,6 +40,28 @@ fi
 # PgStorage::new / SqliteStorage::new). No separate migration command is needed
 # here as long as OTTER_MIGRATIONS_DIR points at the bundled SQL files.
 
+# Optional LLM model for the hybrid intent parser. The API selects the hybrid
+# parser only when OTTER_MODEL_PATH exists at boot, so the download runs in
+# the background: the stack comes up on the regex parser immediately, and a
+# later container restart picks the model up.
+if [[ "${OTTER_MODEL_DOWNLOAD:-false}" == "true" ]]; then
+    : "${OTTER_MODEL_PATH:=/app/models/Qwen3-8B-Q4_K_M.gguf}"
+    MODEL_URL="${OTTER_MODEL_URL:-https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf}"
+    if [[ ! -f "$OTTER_MODEL_PATH" ]]; then
+        mkdir -p "$(dirname "$OTTER_MODEL_PATH")"
+        (
+            echo "Downloading LLM model in the background (~4.5GB)..."
+            if curl -sfL -o "$OTTER_MODEL_PATH.part" "$MODEL_URL"; then
+                mv "$OTTER_MODEL_PATH.part" "$OTTER_MODEL_PATH"
+                echo "Model ready at $OTTER_MODEL_PATH — restart the api container to enable the hybrid parser."
+            else
+                rm -f "$OTTER_MODEL_PATH.part"
+                echo "Model download failed; regex parser stays active." >&2
+            fi
+        ) &
+    fi
+fi
+
 # Validate ZKP tooling if execution is enabled
 if [[ "${OTTER_EXECUTION_ENABLED:-false}" == "true" ]]; then
     if ! command -v "$OTTER_NARGO_BIN" >/dev/null 2>&1; then
