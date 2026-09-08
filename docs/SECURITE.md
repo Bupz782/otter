@@ -238,8 +238,10 @@ d'erreur verbeux, fonctionnalités inutiles exposées.
 - **Défauts permissifs en dev** : `auth_enabled = false`
   (`crates/infrastructure/src/config/mod.rs:151-153`) et CORS `*` par défaut
   (`crates/infrastructure/src/config/mod.rs:159-161`). Ces défauts sont
-  pensés pour le développement local ; un profil de production durci n'existe
-  pas dans le dépôt.
+  pensés pour le développement local. Le profil `OTTER_PROFILE=prod` existe :
+  `Config::validate()` refuse alors auth désactivée, CORS `*`, une clé privée
+  hex en clair en ligne (fichier/keystore/blob KMS exigés) et toute valeur de
+  profil inconnue.
 - Le rate limiting est en mémoire et par instance : il ne protège pas derrière
   plusieurs réplicas ni contre une attaque distribuée (une IP = un compteur,
   un attaquant avec beaucoup d'IP le contourne).
