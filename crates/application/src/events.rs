@@ -36,6 +36,9 @@ pub enum Event {
         receipt: String,
         gas_used: u64,
     },
+    /// Execution of an intent failed (submission or on-chain revert). Carries
+    /// the intent so the timeline can show the failure honestly.
+    ExecutionFailed { intent_id: String, reason: String },
     /// A non-recoverable error occurred in the pipeline.
     Error { source: String, message: String },
 }

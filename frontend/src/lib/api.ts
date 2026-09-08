@@ -177,7 +177,7 @@ export interface BackendIntentRecord {
 
 /** One lifecycle step of an intent (GET /api/v1/intents/:id/events). */
 export interface BackendIntentEvent {
-  kind: "parsed" | "condition_met" | "proof_started" | "proof_generated" | "submitted" | "confirmed";
+  kind: "parsed" | "condition_met" | "proof_started" | "proof_generated" | "submitted" | "confirmed" | "failed";
   detail: string | null;
   at: number;
 }

@@ -37,6 +37,20 @@ pub struct DelegationRecord {
     pub user_address: Option<String>,
 }
 
+/// A persisted per-intent lifecycle event (timeline). The storage id encodes
+/// the epoch millis zero-padded so lexicographic order is chronological.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntentEventRecord {
+    /// Chronologically sortable id: "{epoch_millis:013}-{uuid}".
+    pub id: String,
+    pub intent_id: String,
+    /// parsed | condition_met | proof_started | proof_generated | submitted | confirmed
+    pub kind: String,
+    pub detail: Option<String>,
+    /// Unix timestamp (seconds).
+    pub at: i64,
+}
+
 /// A persisted execution / transaction record.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionRecord {
@@ -146,6 +160,16 @@ pub trait StoragePort: Send + Sync {
     /// Delete a delegation record (revocation). Errors with NotFound when the
     /// hash is unknown.
     async fn delete_delegation(&self, hash: &str) -> Result<(), StorageError>;
+
+    /// Persist a per-intent lifecycle event (timeline).
+    async fn save_intent_event(&self, event: &IntentEventRecord) -> Result<(), StorageError>;
+
+    /// Return the latest `limit` events of an intent in chronological order.
+    async fn list_intent_events(
+        &self,
+        intent_id: &str,
+        limit: usize,
+    ) -> Result<Vec<IntentEventRecord>, StorageError>;
 
     /// Persist an execution / transaction record.
     async fn save_execution(&self, record: &ExecutionRecord) -> Result<(), StorageError>;

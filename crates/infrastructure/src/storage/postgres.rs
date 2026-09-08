@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use domain::ports::storage_port::{
-    BridgeTransferRecord, DelegationRecord, ExecutionRecord, IntentRecord, MevBundleRecord,
-    StorageError, StoragePort, StrategyRecord,
+    BridgeTransferRecord, DelegationRecord, ExecutionRecord, IntentEventRecord, IntentRecord,
+    MevBundleRecord, StorageError, StoragePort, StrategyRecord,
 };
 use sqlx::{Pool, Postgres, Row};
 
@@ -324,6 +324,63 @@ impl StoragePort for PgStorage {
             return Err(StorageError::NotFound(hash.to_string()));
         }
         Ok(())
+    }
+
+    async fn save_intent_event(&self, event: &IntentEventRecord) -> Result<(), StorageError> {
+        sqlx::query(
+            "INSERT INTO intent_events (id, intent_id, kind, detail, at)
+             VALUES ($1, $2, $3, $4, $5)",
+        )
+        .bind(&event.id)
+        .bind(&event.intent_id)
+        .bind(&event.kind)
+        .bind(&event.detail)
+        .bind(event.at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn list_intent_events(
+        &self,
+        intent_id: &str,
+        limit: usize,
+    ) -> Result<Vec<IntentEventRecord>, StorageError> {
+        let rows = sqlx::query(
+            "SELECT id, intent_id, kind, detail, at FROM (
+                SELECT id, intent_id, kind, detail, at
+                FROM intent_events WHERE intent_id = $1
+                ORDER BY id DESC LIMIT $2
+             ) AS latest ORDER BY id ASC",
+        )
+        .bind(intent_id)
+        .bind(limit as i64)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+
+        rows.iter()
+            .map(|r| {
+                Ok(IntentEventRecord {
+                    id: r
+                        .try_get("id")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    intent_id: r
+                        .try_get("intent_id")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    kind: r
+                        .try_get("kind")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    detail: r
+                        .try_get("detail")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    at: r
+                        .try_get("at")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                })
+            })
+            .collect()
     }
 
     async fn save_execution(&self, record: &ExecutionRecord) -> Result<(), StorageError> {

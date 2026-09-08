@@ -27,6 +27,36 @@ pub struct ActiveIntent {
     pub conditional: ConditionalIntent,
 }
 
+/// Execution attempts before an intent is parked (stops the retry flood for
+/// permanently failing intents; transient RPC/gas failures get 3 ticks).
+const MAX_EXECUTION_ATTEMPTS: u32 = 3;
+
+/// Count an execution failure for an intent; park it after
+/// MAX_EXECUTION_ATTEMPTS so `is_already_handled` skips it from then on.
+fn note_execution_failure(
+    failed_attempts: &Mutex<std::collections::HashMap<String, u32>>,
+    failed_intents: &Mutex<HashSet<String>>,
+    intent_id: &str,
+) {
+    let attempts = {
+        let mut guard = failed_attempts.lock().unwrap_or_else(|e| e.into_inner());
+        let n = guard.entry(intent_id.to_string()).or_insert(0);
+        *n += 1;
+        *n
+    };
+    if attempts >= MAX_EXECUTION_ATTEMPTS {
+        tracing::warn!(
+            intent_id,
+            attempts,
+            "intent parked after repeated execution failures"
+        );
+        failed_intents
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(intent_id.to_string());
+    }
+}
+
 /// Coordinates the high-level automation flow: parse → plan → execute.
 ///
 /// The orchestrator is intentionally small right now. It owns the parser and
@@ -49,6 +79,13 @@ pub struct Orchestrator<P, O, Z, E> {
     executed_intents: Arc<Mutex<HashSet<String>>>,
     /// Intent IDs currently being executed (prevents duplicate submissions).
     executing_intents: Arc<Mutex<HashSet<String>>>,
+    /// Consecutive execution failures per intent; an intent is parked in
+    /// `failed_intents` after MAX_EXECUTION_ATTEMPTS so a permanently
+    /// failing intent (e.g. missing protocol router) stops flooding the
+    /// pipeline — and its timeline — every monitoring tick.
+    failed_attempts: Arc<Mutex<std::collections::HashMap<String, u32>>>,
+    /// Intent IDs parked after repeated execution failures.
+    failed_intents: Arc<Mutex<HashSet<String>>>,
     /// Delegation limits for the active intents.
     delegation: Option<DelegationMessage>,
     /// Signature over the delegation hash.
@@ -120,6 +157,8 @@ where
             active_intents: Vec::new(),
             executed_intents: Arc::new(Mutex::new(HashSet::new())),
             executing_intents: Arc::new(Mutex::new(HashSet::new())),
+            failed_attempts: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            failed_intents: Arc::new(Mutex::new(HashSet::new())),
             delegation: None,
             signature: None,
             timestamp: 1_000_000,
@@ -389,6 +428,8 @@ where
                 let input = intent.text.clone();
                 let executed = self.executed_intents.clone();
                 let executing = self.executing_intents.clone();
+                let failed_attempts = self.failed_attempts.clone();
+                let failed_intents = self.failed_intents.clone();
 
                 tokio::spawn(async move {
                     let bus_for_blocking = bus_for_task.clone();
@@ -419,6 +460,11 @@ where
                                 let mut guard = executed.lock().unwrap_or_else(|e| e.into_inner());
                                 guard.insert(intent_id_for_task.clone());
                             }
+                            {
+                                let mut guard =
+                                    failed_attempts.lock().unwrap_or_else(|e| e.into_inner());
+                                guard.remove(&intent_id_for_task);
+                            }
                             let _ = bus_for_task.publish(Event::TransactionConfirmed {
                                 intent_id: intent_id_for_task.clone(),
                                 receipt: tx_hash,
@@ -430,6 +476,15 @@ where
                                 "[orchestrator] execution failed for {}: {}",
                                 intent_id_for_task, err
                             );
+                            note_execution_failure(
+                                &failed_attempts,
+                                &failed_intents,
+                                &intent_id_for_task,
+                            );
+                            let _ = bus_for_task.publish(Event::ExecutionFailed {
+                                intent_id: intent_id_for_task.clone(),
+                                reason: err.clone(),
+                            });
                             let _ = bus_for_task.publish(Event::Error {
                                 source: "executor".to_string(),
                                 message: err,
@@ -440,6 +495,15 @@ where
                                 "[orchestrator] execution task failed for {}: {}",
                                 intent_id_for_task, err
                             );
+                            note_execution_failure(
+                                &failed_attempts,
+                                &failed_intents,
+                                &intent_id_for_task,
+                            );
+                            let _ = bus_for_task.publish(Event::ExecutionFailed {
+                                intent_id: intent_id_for_task.clone(),
+                                reason: format!("execution task failed: {err}"),
+                            });
                             let _ = bus_for_task.publish(Event::Error {
                                 source: "executor".to_string(),
                                 message: format!("execution task failed: {err}"),
@@ -482,6 +546,10 @@ where
                 );
                 self.transition(State::Idle);
             }
+            Event::ExecutionFailed { .. } => {
+                // Informational: the executor task already logged and counted
+                // the failure; the timeline records it via the bus.
+            }
             Event::Error { source, message } => {
                 eprintln!("[orchestrator] error from {}: {}", source, message);
                 self.transition(State::Error(format!("{}: {}", source, message)));
@@ -504,7 +572,12 @@ where
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .contains(id);
-        executed || executing
+        let failed = self
+            .failed_intents
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .contains(id);
+        executed || executing || failed
     }
 
     fn mark_executing(&self, id: &str) {

@@ -18,5 +18,5 @@ pub use mev_port::{MevCapture, MevPort};
 pub use searcher_port::{Bundle, BundleSearcherPort, SearcherError};
 pub use solana_port::{AttestationRecord, SolanaError, SolanaPort};
 pub use storage_port::{
-    DelegationRecord, ExecutionRecord, IntentRecord, StorageError, StoragePort,
+    DelegationRecord, ExecutionRecord, IntentEventRecord, IntentRecord, StorageError, StoragePort,
 };

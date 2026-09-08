@@ -22,6 +22,7 @@ const EVENT_LABEL: Record<BackendIntentEvent["kind"], string> = {
   proof_generated: "ZK proof",
   submitted: "Submitted on-chain",
   confirmed: "Confirmed on-chain",
+  failed: "Execution failed",
 };
 
 function eventToStep(event: BackendIntentEvent): ExecutionStep {
@@ -62,6 +63,12 @@ function eventToStep(event: BackendIntentEvent): ExecutionStep {
         label: EVENT_LABEL.confirmed,
         detail: event.detail ?? "Transaction confirmed",
       };
+    case "failed":
+      return {
+        status: "failed",
+        label: EVENT_LABEL.failed,
+        detail: event.detail ?? "Execution failed",
+      };
   }
 }
 
@@ -75,6 +82,14 @@ function eventsToSteps(events: BackendIntentEvent[]): ExecutionStep[] {
     step.timestamp = new Date(event.at * 1000).toISOString();
     if (event.kind === "proof_started" || event.kind === "proof_generated") {
       const existing = steps.findIndex((s) => s.status === "proving");
+      if (existing >= 0) {
+        steps[existing] = step;
+        continue;
+      }
+    }
+    if (event.kind === "failed") {
+      // Retries after a failure repeat the same step: keep only the latest.
+      const existing = steps.findIndex((s) => s.status === "failed");
       if (existing >= 0) {
         steps[existing] = step;
         continue;
