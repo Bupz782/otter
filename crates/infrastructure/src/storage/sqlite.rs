@@ -380,6 +380,25 @@ impl StoragePort for SqliteStorage {
         .map_err(|e| StorageError::ReadFailed(e.to_string()))?
     }
 
+    async fn delete_delegation(&self, hash: &str) -> Result<(), StorageError> {
+        let conn = self.conn.clone();
+        let hash = hash.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn
+                .lock()
+                .map_err(|e| StorageError::DeleteFailed(e.to_string()))?;
+            let affected = conn
+                .execute("DELETE FROM delegations WHERE hash = ?1", [&hash])
+                .map_err(|e| StorageError::DeleteFailed(e.to_string()))?;
+            if affected == 0 {
+                return Err(StorageError::NotFound(hash));
+            }
+            Ok(())
+        })
+        .await
+        .map_err(|e| StorageError::DeleteFailed(e.to_string()))?
+    }
+
     async fn save_execution(&self, record: &ExecutionRecord) -> Result<(), StorageError> {
         let conn = self.conn.clone();
         let record = record.clone();
@@ -1030,6 +1049,21 @@ mod tests {
         assert_eq!(found.signature, "0xsig");
         assert_eq!(found.user_address.as_deref(), Some("0xUser"));
         assert!(storage.get_delegation("missing").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn delete_delegation_removes_record() {
+        let storage = SqliteStorage::in_memory().unwrap();
+        storage
+            .save_delegation(&sample_delegation("h1"))
+            .await
+            .unwrap();
+
+        storage.delete_delegation("h1").await.unwrap();
+        assert!(storage.get_delegation("h1").await.unwrap().is_none());
+
+        let err = storage.delete_delegation("h1").await.unwrap_err();
+        assert!(matches!(err, StorageError::NotFound(_)));
     }
 
     #[tokio::test]

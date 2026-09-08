@@ -37,19 +37,20 @@ services:
       OTTER_CHAIN_ID: "31337"
       # Execution on the local vault: lets the orchestrator run the full
       # intent pipeline (proof → submit → confirm) against anvil.
-      OTTER_VAULT_ADDRESS: "${OTTER_VAULT_ADDRESS:-0x0165878A594ca255338adfa4d48449f69242Eb8F}"
+      OTTER_VAULT_ADDRESS: "${OTTER_VAULT_ADDRESS:-0xa513E6E4b8f2a923D98304ec87F64353C4D5C853}"
       OTTER_EXECUTION_ENABLED: "${OTTER_EXECUTION_ENABLED:-true}"
       # Required by config validation when execution is enabled; anvil serves
       # the Sepolia address set for oracle lookups.
       OTTER_NETWORK: "${OTTER_NETWORK:-sepolia}"
       OTTER_DATABASE_URL: "/data/otter.db"
-      # Demo defaults below match the deterministic anvil deploy order
-      # (account #0, fresh chain): TestToken(nonce 0) -> OtterBridge(1) ->
-      # BridgeToken(2) -> DelegationVerifier(3) -> DelegationVault(4) ->
-      # SolvencyVerifier(5) -> SolvencyRegistry(6). Redeploy in that order
-      # after an anvil reset, or override the env vars at launch.
-      OTTER_NETWORKS: "${OTTER_NETWORKS:-default=http://anvil:8545|0x0165878A594ca255338adfa4d48449f69242Eb8F|31337|0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512}"
-      OTTER_SOLVENCY_REGISTRY: "${OTTER_SOLVENCY_REGISTRY:-0x610178dA211FEF7D417bC0e6FeD39F05609AD788}"
+      # Demo defaults below match contracts/script/DeployLocalStack.s.sol run
+      # on a FRESH anvil (account #0, one broadcast): ZK libs(0-2) ->
+      # TestToken(3) -> OtterBridge(4) -> BridgeToken(5) ->
+      # DelegationVerifier(6) -> DelegationVault(7) -> SolvencyVerifier(8) ->
+      # SolvencyRegistry(9). After an anvil reset: stop the api, restart
+      # anvil, re-run the script, restart the api.
+      OTTER_NETWORKS: "${OTTER_NETWORKS:-default=http://anvil:8545|0xa513E6E4b8f2a923D98304ec87F64353C4D5C853|31337|0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9}"
+      OTTER_SOLVENCY_REGISTRY: "${OTTER_SOLVENCY_REGISTRY:-0x8A791620dd6260079BF849Dc5567aDC3F2FdC318}"
       OTTER_PRIVATE_KEY: "${OTTER_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
       OTTER_CIRCUIT_DIR: "/app/delegation_circuit"
       OTTER_NARGO_BIN: "/usr/local/bin/nargo"

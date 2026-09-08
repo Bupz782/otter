@@ -9,7 +9,7 @@ use axum::{
     http::{Request, StatusCode, header},
     middleware::{Next, from_fn, from_fn_with_state},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{delete, get, post},
 };
 use domain::models::condition::Metric;
 use domain::models::delegation::DelegationMessage;
@@ -519,6 +519,7 @@ fn app(state: Arc<AppState>) -> Router {
             get(list_delegations).post(set_delegation),
         )
         .route("/api/v1/delegation/hash", post(delegation_hash))
+        .route("/api/v1/delegation/:hash", delete(revoke_delegation))
         .route("/api/v1/agents/:id/pubkey", get(get_agent_pubkey))
         .route("/api/v1/strategies", post(create_strategy))
         .route("/api/v1/strategies/:id", get(get_strategy))
@@ -2810,6 +2811,62 @@ async fn delete_intent(
         }
         None => Err(AppError::Storage(domain::ports::StorageError::NotFound(id))),
     }
+}
+
+/// Revoke a delegation: removes the stored record and, when the stack is
+/// wired for execution, revokes it on-chain via `DelegationVault.revoke`.
+///
+/// On-chain revocation is best-effort: delegations registered by the agent
+/// key are revoked for real, while user-signed delegations registered from
+/// the user's own wallet keep their on-chain protection (expiry) and can be
+/// revoked from that wallet directly — `NotDelegationOwner` enforces it at
+/// the contract level either way.
+async fn revoke_delegation(
+    AxumState(state): AxumState<Arc<AppState>>,
+    Extension(user): Extension<Option<AuthUser>>,
+    Path(hash): Path<String>,
+) -> Result<StatusCode, AppError> {
+    require_writer(&user)?;
+    let user = user.map(|u| u.address);
+    let record =
+        state.storage.get_delegation(&hash).await?.ok_or_else(|| {
+            AppError::Storage(domain::ports::StorageError::NotFound(hash.clone()))
+        })?;
+    if !matches_user(&record.user_address, &user) {
+        return Err(AppError::Forbidden(
+            "not allowed to revoke this delegation".to_string(),
+        ));
+    }
+
+    if state.execution_enabled
+        && let Ok(adapter) = state.multichain.adapter_for("default")
+    {
+        let raw = hash.trim_start_matches("0x");
+        match hex::decode(raw)
+            .ok()
+            .and_then(|b| <[u8; 32]>::try_from(b).ok())
+        {
+            Some(bytes) => {
+                // AlloyEvmAdapter::revoke_delegation is blocking (it spins its
+                // own tokio runtime): it must not run on an axum worker thread.
+                let outcome = tokio::task::spawn_blocking(move || adapter.revoke_delegation(bytes))
+                    .await
+                    .map_err(|e| AppError::Internal(format!("revoke task failed: {e}")))?;
+                if let Err(e) = outcome {
+                    tracing::warn!(delegation_hash = %hash, error = %e, "on-chain revoke failed; record removed anyway");
+                } else {
+                    tracing::info!(delegation_hash = %hash, "delegation revoked on-chain");
+                }
+            }
+            None => {
+                tracing::warn!(delegation_hash = %hash, "delegation hash is not 32 bytes; skipping on-chain revoke");
+            }
+        }
+    }
+
+    state.storage.delete_delegation(&hash).await?;
+    tracing::info!(delegation_hash = %hash, "delegation revoked");
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn orchestrator_state(

@@ -313,6 +313,19 @@ impl StoragePort for PgStorage {
         }
     }
 
+    async fn delete_delegation(&self, hash: &str) -> Result<(), StorageError> {
+        let result = sqlx::query("DELETE FROM delegations WHERE hash = $1")
+            .bind(hash)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| StorageError::DeleteFailed(e.to_string()))?;
+
+        if result.rows_affected() == 0 {
+            return Err(StorageError::NotFound(hash.to_string()));
+        }
+        Ok(())
+    }
+
     async fn save_execution(&self, record: &ExecutionRecord) -> Result<(), StorageError> {
         sqlx::query(
             "INSERT INTO executions (id, intent_id, tx_hash, status, gas_used, created_at)

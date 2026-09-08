@@ -262,4 +262,42 @@ contract DelegationVaultTest is Test {
         assertEq(vault.tokenBalances(alice, address(token)), 3_000e6);
         assertEq(token.balanceOf(alice), 7_000e6);
     }
+
+    function test_revoke_deactivates_delegation() public {
+        vm.prank(alice);
+        vault.delegate(delegationHash, allowedIntents, maxAmounts, allowedProtocols, expiry, nonce);
+        (, , , , bool active) = vault.delegations(delegationHash);
+        assertTrue(active);
+
+        vm.prank(alice);
+        vault.revoke(delegationHash);
+
+        (, , , , active) = vault.delegations(delegationHash);
+        assertFalse(active);
+    }
+
+    function test_revoke_reverts_for_non_owner() public {
+        vm.prank(alice);
+        vault.delegate(delegationHash, allowedIntents, maxAmounts, allowedProtocols, expiry, nonce);
+
+        vm.prank(address(0xdead));
+        vm.expectRevert(DelegationVault.NotDelegationOwner.selector);
+        vault.revoke(delegationHash);
+    }
+
+    function test_revoke_reverts_when_unknown() public {
+        vm.expectRevert(DelegationVault.DelegationNotFound.selector);
+        vault.revoke(keccak256("missing"));
+    }
+
+    function test_revoke_reverts_when_already_revoked() public {
+        vm.prank(alice);
+        vault.delegate(delegationHash, allowedIntents, maxAmounts, allowedProtocols, expiry, nonce);
+        vm.prank(alice);
+        vault.revoke(delegationHash);
+
+        vm.prank(alice);
+        vm.expectRevert(DelegationVault.DelegationNotFound.selector);
+        vault.revoke(delegationHash);
+    }
 }

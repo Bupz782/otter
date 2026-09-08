@@ -143,6 +143,10 @@ pub trait StoragePort: Send + Sync {
     /// Return a single delegation by hash, if it exists.
     async fn get_delegation(&self, hash: &str) -> Result<Option<DelegationRecord>, StorageError>;
 
+    /// Delete a delegation record (revocation). Errors with NotFound when the
+    /// hash is unknown.
+    async fn delete_delegation(&self, hash: &str) -> Result<(), StorageError>;
+
     /// Persist an execution / transaction record.
     async fn save_execution(&self, record: &ExecutionRecord) -> Result<(), StorageError>;
 

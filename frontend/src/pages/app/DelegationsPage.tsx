@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, FileSignature } from "lucide-react";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -13,6 +14,7 @@ import { EmptyState } from "@/components/app/EmptyState";
 import { ErrorState } from "@/components/app/ErrorState";
 import { useDelegations } from "@/hooks/useDelegations";
 import { useIntents } from "@/hooks/useIntents";
+import { api } from "@/lib/api";
 import { getStatusPresentation, type StatusPresentation } from "@/lib/status";
 import { truncateHash, cn } from "@/lib/utils";
 import type { Delegation } from "@/types/app";
@@ -44,7 +46,7 @@ function FadeIn({
 /**
  * Delegation records only carry a status on demo fixtures; real backend
  * records are just hash + createdAt, and a returned delegation is active by
- * definition (no revoke endpoint exists), so it shows a muted "Active".
+ * definition (revoked ones are removed server-side), so it shows "Active".
  */
 function delegationStatus(delegation: Delegation): StatusPresentation {
   switch (delegation.status) {
@@ -57,6 +59,47 @@ function delegationStatus(delegation: Delegation): StatusPresentation {
     default:
       return { ...getStatusPresentation("revoked"), label: "Active" };
   }
+}
+
+/** Two-step revoke: first click arms the confirmation, second revokes. */
+function RevokeButton({ hash, onRevoked }: { hash: string; onRevoked: () => void }) {
+  const [armed, setArmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (error) {
+    return (
+      <span className="shrink-0 text-xs text-destructive" title={error}>
+        Revoke failed
+      </span>
+    );
+  }
+
+  return (
+    <Button
+      variant={armed ? "destructive" : "ghost"}
+      size="sm"
+      disabled={busy}
+      className="shrink-0 rounded-full"
+      onClick={() => {
+        if (!armed) {
+          setArmed(true);
+          return;
+        }
+        setBusy(true);
+        api.delegations
+          .revoke(hash)
+          .then(onRevoked)
+          .catch((err) => {
+            setError(err instanceof Error ? err.message : String(err));
+            setBusy(false);
+          });
+      }}
+      onBlur={() => setArmed(false)}
+    >
+      {busy ? "Revoking…" : armed ? "Confirm revoke" : "Revoke"}
+    </Button>
+  );
 }
 
 export function DelegationsPage() {
@@ -191,9 +234,9 @@ export function DelegationsPage() {
                       <span className={cn("h-1.5 w-1.5 rounded-full", status.dotClass)} />
                       {status.label}
                     </span>
-                    {/* No Revoke button: the backend has no revoke/delete
-                        delegation endpoint (only GET/POST /api/v1/delegation in
-                        crates/interfaces/src/bin/otter_api.rs). Backend follow-up. */}
+                    {!isDemo && status.label === "Active" && (
+                      <RevokeButton hash={delegation.id} onRevoked={refetch} />
+                    )}
                   </DataRow>
                 );
               })}

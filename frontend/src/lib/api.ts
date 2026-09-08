@@ -578,6 +578,10 @@ export const api = {
   },
   delegations: {
     list: () => request<{ delegations: BackendDelegationRecord[] }>("/api/v1/delegation"),
+    revoke: (hash: string) =>
+      request<void>(`/api/v1/delegation/${encodeURIComponent(hash)}`, {
+        method: "DELETE",
+      }),
     hash: (body: {
       pubkey_x: string;
       pubkey_y: string;

@@ -25,6 +25,8 @@ sol! {
 
         function executeWithProof(bytes calldata proof, bytes32[] calldata publicInputs) external;
 
+        function revoke(bytes32 delegationHash) external;
+
         function setProtocolRouter(uint256 protocol, address router) external;
 
         function verifier() external view returns (address);
@@ -200,6 +202,48 @@ impl AlloyEvmAdapter {
             .await
             .map_err(|e| {
                 EvmError::SubmissionFailed(format!("delegate confirmation failed: {}", e))
+            })?;
+
+        Ok(tx_hash.to_string())
+    }
+
+    /// Revoke a delegation on-chain. Must be signed by the delegation owner.
+    pub fn revoke_delegation(&self, delegation_hash: [u8; 32]) -> Result<String, EvmError> {
+        with_retry(
+            || {
+                let rt = tokio::runtime::Runtime::new()
+                    .map_err(|e| EvmError::SubmissionFailed(format!("tokio runtime: {}", e)))?;
+                rt.block_on(self.revoke_delegation_async(delegation_hash))
+            },
+            3,
+            Duration::from_millis(500),
+            Duration::from_secs(5),
+            retry_any,
+        )
+    }
+
+    async fn revoke_delegation_async(&self, delegation_hash: [u8; 32]) -> Result<String, EvmError> {
+        let wallet = EthereumWallet::from(self.signer.clone());
+        let url = self
+            .rpc_url
+            .parse()
+            .map_err(|e| EvmError::SubmissionFailed(format!("invalid rpc url: {}", e)))?;
+        let provider = ProviderBuilder::new()
+            .with_recommended_fillers()
+            .wallet(wallet)
+            .on_http(url);
+
+        let vault = DelegationVault::new(self.vault_address, provider);
+
+        let tx_hash = vault
+            .revoke(FixedBytes::from(delegation_hash))
+            .send()
+            .await
+            .map_err(|e| EvmError::SubmissionFailed(format!("revoke send failed: {}", e)))?
+            .watch()
+            .await
+            .map_err(|e| {
+                EvmError::SubmissionFailed(format!("revoke confirmation failed: {}", e))
             })?;
 
         Ok(tx_hash.to_string())

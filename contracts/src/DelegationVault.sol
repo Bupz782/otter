@@ -62,6 +62,7 @@ contract DelegationVault is Ownable {
     event Delegated(
         bytes32 indexed delegationHash, address indexed owner, uint256 allowedIntents, uint256 expiry, uint256 nonce
     );
+    event Revoked(bytes32 indexed delegationHash, address indexed owner);
     event Deposited(address indexed user, address indexed token, uint256 amount);
     event Withdrawn(address indexed user, address indexed token, uint256 amount);
     event Executed(
@@ -85,6 +86,7 @@ contract DelegationVault is Ownable {
     error InsufficientBalance();
     error NativeTransferFailed();
     error StaleProof();
+    error NotDelegationOwner();
 
     /// @notice Maximum age of the proof timestamp relative to block.timestamp.
     /// The on-chain expiry check uses block.timestamp; this bound prevents
@@ -132,6 +134,20 @@ contract DelegationVault is Ownable {
         });
 
         emit Delegated(delegationHash, msg.sender, allowedIntents, expiry, nonce);
+    }
+
+    /// @notice Revoke a delegation. Only its owner can revoke, and a revoked
+    /// delegation cannot be re-activated — a fresh nonce is required to
+    /// delegate again.
+    /// @param delegationHash Hash of the delegation to deactivate.
+    function revoke(bytes32 delegationHash) external {
+        Delegation storage delegation = delegations[delegationHash];
+        require(delegation.active, DelegationNotFound());
+        require(delegation.owner == msg.sender, NotDelegationOwner());
+
+        delegation.active = false;
+
+        emit Revoked(delegationHash, msg.sender);
     }
 
     /// @notice Deposit native ETH into the vault.
