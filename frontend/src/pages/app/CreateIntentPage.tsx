@@ -617,7 +617,7 @@ export function CreateIntentPage() {
                   </div>
                   <div className="flex items-start gap-2 rounded-lg border border-accent/20 bg-accent-subtle p-3">
                     <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-                    <p className="text-xs text-accent-foreground">
+                    <p className="text-xs text-foreground">
                       Otter proves this intent stays inside your delegation limits before anything
                       executes.
                     </p>

@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -8,30 +7,30 @@ import { MetricsBanner } from "./MetricsBanner";
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 export function HeroSection() {
-  const [reducedMotion, setReducedMotion] = useState(false);
-
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReducedMotion(media.matches);
-    const onChange = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
-    media.addEventListener("change", onChange);
-    return () => media.removeEventListener("change", onChange);
-  }, []);
-
   return (
-    <section className="relative flex min-h-screen flex-col justify-center overflow-hidden px-6 pt-20">
-      <div className="mx-auto grid w-full max-w-6xl items-center gap-12 lg:grid-cols-[1.1fr_1fr]">
+    <section className="relative flex min-h-screen flex-col justify-center overflow-hidden">
+      {/* Painted scene, fully visible, floating on the right (desktop only) */}
+      <div className="pointer-events-none absolute inset-y-0 right-0 z-0 hidden w-[55%] items-center lg:flex">
+        <img
+          src="/landing-hero-bg.webp"
+          alt=""
+          aria-hidden="true"
+          className="max-h-[80vh] w-full object-contain object-right [mask-image:radial-gradient(closest-side,black_55%,transparent_98%)] [-webkit-mask-image:radial-gradient(closest-side,black_55%,transparent_98%)]"
+        />
+      </div>
+
+      <div className="relative z-10 mx-auto w-full max-w-6xl px-6 pt-20">
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: EASE }}
-          className="relative z-10 flex flex-col items-center text-center lg:items-start lg:text-left"
+          className="flex max-w-2xl flex-col items-start text-left"
         >
-          <h1 className="font-heading text-balance text-5xl font-bold leading-[1.05] tracking-tight text-foreground sm:text-6xl md:text-7xl">
+          <h1 className="font-heading text-balance text-5xl font-bold leading-[1.05] tracking-tight text-foreground sm:text-6xl md:text-7xl lg:text-8xl">
             Set the terms. Otter dives.
           </h1>
 
-          <p className="mt-6 max-w-2xl text-balance text-lg text-muted-foreground md:text-xl">
+          <p className="mt-6 max-w-xl text-balance text-lg text-muted-foreground md:text-xl">
             Describe a condition, sign a limited delegation, and Otter executes the moment it's
             met, with zero-knowledge proofs. Your keys never leave your hands.
           </p>
@@ -47,23 +46,6 @@ export function HeroSection() {
               <a href="#demo">Try an intent</a>
             </Button>
           </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 1, delay: 0.15, ease: EASE }}
-          className="relative z-10 mx-auto w-full max-w-md lg:max-w-none"
-        >
-          {/* Faint ember glow echoing the painting's firelight */}
-          <div className="pointer-events-none absolute inset-x-8 bottom-0 top-1/3 rounded-full bg-accent/10 blur-[100px]" />
-          <motion.img
-            src="/otter-hero.webp"
-            alt="Otter mascot in dark plate armor"
-            animate={reducedMotion ? undefined : { y: [0, -10, 0] }}
-            transition={reducedMotion ? undefined : { duration: 7, repeat: Infinity, ease: "easeInOut" }}
-            className="relative w-full [mask-image:radial-gradient(closest-side,black_62%,transparent_99%)] [-webkit-mask-image:radial-gradient(closest-side,black_62%,transparent_99%)]"
-          />
         </motion.div>
       </div>
 

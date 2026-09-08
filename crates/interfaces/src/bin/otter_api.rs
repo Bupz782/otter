@@ -1980,6 +1980,11 @@ async fn record_intent_event(state: &AppState, event: &Event) {
     };
     let mut guard = state.intent_events.lock().await;
     let entries = guard.entry(intent_id.clone()).or_default();
+    // A condition keeps firing every monitoring tick until execution
+    // succeeds; consecutive duplicates carry no information for the timeline.
+    if entries.last().map(|e| e.kind.as_str()) == Some(kind) {
+        return;
+    }
     entries.push(IntentEventItem {
         kind: kind.to_string(),
         detail,

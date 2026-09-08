@@ -1,7 +1,9 @@
+use alloy::providers::{Provider, ProviderBuilder};
 use domain::LendingProtocol;
 use domain::models::condition::Metric;
 use domain::models::intent::Asset;
 use domain::ports::price_oracle_port::{OracleError, PriceOraclePort};
+use std::time::Duration;
 
 use super::chainlink_oracle::{ChainlinkPriceOracle, Network as OracleNetwork};
 use crate::protocols::AaveAdapter;
@@ -12,8 +14,10 @@ use crate::protocols::aave::DUMMY_ON_BEHALF_OF;
 ///
 /// - `Metric::Price` → Chainlink price feeds (USD, 6 decimals).
 /// - `Metric::Yield` → Aave V3 supply APY (integer percent).
+/// - `Metric::GasCost` → `eth_gasPrice` on the same RPC (integer gwei).
 #[derive(Debug, Clone)]
 pub struct CompositeOracle {
+    rpc_url: String,
     price_oracle: ChainlinkPriceOracle,
     yield_oracle: AaveAdapter,
 }
@@ -31,6 +35,7 @@ impl CompositeOracle {
                 .map_err(|e| OracleError::FetchFailed(e.to_string()))?,
         };
         Ok(Self {
+            rpc_url,
             price_oracle,
             yield_oracle,
         })
@@ -61,11 +66,34 @@ impl PriceOraclePort for CompositeOracle {
                     .map_err(|e| OracleError::FetchFailed(e.to_string()))?;
                 Ok(apy.trunc() as u128)
             }
-            Metric::GasCost | Metric::Volume => Err(OracleError::UnsupportedMetric(format!(
+            Metric::GasCost => self.fetch_gas_price(),
+            Metric::Volume => Err(OracleError::UnsupportedMetric(format!(
                 "CompositeOracle does not support {:?}",
                 metric
             ))),
         }
+    }
+}
+
+impl CompositeOracle {
+    /// Current gas price from the node, in integer gwei (matching the unit of
+    /// `gas < 20`-style condition values). Works on any EVM RPC — including
+    /// local anvil — unlike feed-based metrics.
+    fn fetch_gas_price(&self) -> Result<u128, OracleError> {
+        let rt = tokio::runtime::Runtime::new()
+            .map_err(|e| OracleError::FetchFailed(format!("tokio runtime: {e}")))?;
+        rt.block_on(async {
+            let url = self
+                .rpc_url
+                .parse()
+                .map_err(|e| OracleError::FetchFailed(format!("invalid rpc url: {e}")))?;
+            let provider = ProviderBuilder::new().on_http(url);
+            let wei = tokio::time::timeout(Duration::from_secs(10), provider.get_gas_price())
+                .await
+                .map_err(|_| OracleError::FetchFailed("eth_gasPrice timed out".to_string()))?
+                .map_err(|e| OracleError::FetchFailed(format!("eth_gasPrice failed: {e}")))?;
+            Ok(wei / 1_000_000_000)
+        })
     }
 }
 
@@ -76,8 +104,21 @@ mod tests {
     #[test]
     fn rejects_unsupported_metrics() {
         let oracle = CompositeOracle::sepolia("http://localhost:8545").unwrap();
-        assert!(oracle.fetch(&Metric::GasCost, Some(&Asset::Eth)).is_err());
-        assert!(oracle.fetch(&Metric::Volume, Some(&Asset::Eth)).is_err());
+        assert!(matches!(
+            oracle.fetch(&Metric::Volume, Some(&Asset::Eth)),
+            Err(OracleError::UnsupportedMetric(_))
+        ));
+    }
+
+    #[test]
+    fn gas_cost_is_wired_to_the_rpc() {
+        // Dead port: a connection failure proves GasCost goes through
+        // eth_gasPrice instead of being rejected as unsupported.
+        let oracle = CompositeOracle::sepolia("http://localhost:1").unwrap();
+        assert!(matches!(
+            oracle.fetch(&Metric::GasCost, Some(&Asset::Eth)),
+            Err(OracleError::FetchFailed(_))
+        ));
     }
 
     #[test]
