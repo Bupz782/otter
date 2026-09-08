@@ -62,9 +62,26 @@ fn make_delegation(pubkey_x: [u8; 32], pubkey_y: [u8; 32]) -> DelegationMessage 
     }
 }
 
+/// The Noir tests shell out to `nargo`; skip (don't fail) when the binary is
+/// not installed, e.g. CI runners without the Noir toolchain.
+fn nargo_available() -> bool {
+    std::process::Command::new("nargo")
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
 #[test]
 #[serial]
 fn noir_adapter_generates_witness_for_valid_delegation() {
+    if !nargo_available() {
+        eprintln!("skipping: nargo is not installed");
+        return;
+    }
+
     let (signing_key, pubkey_x, pubkey_y) = generate_test_keypair();
     let delegation = make_delegation(pubkey_x, pubkey_y);
     let delegation_hash = hash_delegation(&delegation);
@@ -127,6 +144,11 @@ fn noir_adapter_generates_witness_for_valid_delegation() {
 #[test]
 #[serial]
 fn noir_adapter_rejects_invalid_delegation() {
+    if !nargo_available() {
+        eprintln!("skipping: nargo is not installed");
+        return;
+    }
+
     let (signing_key, pubkey_x, pubkey_y) = generate_test_keypair();
     let delegation = make_delegation(pubkey_x, pubkey_y);
     let delegation_hash = hash_delegation(&delegation);
@@ -167,6 +189,11 @@ fn noir_adapter_rejects_invalid_delegation() {
 #[test]
 #[serial]
 fn noir_adapter_enforces_matching_target_contract() {
+    if !nargo_available() {
+        eprintln!("skipping: nargo is not installed");
+        return;
+    }
+
     let (signing_key, pubkey_x, pubkey_y) = generate_test_keypair();
     let mut delegation = make_delegation(pubkey_x, pubkey_y);
     delegation.target_contract = field_from_u32(0x12345678);
@@ -208,6 +235,11 @@ fn noir_adapter_enforces_matching_target_contract() {
 #[test]
 #[serial]
 fn noir_adapter_rejects_mismatched_target_contract() {
+    if !nargo_available() {
+        eprintln!("skipping: nargo is not installed");
+        return;
+    }
+
     let (signing_key, pubkey_x, pubkey_y) = generate_test_keypair();
     let mut delegation = make_delegation(pubkey_x, pubkey_y);
     delegation.target_contract = field_from_u32(0x12345678);
@@ -250,6 +282,11 @@ type ConstraintMutation = Box<dyn Fn(&mut PublicDelegationInputs, &mut PrivateDe
 #[test]
 #[serial]
 fn noir_adapter_rejects_invalid_constraints() {
+    if !nargo_available() {
+        eprintln!("skipping: nargo is not installed");
+        return;
+    }
+
     let (signing_key, pubkey_x, pubkey_y) = generate_test_keypair();
     let delegation = make_delegation(pubkey_x, pubkey_y);
     let delegation_hash = hash_delegation(&delegation);
