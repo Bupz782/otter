@@ -1109,8 +1109,10 @@ model_path = "model.gguf"
 
     #[test]
     fn prod_profile_rejects_insecure_config() {
-        let mut config = Config::default();
-        config.profile = "prod".to_string();
+        let mut config = Config {
+            profile: "prod".to_string(),
+            ..Default::default()
+        };
 
         // auth disabled
         assert!(config.validate().is_err());
@@ -1139,8 +1141,10 @@ model_path = "model.gguf"
 
     #[test]
     fn unknown_profile_rejected() {
-        let mut config = Config::default();
-        config.profile = "staging".to_string();
+        let config = Config {
+            profile: "staging".to_string(),
+            ..Default::default()
+        };
         assert!(config.validate().is_err());
     }
 
