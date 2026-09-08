@@ -48,7 +48,8 @@ coûts réels que la mainnet L2 à un facteur près).
    `--rpc-url $BASE_SEPOLIA_RPC --broadcast --verify --etherscan-api-key …`
    (sans TestToken si on veut un ERC-20 réel : passer une adresse existante
    en `UNDERLYING_ADDRESS` à `DeployOtterBridge.s.sol`).
-3. API : `OTTER_PROFILE=prod` (une fois la phase 0.3 mergée),
+3. API : `OTTER_PROFILE=prod` (validate() refuse alors auth off, CORS `*` et
+   clé hex en clair en ligne),
    `OTTER_NETWORKS=default=<rpc>|<vault>|84532|<bridge>`,
    `OTTER_AUTH_ENABLED=true`, CORS restreint au domaine du frontend.
 4. Frontend : build statique avec `VITE_API_URL` pointant l'API, déployé sur

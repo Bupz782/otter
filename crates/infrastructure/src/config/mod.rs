@@ -126,6 +126,12 @@ pub struct Config {
     #[serde(default)]
     pub vault_key: Option<String>,
 
+    /// Deployment profile: `dev` (default, permissive local/demo defaults) or
+    /// `prod` (validate() rejects insecure configuration: auth disabled,
+    /// wildcard CORS, inline raw private key).
+    #[serde(default = "default_profile")]
+    pub profile: String,
+
     /// Whether JWT authentication is required on mutating API endpoints.
     #[serde(default = "default_auth_enabled")]
     pub auth_enabled: bool,
@@ -218,6 +224,10 @@ fn default_auth_enabled() -> bool {
     false
 }
 
+fn default_profile() -> String {
+    "dev".to_string()
+}
+
 fn default_jwt_ttl_hours() -> i64 {
     24
 }
@@ -308,6 +318,7 @@ impl Default for Config {
             vault_mount: None,
             vault_path: None,
             vault_key: None,
+            profile: default_profile(),
             auth_enabled: default_auth_enabled(),
             jwt_secret: String::new(),
             jwt_ttl_hours: default_jwt_ttl_hours(),
@@ -539,6 +550,9 @@ impl Config {
         if let Ok(val) = std::env::var("OTTER_VAULT_KEY") {
             self.vault_key = Some(val);
         }
+        if let Ok(val) = std::env::var("OTTER_PROFILE") {
+            self.profile = val;
+        }
         if let Ok(val) = std::env::var("OTTER_AUTH_ENABLED")
             && let Ok(enabled) = val.parse()
         {
@@ -613,6 +627,33 @@ impl Config {
 
     /// Validate configuration when on-chain execution is enabled.
     pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.profile != "dev" && self.profile != "prod" {
+            return Err(ConfigError::ParseFailed(format!(
+                "unknown profile {:?}: expected \"dev\" or \"prod\"",
+                self.profile
+            )));
+        }
+        if self.profile == "prod" {
+            if !self.auth_enabled {
+                return Err(ConfigError::ParseFailed(
+                    "prod profile requires auth_enabled=true".to_string(),
+                ));
+            }
+            if self.cors_allowed_origins.trim() == "*" {
+                return Err(ConfigError::ParseFailed(
+                    "prod profile requires explicit cors_allowed_origins (not \"*\")".to_string(),
+                ));
+            }
+            if let Some(key) = &self.private_key
+                && looks_like_raw_hex_key(key)
+            {
+                return Err(ConfigError::ParseFailed(
+                    "prod profile rejects an inline raw hex private key: use \
+                     private_key_file, keystore_file, or a KMS ciphertext blob"
+                        .to_string(),
+                ));
+            }
+        }
         if self.execution_enabled {
             if self.vault_address.is_none() {
                 return Err(ConfigError::ParseFailed(
@@ -636,6 +677,14 @@ impl Config {
         }
         Ok(())
     }
+}
+
+/// True when the value is a 32-byte hex string (optional 0x prefix) — a raw
+/// private key rather than a KMS ciphertext blob or another provider
+/// encoding.
+fn looks_like_raw_hex_key(value: &str) -> bool {
+    let hex = value.strip_prefix("0x").unwrap_or(value);
+    hex.len() == 64 && hex.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 #[cfg(test)]
@@ -1056,5 +1105,54 @@ model_path = "model.gguf"
     fn validate_passes_when_execution_disabled_without_onchain_fields() {
         let config = Config::default();
         config.validate().unwrap();
+    }
+
+    #[test]
+    fn prod_profile_rejects_insecure_config() {
+        let mut config = Config {
+            profile: "prod".to_string(),
+            ..Default::default()
+        };
+
+        // auth disabled
+        assert!(config.validate().is_err());
+        config.auth_enabled = true;
+
+        // wildcard CORS
+        assert!(config.validate().is_err());
+        config.cors_allowed_origins = "https://app.otter.xyz".to_string();
+
+        // clean prod base config passes
+        assert!(config.validate().is_ok());
+
+        // inline raw hex key rejected
+        config.private_key = Some(format!("0x{}", "ab".repeat(32)));
+        assert!(config.validate().is_err());
+
+        // KMS ciphertext blob (not 64 hex chars) accepted
+        config.private_key = Some("AQIDBAUGBwgJCgsMDQ4PEA==".to_string());
+        assert!(config.validate().is_ok());
+
+        // key via file also accepted
+        config.private_key = None;
+        config.private_key_file = Some("/run/secrets/agent_key".to_string());
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn unknown_profile_rejected() {
+        let config = Config {
+            profile: "staging".to_string(),
+            ..Default::default()
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn dev_profile_keeps_permissive_defaults() {
+        // auth off + CORS * + no key is fine in dev
+        let config = Config::default();
+        assert_eq!(config.profile, "dev");
+        assert!(config.validate().is_ok());
     }
 }
