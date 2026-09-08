@@ -89,10 +89,6 @@ struct AppState {
     bundle_searcher: Option<Arc<dyn BundleSearcherPort>>,
     /// Per-network bridge adapters, keyed by network name.
     bridges: HashMap<String, Arc<dyn BridgePort>>,
-    /// Per-intent lifecycle event log fed by the bus forwarder (ring buffer,
-    /// 100 entries per intent). In-memory by design: the durable record of an
-    /// execution stays the executions table.
-    intent_events: Arc<Mutex<HashMap<String, Vec<IntentEventItem>>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -992,7 +988,6 @@ async fn main() {
         solana: build_solana_adapter(&config),
         bundle_searcher: build_bundle_searcher(&config),
         bridges: build_bridges(&config),
-        intent_events: Arc::new(Mutex::new(HashMap::new())),
     });
 
     // Background monitoring loop: fetch on-chain metrics for active intents.
@@ -1955,7 +1950,9 @@ fn collect_metric_pairs(intents: &[ActiveIntent]) -> HashSet<(Asset, Metric)> {
     pairs
 }
 
-/// Append a lifecycle event to the per-intent ring buffer (100 entries max).
+/// Append a lifecycle event to the intent's persisted timeline. Dedupes
+/// consecutive identical kinds: a condition keeps firing every monitoring
+/// tick until execution succeeds, which carries no information.
 async fn record_intent_event(state: &AppState, event: &Event) {
     let (intent_id, kind, detail) = match event {
         Event::IntentParsed { intent_id, .. } => (intent_id, "parsed", None),
@@ -1977,23 +1974,33 @@ async fn record_intent_event(state: &AppState, event: &Event) {
             "confirmed",
             Some(format!("{receipt} · {gas_used} gas")),
         ),
+        Event::ExecutionFailed { intent_id, reason } => (intent_id, "failed", Some(reason.clone())),
         _ => return,
     };
-    let mut guard = state.intent_events.lock().await;
-    let entries = guard.entry(intent_id.clone()).or_default();
-    // A condition keeps firing every monitoring tick until execution
-    // succeeds; consecutive duplicates carry no information for the timeline.
-    if entries.last().map(|e| e.kind.as_str()) == Some(kind) {
+
+    let last = state
+        .storage
+        .list_intent_events(intent_id, 1)
+        .await
+        .ok()
+        .and_then(|events| events.into_iter().next().map(|e| e.kind));
+    if last.as_deref() == Some(kind) {
         return;
     }
-    entries.push(IntentEventItem {
+
+    let now_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let record = domain::ports::IntentEventRecord {
+        id: format!("{now_ms:013}-{}", uuid::Uuid::new_v4()),
+        intent_id: intent_id.clone(),
         kind: kind.to_string(),
         detail,
         at: now_secs(),
-    });
-    if entries.len() > 100 {
-        let overflow = entries.len() - 100;
-        entries.drain(0..overflow);
+    };
+    if let Err(e) = state.storage.save_intent_event(&record).await {
+        tracing::warn!(intent_id = %intent_id, error = %e, "failed to persist intent event");
     }
 }
 
@@ -2771,12 +2778,16 @@ async fn list_intent_events(
         return Err(AppError::Storage(domain::ports::StorageError::NotFound(id)));
     }
     let events = state
-        .intent_events
-        .lock()
-        .await
-        .get(&record.id)
-        .cloned()
-        .unwrap_or_default();
+        .storage
+        .list_intent_events(&record.id, 100)
+        .await?
+        .into_iter()
+        .map(|e| IntentEventItem {
+            kind: e.kind,
+            detail: e.detail,
+            at: e.at,
+        })
+        .collect();
     Ok(Json(IntentEventsResponse { events }))
 }
 
@@ -3168,7 +3179,6 @@ mod tests {
             solana: None,
             bundle_searcher: None,
             bridges: HashMap::new(),
-            intent_events: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -3227,7 +3237,6 @@ mod tests {
             solana: None,
             bundle_searcher: None,
             bridges: HashMap::new(),
-            intent_events: Arc::new(Mutex::new(HashMap::new())),
         });
 
         let response = metrics(AxumState(disabled_state)).await;
@@ -3447,7 +3456,6 @@ mod tests {
             solana: state.solana.clone(),
             bundle_searcher: state.bundle_searcher.clone(),
             bridges: HashMap::new(),
-            intent_events: Arc::new(Mutex::new(HashMap::new())),
             orchestrator: state.orchestrator.clone(),
             storage: state.storage.clone(),
             bus: state.bus.clone(),

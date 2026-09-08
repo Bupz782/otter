@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use domain::models::intent::ConditionalIntent;
 use domain::ports::storage_port::{
-    BridgeTransferRecord, DelegationRecord, ExecutionRecord, IntentRecord, MevBundleRecord,
-    StorageError, StoragePort, StrategyRecord,
+    BridgeTransferRecord, DelegationRecord, ExecutionRecord, IntentEventRecord, IntentRecord,
+    MevBundleRecord, StorageError, StoragePort, StrategyRecord,
 };
 use rusqlite::{Connection, OptionalExtension};
 
@@ -397,6 +397,70 @@ impl StoragePort for SqliteStorage {
         })
         .await
         .map_err(|e| StorageError::DeleteFailed(e.to_string()))?
+    }
+
+    async fn save_intent_event(&self, event: &IntentEventRecord) -> Result<(), StorageError> {
+        let conn = self.conn.clone();
+        let event = event.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn
+                .lock()
+                .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            conn.execute(
+                "INSERT INTO intent_events (id, intent_id, kind, detail, at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params![
+                    event.id,
+                    event.intent_id,
+                    event.kind,
+                    event.detail,
+                    event.at
+                ],
+            )
+            .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| StorageError::SaveFailed(e.to_string()))?
+    }
+
+    async fn list_intent_events(
+        &self,
+        intent_id: &str,
+        limit: usize,
+    ) -> Result<Vec<IntentEventRecord>, StorageError> {
+        let conn = self.conn.clone();
+        let intent_id = intent_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn
+                .lock()
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+            // Latest N (id sorts chronologically) then re-ordered ascending.
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, intent_id, kind, detail, at FROM (
+                        SELECT id, intent_id, kind, detail, at
+                        FROM intent_events WHERE intent_id = ?1
+                        ORDER BY id DESC LIMIT ?2
+                     ) ORDER BY id ASC",
+                )
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+            let rows = stmt
+                .query_map(rusqlite::params![intent_id, limit as i64], |row| {
+                    Ok(IntentEventRecord {
+                        id: row.get(0)?,
+                        intent_id: row.get(1)?,
+                        kind: row.get(2)?,
+                        detail: row.get(3)?,
+                        at: row.get(4)?,
+                    })
+                })
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))
+        })
+        .await
+        .map_err(|e| StorageError::ReadFailed(e.to_string()))?
     }
 
     async fn save_execution(&self, record: &ExecutionRecord) -> Result<(), StorageError> {
@@ -1064,6 +1128,56 @@ mod tests {
 
         let err = storage.delete_delegation("h1").await.unwrap_err();
         assert!(matches!(err, StorageError::NotFound(_)));
+    }
+
+    #[tokio::test]
+    async fn intent_events_round_trip_ordered_and_limited() {
+        let storage = SqliteStorage::in_memory().unwrap();
+        let mk = |id: &str, kind: &str| IntentEventRecord {
+            id: id.to_string(),
+            intent_id: "i1".to_string(),
+            kind: kind.to_string(),
+            detail: None,
+            at: now_secs(),
+        };
+        storage
+            .save_intent_event(&mk("0000000003000-b", "proof_started"))
+            .await
+            .unwrap();
+        storage
+            .save_intent_event(&mk("0000000001000-a", "parsed"))
+            .await
+            .unwrap();
+        storage
+            .save_intent_event(&mk("0000000002000-c", "condition_met"))
+            .await
+            .unwrap();
+        storage
+            .save_intent_event(&mk("0000000004000-d", "confirmed"))
+            .await
+            .unwrap();
+
+        // chronological order by id, not insertion order
+        let all = storage.list_intent_events("i1", 100).await.unwrap();
+        let kinds: Vec<&str> = all.iter().map(|e| e.kind.as_str()).collect();
+        assert_eq!(
+            kinds,
+            ["parsed", "condition_met", "proof_started", "confirmed"]
+        );
+
+        // limit keeps the LATEST events, still chronological
+        let last_two = storage.list_intent_events("i1", 2).await.unwrap();
+        let kinds: Vec<&str> = last_two.iter().map(|e| e.kind.as_str()).collect();
+        assert_eq!(kinds, ["proof_started", "confirmed"]);
+
+        // other intents are isolated
+        assert!(
+            storage
+                .list_intent_events("other", 100)
+                .await
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[tokio::test]
