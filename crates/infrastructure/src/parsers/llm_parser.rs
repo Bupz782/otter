@@ -34,7 +34,9 @@ Rules:
 - Amounts must be integers in the asset's base units (e.g. USDC has 6 decimals, so 1000 USDC = 1000000000).
 - If there is no condition, set "condition": null.
 - For borrow, include "collateral" and "collateral_amount" fields.
-- For swap, include "from_asset", "to_asset", and "protocol" fields.
+- For swap, include "from_asset", "to_asset", "amount", and "protocol" fields.
+  Example for "swap 250 USDC to ETH":
+  { "intent": { "Swap": { "from_asset": "Usdc", "to_asset": "Eth", "amount": 250000000, "protocol": "Uniswap" } }, "condition": null }
 "#;
 
     /// Create a parser with default configuration. The model is NOT loaded yet;

@@ -62,10 +62,32 @@ pub fn generate_tokens(
     let start = std::time::Instant::now();
     let mut generated_count = 0usize;
 
+    // ChatML models (Qwen…) end an assistant turn with <|im_end|>, which is
+    // not necessarily the GGUF eos token: without this the generation runs
+    // past the answer and appends a new hallucinated turn to the output.
+    let im_end_token = model
+        .str_to_token("<|im_end|>", AddBos::Never)
+        .ok()
+        .and_then(|t| {
+            if t.len() == 1 {
+                t.first().copied()
+            } else {
+                None
+            }
+        });
+
     for _ in 0..max_tokens {
         let token = ResponseParser::sample_greedy(ctx)?;
 
-        if ResponseParser::is_eos(model, token) {
+        if ResponseParser::is_eos(model, token) || Some(token) == im_end_token {
+            break;
+        }
+        // Fallback when the special token did not resolve to a single id:
+        // compare its decoded string form instead.
+        if im_end_token.is_none()
+            && let Ok(piece) = model.token_to_str(token, Special::Tokenize)
+            && piece == "<|im_end|>"
+        {
             break;
         }
 
@@ -94,9 +116,19 @@ pub fn generate_tokens(
     Ok(output)
 }
 
+/// Extract the JSON object from a chatty model output: trims markdown fences
+/// and surrounding prose by keeping the span from the first `{` to the last
+/// `}`. Returns the input trimmed when it contains no braces.
+pub fn extract_json_candidate(output: &str) -> &str {
+    let trimmed = output.trim();
+    match (trimmed.find('{'), trimmed.rfind('}')) {
+        (Some(start), Some(end)) if end >= start => &trimmed[start..=end],
+        _ => trimmed,
+    }
+}
+
 pub fn parse_intent(json_response: &str) -> Result<ConditionalIntent, serde_json::Error> {
-    let result: Result<ConditionalIntent, _> = serde_json::from_str(json_response);
-    result
+    serde_json::from_str(extract_json_candidate(json_response))
 }
 
 pub struct Tokenizer<'a>(pub &'a LlamaModel);
@@ -128,6 +160,46 @@ mod tests {
     #[test]
     fn response_parser_creation() {
         let _parser = ResponseParser;
+    }
+
+    #[test]
+    fn extract_json_candidate_strips_markdown_fence() {
+        let output = "```json\n{\"a\": 1}\n```";
+        assert_eq!(extract_json_candidate(output), "{\"a\": 1}");
+    }
+
+    #[test]
+    fn extract_json_candidate_strips_surrounding_prose() {
+        let output = "Here is the parsed intent:\n{\"a\": 1}\nI hope this helps!";
+        assert_eq!(extract_json_candidate(output), "{\"a\": 1}");
+    }
+
+    #[test]
+    fn extract_json_candidate_keeps_trailing_garbage_out() {
+        let output = "{\"a\": 1}\n<|im_end|>\n<|im_start|>user\nanother turn";
+        assert_eq!(extract_json_candidate(output), "{\"a\": 1}");
+    }
+
+    #[test]
+    fn extract_json_candidate_without_braces_returns_trimmed_input() {
+        assert_eq!(extract_json_candidate("  no json here  "), "no json here");
+        assert_eq!(extract_json_candidate(""), "");
+    }
+
+    #[test]
+    fn parse_intent_accepts_fenced_and_chatty_output() {
+        let output = "```json\n{\n  \"intent\": { \"Lend\": { \"asset\": \"Usdc\", \"amount\": 1000000000, \"protocol\": \"Aave\" } },\n  \"condition\": null\n}\n```";
+
+        let parsed = parse_intent(output).unwrap();
+        assert!(matches!(parsed.intent, Intent::Lend { .. }));
+    }
+
+    #[test]
+    fn parse_intent_accepts_output_with_trailing_turn() {
+        let output = "{\"intent\": { \"Stake\": { \"asset\": \"Eth\", \"amount\": 5, \"protocol\": \"Aave\" } }, \"condition\": null}\n<|im_end|>\n<|im_start|>user\nignore me";
+
+        let parsed = parse_intent(output).unwrap();
+        assert!(matches!(parsed.intent, Intent::Stake { .. }));
     }
 
     #[test]
