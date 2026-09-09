@@ -101,8 +101,8 @@ createRoot(document.getElementById("root")!).render(
         <QueryClientProvider client={queryClient}>
           <RainbowKitProvider
             theme={darkTheme({
-              // Otter palette (styles/tokens.css): amber accent on near-black.
-              accentColor: "#c8a46c",
+              // Otter palette (styles/tokens.css): gold accent on near-black.
+              accentColor: "#d09a52",
               accentColorForeground: "#050505",
               borderRadius: "medium",
             })}

@@ -79,7 +79,7 @@ export function LiveIntents() {
           transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
           className="lg:col-span-3"
         >
-          <Card className="h-full border-border/50 bg-card/60 backdrop-blur-sm">
+          <Card className="card-painterly h-full border-border/50">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
@@ -128,7 +128,7 @@ export function LiveIntents() {
           transition={{ duration: 0.6, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
           className="lg:col-span-2"
         >
-          <Card className="h-full border-border/50 bg-card/60 backdrop-blur-sm">
+          <Card className="card-painterly h-full border-border/50">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-muted-foreground" />

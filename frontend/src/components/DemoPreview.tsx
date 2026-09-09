@@ -61,6 +61,16 @@ export function DemoPreview() {
         </motion.p>
       </div>
 
+      {/* Diving otter: floats beside the intent card, dives into it on submit */}
+      <motion.img
+        src="/otter-dive.webp"
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none absolute left-0 top-[38%] z-0 hidden w-40 xl:block"
+        animate={{ y: [0, -10, 0] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+      />
+
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -70,17 +80,7 @@ export function DemoPreview() {
         <PromptInput onSubmit={handleSubmit} isLoading={isLoading} />
 
         {showReasoning && (
-          <div>
-            <motion.img
-              src="/otter-dive.webp"
-              alt="Otter diving headfirst"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              className="mx-auto w-44 [mask-image:radial-gradient(closest-side,black_60%,transparent_98%)] [-webkit-mask-image:radial-gradient(closest-side,black_60%,transparent_98%)]"
-            />
-            <ReasoningSteps isActive={showReasoning} onComplete={handleReasoningComplete} />
-          </div>
+          <ReasoningSteps isActive={showReasoning} onComplete={handleReasoningComplete} />
         )}
 
         {isLoading && !showReasoning && (

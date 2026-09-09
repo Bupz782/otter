@@ -10,14 +10,14 @@
   --otter-gray-300: #52525b;
   --otter-gray-400: #3f3f46;
 
-  /* Accent: warm muted amber */
-  --otter-amber-100: #f2e2c9;
-  --otter-amber-200: #e6cc9e;
-  --otter-amber-300: #c8a46c;
-  --otter-amber-400: #a6834d;
-  --otter-amber-500: #7f6135;
-  --otter-amber-subtle: rgba(200, 164, 108, 0.12);
-  --otter-amber-ring: rgba(200, 164, 108, 0.35);
+  /* Accent: warm muted gold (sampled from the painterly artwork's firelight) */
+  --otter-amber-100: #f4e3c8;
+  --otter-amber-200: #ecc794;
+  --otter-amber-300: #d09a52;
+  --otter-amber-400: #a97638;
+  --otter-amber-500: #7f5527;
+  --otter-amber-subtle: rgba(208, 154, 82, 0.12);
+  --otter-amber-ring: rgba(208, 154, 82, 0.35);
 
   /* Status */
   --otter-emerald: #34d399;

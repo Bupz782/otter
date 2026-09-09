@@ -103,7 +103,6 @@ export function SolanaPage() {
       {isUnavailable ? (
         <SectionCard>
           <EmptyState
-            icon={<XCircle className="h-6 w-6" />}
             title="Solana adapter not configured"
             description="Set OTTER_SOLANA_ENABLED and related env vars on the backend to use this page."
           />

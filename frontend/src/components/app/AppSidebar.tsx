@@ -167,10 +167,10 @@ export function AppSidebar({ mobile = false }: { mobile?: boolean }) {
       <div className="flex h-14 items-center border-b border-border/50 px-6">
         <NavLink
           to="/app/dashboard"
-          className="flex items-center gap-1 rounded font-heading text-xl font-bold tracking-tight text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+          className="flex items-center gap-2 rounded font-heading text-xl font-bold tracking-tight text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
         >
+          <img src="/favicon.png" alt="" aria-hidden="true" className="h-5 w-5 rounded-md" />
           otter
-          <span className="mt-2 h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" />
         </NavLink>
       </div>
 

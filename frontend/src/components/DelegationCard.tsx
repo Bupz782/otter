@@ -50,7 +50,7 @@ export function DelegationCard() {
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.6, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
         >
-          <div className="overflow-hidden rounded-2xl border border-border/50 bg-card/60 backdrop-blur-sm">
+          <div className="card-painterly overflow-hidden rounded-2xl border border-border/50">
             <div className="flex items-center justify-between border-b border-border/50 px-6 py-4">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <PenTool className="h-4 w-4 text-accent" aria-hidden="true" />

@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
-import { BookOpen, FilePlus, Sparkles } from "lucide-react";
+import { BookOpen, FilePlus, GitFork } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -75,7 +75,6 @@ export function StrategiesPage() {
             </div>
           ) : strategies?.length === 0 ? (
             <EmptyState
-              icon={<BookOpen className="h-6 w-6" />}
               title="No strategies yet"
               description="The protocol will publish new intent templates over time."
             />
@@ -108,7 +107,7 @@ export function StrategiesPage() {
                     className="shrink-0"
                     onClick={() => handleFork(strategy.id)}
                   >
-                    <Sparkles className="mr-2 h-4 w-4" />
+                    <GitFork className="mr-2 h-4 w-4" />
                     Fork strategy
                   </Button>
                 </div>

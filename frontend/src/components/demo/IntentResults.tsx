@@ -21,7 +21,7 @@ export function IntentResults({ intent }: IntentResultsProps) {
         <span>Intent parsed and ready for execution</span>
       </div>
 
-      <Card className="border-border/60 bg-card/80 backdrop-blur-sm">
+      <Card className="card-painterly border-border/60">
         <CardContent className="space-y-6 p-6">
           <div className="flex justify-end">
             <Badge variant="secondary" className="w-fit rounded-full bg-accent-subtle text-accent">

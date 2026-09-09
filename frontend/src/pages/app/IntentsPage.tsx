@@ -114,7 +114,6 @@ export function IntentsPage() {
             <ErrorState subject="intents" onRetry={refetch} />
           ) : intents.length === 0 ? (
             <EmptyState
-              icon={<Lightbulb className="h-6 w-6" />}
               title="No intents to show"
               description="Try another filter, or set a new intent and Otter starts watching."
               action={

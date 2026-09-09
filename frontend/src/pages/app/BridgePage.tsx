@@ -123,7 +123,6 @@ export function BridgePage() {
         <PageHeader title="Bridge" subtitle="Cross-chain EVM lock / mint." />
         <SectionCard>
           <EmptyState
-            icon={<Wallet className="h-6 w-6" />}
             title="Sign in required"
             description="Connect your wallet and sign in to lock tokens and track bridge transfers."
           />
@@ -142,7 +141,6 @@ export function BridgePage() {
       >
         {networks.length === 0 ? (
           <EmptyState
-            icon={<AlertCircle className="h-6 w-6" />}
             title="No networks configured"
             description="The backend reports no EVM networks. Configure OTTER_NETWORKS with a bridge address."
           />
@@ -222,7 +220,6 @@ export function BridgePage() {
           <ErrorState subject="bridge transfers" onRetry={fetchTransfers} />
         ) : !transfers || transfers.length === 0 ? (
           <EmptyState
-            icon={<ArrowRightLeft className="h-6 w-6" />}
             title="No transfers yet"
             description="Lock tokens above to start your first cross-chain transfer."
           />

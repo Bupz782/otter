@@ -277,7 +277,7 @@ export function IntentDetailPage() {
                     src="/otter-dive.webp"
                     alt=""
                     aria-hidden="true"
-                    className="mb-4 w-28 [mask-image:radial-gradient(closest-side,black_60%,transparent_98%)] [-webkit-mask-image:radial-gradient(closest-side,black_60%,transparent_98%)]"
+                    className="mb-4 w-28"
                   />
                   <div className="flex items-start gap-4">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-secondary">

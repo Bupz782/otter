@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { promptSuggestions } from "@/data/intents";
@@ -45,7 +45,7 @@ export function PromptInput({ onSubmit, isLoading }: PromptInputProps) {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="h-1.5 w-1.5 rotate-45 bg-accent" aria-hidden="true" />
         {promptSuggestions.map((suggestion) => (
           <button
             key={suggestion}
