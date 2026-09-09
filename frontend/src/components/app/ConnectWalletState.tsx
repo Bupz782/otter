@@ -29,7 +29,6 @@ export function ConnectWalletState({ className, message }: ConnectWalletStatePro
 
   return (
     <EmptyState
-      icon={<Wallet className="h-6 w-6" />}
       title="Connect wallet to continue"
       description="Your vault, intents, and delegations appear here once you connect and sign in."
       className={className}

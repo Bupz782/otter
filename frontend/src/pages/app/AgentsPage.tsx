@@ -126,7 +126,6 @@ export function AgentsPage() {
           <ErrorState subject="the agent" onRetry={refetch} />
         ) : !agent ? (
           <EmptyState
-            icon={<Bot className="h-6 w-6" />}
             title="Agent unavailable"
             description="The protocol agent is not responding. Check back soon."
           />
@@ -232,7 +231,6 @@ export function AgentsPage() {
             <ErrorState subject="strategies" onRetry={refetchStrategies} />
           ) : strategies.length === 0 ? (
             <EmptyState
-              icon={<BookOpen className="h-6 w-6" />}
               title="No strategies yet"
               description="The protocol will publish new intent templates over time."
             />

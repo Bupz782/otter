@@ -214,7 +214,6 @@ export function DashboardPage() {
               <ErrorState subject="recent activity" onRetry={refetchActivity} />
             ) : activity.length === 0 ? (
               <EmptyState
-                icon={<Activity className="h-6 w-6" />}
                 title="No activity yet"
                 description="Once an intent executes, every move shows up here."
               />
@@ -315,7 +314,6 @@ export function DashboardPage() {
             <ErrorState subject="active intents" onRetry={refetchIntents} />
           ) : activeIntents.length === 0 ? (
             <EmptyState
-              icon={<Lightbulb className="h-6 w-6" />}
               title="Nothing in the water yet."
               description="Set your first intent and Otter starts watching the market."
               action={
@@ -361,7 +359,6 @@ export function DashboardPage() {
             <ErrorState subject="positions" onRetry={refetchPortfolio} />
           ) : !portfolio || portfolio.positions.length === 0 ? (
             <EmptyState
-              icon={<Coins className="h-6 w-6" />}
               title="No open positions"
               description="When an intent puts capital to work, it lands here."
             />

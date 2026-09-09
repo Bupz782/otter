@@ -3,7 +3,7 @@ import { ShieldCheck, AlertCircle } from "lucide-react";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/app/PageHeader";
+import { PageSceneBanner } from "@/components/app/PageSceneBanner";
 import { SectionCard } from "@/components/app/SectionCard";
 import { EmptyState } from "@/components/app/EmptyState";
 import { ErrorState } from "@/components/app/ErrorState";
@@ -43,14 +43,17 @@ export function SolvencyPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <PageHeader title="Solvency" subtitle="On-chain proof-of-solvency status." />
+      <PageSceneBanner
+        src="/solvency-scene.webp"
+        title="Solvency"
+        subtitle="On-chain proof-of-solvency status."
+      />
 
       {loading ? (
         <Skeleton className="h-48 w-full" />
       ) : isUnavailable ? (
         <SectionCard>
           <EmptyState
-            icon={<AlertCircle className="h-6 w-6" />}
             title="Solvency registry not configured"
             description="Set OTTER_SOLVENCY_REGISTRY on the backend to enable live solvency reads."
           />
@@ -85,7 +88,6 @@ export function SolvencyPage() {
       ) : (
         <SectionCard>
           <EmptyState
-            icon={<ShieldCheck className="h-6 w-6" />}
             title="No solvency data"
             description="The registry is configured but has not been proven yet."
           />

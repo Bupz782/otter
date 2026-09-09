@@ -6,7 +6,7 @@ import type { IntentStatus } from "@/types/app";
  * Single source of truth for intent status presentation.
  * Consumed by StatusOrb, IntentStatusBadge, and KineticTimeline.
  *
- * Color mapping (DESIGN.md palette: accent #c8a46c, emerald, rose, amber):
+ * Color mapping (DESIGN.md palette: accent #d09a52, emerald, rose, amber):
  * - confirmed -> emerald (positive terminal state)
  * - monitoring -> amber (waiting, watching; "pending" normalizes here)
  * - submitted -> accent

@@ -14,7 +14,7 @@ export function StatCard({ icon: Icon, label, value, hint, className }: StatCard
   return (
     <div
       className={cn(
-        "rounded-2xl border border-border/50 bg-card/60 p-5 backdrop-blur-sm",
+        "card-painterly-subtle rounded-2xl border border-border/50 p-5",
         className
       )}
     >

@@ -5,7 +5,7 @@ import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { motion, AnimatePresence } from "framer-motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/app/PageHeader";
+import { PageSceneBanner } from "@/components/app/PageSceneBanner";
 import { SectionCard } from "@/components/app/SectionCard";
 import { DataRow } from "@/components/app/DataRow";
 import { EmptyState } from "@/components/app/EmptyState";
@@ -171,7 +171,11 @@ export function ProofsPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <FadeIn>
-        <PageHeader title="Proofs" subtitle="Every execution, proven." />
+        <PageSceneBanner
+          src="/proofs-scene.webp"
+          title="Proofs"
+          subtitle="Every execution, proven."
+        />
       </FadeIn>
 
       {isBackendDemo && (
@@ -225,7 +229,6 @@ export function ProofsPage() {
             <ErrorState subject="proofs" onRetry={refetch} />
           ) : proofs.length === 0 ? (
             <EmptyState
-              icon={<ShieldCheck className="h-6 w-6" />}
               title="No proofs yet"
               description="When an intent executes, its proof lands here."
             />

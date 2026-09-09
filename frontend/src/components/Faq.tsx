@@ -67,7 +67,7 @@ export function Faq() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-80px" }}
         transition={{ duration: 0.6, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-        className="divide-y divide-border/60 rounded-2xl border border-border/50 bg-card/60 backdrop-blur-sm"
+        className="card-painterly divide-y divide-border/60 rounded-2xl border border-border/50"
       >
         {faqs.map((faq, index) => {
           const isOpen = openIndex === index;

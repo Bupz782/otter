@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
-import { ArrowLeft, Loader2, Check, Sparkles } from "lucide-react";
+import { ArrowLeft, Loader2, Check, TextSearch } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -71,7 +71,7 @@ export function CreateStrategyPage() {
             <Label htmlFor="rawText">Intent text</Label>
             <Textarea id="rawText" value={rawText} onChange={(e) => setRawText(e.target.value)} placeholder="e.g. Lend 1000 USDC on Aave if yield > 3%" />
             <Button onClick={handleParse} disabled={!rawText.trim() || parsing} variant="outline" size="sm">
-              {parsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+              {parsing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <TextSearch className="mr-2 h-4 w-4" />}
               Parse intent
             </Button>
             {parsed && <p className="text-sm text-emerald-400">Parsed: {parsed.type} {parsed.amount} {parsed.asset} on {parsed.protocol}</p>}

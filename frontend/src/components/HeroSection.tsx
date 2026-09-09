@@ -9,15 +9,16 @@ const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 export function HeroSection() {
   return (
     <section className="relative flex min-h-screen flex-col justify-center overflow-hidden">
-      {/* Painted scene, fully visible, floating on the right (desktop only) */}
-      <div className="pointer-events-none absolute inset-y-0 right-0 z-0 hidden w-[55%] items-center lg:flex">
-        <img
-          src="/landing-hero-bg.webp"
-          alt=""
-          aria-hidden="true"
-          className="max-h-[80vh] w-full object-contain object-right [mask-image:radial-gradient(closest-side,black_55%,transparent_98%)] [-webkit-mask-image:radial-gradient(closest-side,black_55%,transparent_98%)]"
-        />
-      </div>
+      {/* Full-bleed painted scene: otter on the right third, dark void on the left */}
+      <img
+        src="/landing-hero-bg.webp"
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 z-0 h-full w-full object-cover object-right"
+      />
+      {/* Readability scrim for the text zone + blend into the page below */}
+      <div className="absolute inset-0 z-0 bg-gradient-to-r from-background/85 via-background/40 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 z-0 h-40 bg-gradient-to-t from-background to-transparent" />
 
       <div className="relative z-10 mx-auto w-full max-w-6xl px-6 pt-20">
         <motion.div

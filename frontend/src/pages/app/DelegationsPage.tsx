@@ -160,7 +160,6 @@ export function DelegationsPage() {
             <ErrorState subject="delegations" onRetry={refetch} />
           ) : delegations.length === 0 ? (
             <EmptyState
-              icon={<FileSignature className="h-6 w-6" />}
               title="No delegations yet"
               description="Sign a delegation and an Otter agent starts working inside your limits."
               action={

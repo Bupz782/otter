@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
-import { Sparkles, Check, Loader2, ArrowRight, ShieldCheck, Bot } from "lucide-react";
+import { Check, Loader2, ArrowRight, ShieldCheck, Bot } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -281,7 +281,7 @@ export function CreateIntentPage() {
                           }}
                           className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-secondary/50 px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-accent/40 hover:text-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
                         >
-                          <Sparkles className="h-3 w-3 text-accent" />
+                          <span className="h-1.5 w-1.5 rotate-45 bg-accent" aria-hidden="true" />
                           {example}
                         </button>
                       ))}
@@ -429,7 +429,6 @@ export function CreateIntentPage() {
                     <ErrorState subject="delegations" onRetry={refetchDelegations} />
                   ) : delegations?.length === 0 ? (
                     <EmptyState
-                      icon={<Bot className="h-6 w-6" />}
                       title="No active delegations"
                       description="Intents need a delegation to run under. Set one up first."
                       action={
@@ -572,6 +571,19 @@ export function CreateIntentPage() {
               exit={{ opacity: 0, x: -20 }}
             >
               <SectionCard title="Confirm intent" subtitle="One last look before it goes live.">
+                {created && (
+                  <div className="mb-6 flex flex-col items-center text-center">
+                    <img
+                      src="/otter-success.webp"
+                      alt="Armored otter raising a glowing amber gem in victory"
+                      className="w-44"
+                    />
+                    <p className="mt-3 font-medium text-foreground">Your intent is live.</p>
+                    <p className="text-sm text-muted-foreground">
+                      Otter is watching the condition now.
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-4">
                   <div className="rounded-xl border border-border/60 bg-secondary p-4">
                     <p className="text-xs text-muted-foreground">Intent</p>

@@ -55,12 +55,18 @@ export function Waitlist() {
         viewport={{ once: true, margin: "-100px" }}
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       >
-        <Card className="overflow-hidden border-border/50 bg-card/60 backdrop-blur-sm">
-          <CardContent className="relative p-8 md:p-12">
+        <Card className="card-painterly overflow-hidden border-border/50">
+          <CardContent className="relative p-0">
             <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-accent/10 blur-3xl" />
             <div className="pointer-events-none absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-accent/5 blur-3xl" />
 
-            <div className="relative mx-auto max-w-2xl text-center">
+            <div className="relative grid md:grid-cols-[2fr_3fr]">
+              <img
+                src="/otter-waitlist.webp"
+                alt="Armored otter waiting patiently at a small table"
+                className="h-56 w-full object-cover [mask-image:linear-gradient(to_top,transparent,black_45%)] md:h-full md:[mask-image:linear-gradient(to_right,black_55%,transparent_100%)]"
+              />
+              <div className="p-8 text-center md:p-12 md:text-left">
               <h2 className="font-heading text-3xl font-bold tracking-tight text-foreground sm:text-4xl md:text-5xl">
                 Dive in early.
               </h2>
@@ -157,6 +163,7 @@ export function Waitlist() {
               <p className="mt-4 text-xs text-muted-foreground">
                 No spam. No token. Just intents.
               </p>
+              </div>
             </div>
           </CardContent>
         </Card>

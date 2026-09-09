@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ShieldCheck, Lock, Clock, Award, Wallet, ListChecks, Network } from "lucide-react";
+import { ShieldCheck, Wallet, ListChecks, Network } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 const facts = [
@@ -23,13 +23,6 @@ const facts = [
     title: "ZK-verified execution",
     description: "Noir circuits prove every action respects your delegation limits.",
   },
-];
-
-const badges = [
-  { icon: ShieldCheck, label: "Auditable circuits" },
-  { icon: Lock, label: "Non-custodial" },
-  { icon: Clock, label: "24/7 monitoring" },
-  { icon: Award, label: "On-chain verifier" },
 ];
 
 export function TrustSection() {
@@ -80,26 +73,6 @@ export function TrustSection() {
                 </p>
               </CardContent>
             </Card>
-          </motion.div>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        {badges.map((badge, index) => (
-          <motion.div
-            key={badge.label}
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{
-              duration: 0.4,
-              delay: index * 0.08,
-              ease: [0.22, 1, 0.36, 1],
-            }}
-            className="flex items-center gap-2 rounded-full border border-border/60 bg-secondary/50 px-4 py-2 text-sm text-muted-foreground"
-          >
-            <badge.icon className="h-4 w-4 text-accent" aria-hidden="true" />
-            {badge.label}
           </motion.div>
         ))}
       </div>

@@ -13,7 +13,7 @@ export function SectionCard({ title, subtitle, action, children, className }: Se
   return (
     <section
       className={cn(
-        "rounded-2xl border border-border/50 bg-card/60 p-6 backdrop-blur-sm",
+        "card-painterly-subtle rounded-2xl border border-border/50 p-6",
         className
       )}
     >

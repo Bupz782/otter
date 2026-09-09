@@ -65,7 +65,6 @@ export function MevPage() {
         <PageHeader title="MEV" subtitle="Bundle submissions and rebate share." />
         <SectionCard>
           <EmptyState
-            icon={<Zap className="h-6 w-6" />}
             title="Sign in required"
             description="Connect your wallet to view bundle submissions and the rebate share."
           />
@@ -106,7 +105,6 @@ export function MevPage() {
           <ErrorState subject="bundle history" onRetry={fetchBundles} />
         ) : !bundles || bundles.length === 0 ? (
           <EmptyState
-            icon={<Package className="h-6 w-6" />}
             title="No bundles yet"
             description="Bundles appear here once the backrun monitor detects a target transaction or a bundle is submitted manually."
           />

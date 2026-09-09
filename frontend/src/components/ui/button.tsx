@@ -8,7 +8,8 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-accent text-accent-foreground shadow-sm hover:bg-accent-dark hover:shadow-md",
+        default:
+          "bg-[url('/btn-texture.webp')] bg-cover bg-center text-accent-foreground shadow-sm transition-[filter,box-shadow] hover:brightness-105 hover:shadow-md",
         destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
         outline:
           "border border-accent/40 bg-transparent text-accent hover:bg-accent-subtle hover:border-accent/60",

@@ -97,6 +97,13 @@
       url("/card-texture.webp") center / cover;
   }
 
+  /* App variant: heavier veil, data readability first. */
+  .card-painterly-subtle {
+    background:
+      linear-gradient(rgba(10, 10, 10, 0.92), rgba(10, 10, 10, 0.92)),
+      url("/card-texture.webp") center / cover;
+  }
+
   @keyframes spotlight-rotate {
     from {
       transform: rotate(0deg);

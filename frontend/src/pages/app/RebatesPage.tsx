@@ -48,7 +48,6 @@ export function RebatesPage() {
       ) : isUnavailable ? (
         <SectionCard>
           <EmptyState
-            icon={<Wallet className="h-6 w-6" />}
             title="Rebates unavailable"
             description="MEV capture is not enabled on this backend."
           />
