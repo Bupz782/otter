@@ -114,7 +114,12 @@ impl LocalLlmClient {
         // Generate response
         let output = generate_tokens(&loaded.model, &mut ctx, &mut batch, &mut n_cur, max_tokens)?;
 
-        let output_intent = parse_intent(&output)?;
+        let output_intent = parse_intent(&output).map_err(|e| {
+            let snippet: String = output.chars().take(300).collect();
+            LlmError::Generation(format!(
+                "JSON parsing failed: {e}; raw output starts with: {snippet:?}"
+            ))
+        })?;
 
         if let Some(key) = cache_key {
             self.cache.insert(key, output_intent.clone());
