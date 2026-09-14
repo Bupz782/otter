@@ -93,6 +93,22 @@ pub struct MevBundleRecord {
     pub created_at: i64,
 }
 
+/// A persisted Otter-operated execution agent (seeded from the configured
+/// signer key; stats are computed from executions, not stored).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRecord {
+    pub id: String,
+    pub name: String,
+    pub operator: String,
+    pub pubkey_x: Option<String>,
+    pub pubkey_y: Option<String>,
+    /// Bond locked on-chain, in wei (decimal string — exceeds i64).
+    pub bond_wei: String,
+    /// `active`, `paused`, `deregistered`.
+    pub status: String,
+    pub created_at: i64,
+}
+
 /// A persisted strategy template record.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StrategyRecord {
@@ -170,6 +186,15 @@ pub trait StoragePort: Send + Sync {
         intent_id: &str,
         limit: usize,
     ) -> Result<Vec<IntentEventRecord>, StorageError>;
+
+    /// Persist an Otter-operated agent (insert or update).
+    async fn save_agent(&self, record: &AgentRecord) -> Result<(), StorageError>;
+
+    /// Return all persisted agents, oldest first.
+    async fn list_agents(&self) -> Result<Vec<AgentRecord>, StorageError>;
+
+    /// Return a single agent by id, if it exists.
+    async fn get_agent(&self, id: &str) -> Result<Option<AgentRecord>, StorageError>;
 
     /// Persist an execution / transaction record.
     async fn save_execution(&self, record: &ExecutionRecord) -> Result<(), StorageError>;
