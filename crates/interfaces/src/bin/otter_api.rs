@@ -7,7 +7,7 @@ use axum::{
     extract::ws::{Message, WebSocket},
     extract::{ConnectInfo, Path, Query, State as AxumState, WebSocketUpgrade},
     http::{Request, StatusCode, header},
-    middleware::{Next, from_fn, from_fn_with_state},
+    middleware::{Next, from_fn_with_state},
     response::{IntoResponse, Response},
     routing::{delete, get, post},
 };
@@ -17,7 +17,7 @@ use domain::models::execution_plan::ExecutionPlan;
 use domain::models::intent::{Asset, ConditionalIntent};
 use domain::ports::intent_parser_port::IntentParserPort;
 use domain::ports::price_oracle_port::PriceOraclePort;
-use domain::ports::storage_port::StrategyRecord;
+use domain::ports::storage_port::{AgentRecord, StrategyRecord};
 use domain::ports::wallet_port::WalletPort;
 use domain::ports::{
     BlockchainPort, BridgePort, BundleSearcherPort, DelegationRecord, ExecutionRecord,
@@ -68,7 +68,6 @@ struct AppState {
     request_counts: Arc<Mutex<HashMap<String, Vec<Instant>>>>,
     cors_allowed_origins: String,
     event_tx: tokio::sync::broadcast::Sender<Event>,
-    agents: Vec<AgentSummary>,
     agent_pubkey: Option<AgentPubkey>,
     /// Multi-network EVM adapter registry (empty when no key is configured).
     multichain: Arc<MultiChainAdapter>,
@@ -323,22 +322,15 @@ struct AgentSummary {
     id: String,
     name: String,
     operated_by: String,
-    /// Always true while the agent comes from `default_agents()` (anomaly A2);
-    /// remove once the agent is served from persisted/on-chain data.
-    demo: bool,
     bond: u64,
+    /// Confirmed executions — computed from the executions table, never seeded.
     proofs_submitted: u64,
-    yield_generated: u64,
-    mev_captured: u64,
-    uptime: f64,
     description: String,
 }
 
 #[derive(Debug, Serialize)]
 struct AgentsResponse {
     agents: Vec<AgentSummary>,
-    /// True while the payload embeds demonstration data (anomaly A2).
-    demo: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -363,6 +355,9 @@ struct StrategySummary {
     fork_count: u64,
     total_volume: u64,
     apy: f64,
+    /// Always `protocol_template`: strategies are protocol-published intent
+    /// templates, executed inside each user's own signed delegation.
+    source: String,
     created_at: i64,
     updated_at: i64,
 }
@@ -370,8 +365,6 @@ struct StrategySummary {
 #[derive(Debug, Serialize)]
 struct StrategiesResponse {
     strategies: Vec<StrategySummary>,
-    /// True while the payload embeds demonstration data (anomaly A2).
-    demo: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -411,8 +404,6 @@ struct ProofSummary {
 #[derive(Debug, Serialize)]
 struct ProofsResponse {
     proofs: Vec<ProofSummary>,
-    /// True while the payload embeds demonstration data (anomaly A2).
-    demo: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -491,18 +482,11 @@ fn app(state: Arc<AppState>) -> Router {
         .route("/health/live", get(health_live))
         .route("/ready", get(ready))
         .route("/metrics", get(metrics))
-        .route("/api/v1/networks", get(list_networks));
-
-    // Endpoints serving built-in demonstration data (hardcoded agents,
-    // seeded strategies, synthetic solvency proof) are grouped so the
-    // X-Demo-Data header is applied consistently. Remove the marker once
-    // they serve persisted/on-chain data (anomaly A2, mandatory pre-mainnet).
-    let demo = Router::new()
+        .route("/api/v1/networks", get(list_networks))
         .route("/api/v1/agents", get(list_agents))
         .route("/api/v1/agents/:id", get(get_agent))
         .route("/api/v1/strategies", get(list_strategies))
-        .route("/api/v1/proofs", get(list_proofs))
-        .route_layer(from_fn(demo_data_header));
+        .route("/api/v1/proofs", get(list_proofs));
 
     let protected = Router::new()
         .route("/api/v1/intents/parse", post(parse_intent))
@@ -542,7 +526,6 @@ fn app(state: Arc<AppState>) -> Router {
         .route("/api/v1/bridge/mint", post(bridge_mint))
         .route("/api/v1/bridge/transfers", get(bridge_transfers))
         .route("/api/v1/orchestrator/state", get(orchestrator_state))
-        .merge(demo)
         .route_layer(from_fn_with_state(state.clone(), auth_middleware));
 
     public
@@ -570,18 +553,6 @@ fn build_cors(origins: &str) -> CorsLayer {
             .allow_methods(Any)
             .allow_headers(Any)
     }
-}
-
-/// Stamps `X-Demo-Data: true` on responses so clients can tell the payload
-/// embeds built-in demonstration data (anomaly A2). Applied only to the demo
-/// route group; remove together with the hardcoded data pre-mainnet.
-async fn demo_data_header(request: Request<Body>, next: Next) -> Response {
-    let mut response = next.run(request).await;
-    response.headers_mut().insert(
-        header::HeaderName::from_static("x-demo-data"),
-        header::HeaderValue::from_static("true"),
-    );
-    response
 }
 
 async fn auth_middleware(
@@ -806,27 +777,34 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
     }
 }
 
-fn default_agents() -> Vec<AgentSummary> {
-    // Otter operates the agents: users delegate to an Otter agent, they never
-    // create one. This deployment runs one execution agent (the signer key
-    // the API is configured with); the Vec shape keeps several Otter-operated
-    // agents possible.
-    vec![AgentSummary {
-        id: "otter-agent".to_string(),
-        name: "Otter Agent".to_string(),
-        operated_by: "Otter".to_string(),
-        demo: true,
-        bond: 0,
-        proofs_submitted: 30_366,
-        yield_generated: 9_440_000,
-        mev_captured: 89_200,
-        uptime: 99.9,
-        description: "The execution agent operated by Otter on this deployment. It executes user intents inside the limits of their signed delegation, and every execution carries a ZK proof verified on-chain before funds move.".to_string(),
-    }]
+/// Seed the single Otter-operated agent from the configured signer key when
+/// the agents table is empty (anomaly A2: agents are persisted, not embedded).
+async fn seed_default_agent(
+    storage: &Arc<dyn StoragePort>,
+    config: &Config,
+) -> Result<(), AppError> {
+    let pubkey = load_private_key(config)
+        .ok()
+        .and_then(|(key, _)| load_agent_pubkey(&key));
+    storage
+        .save_agent(&AgentRecord {
+            id: "otter-agent".to_string(),
+            name: config.agent_name.clone(),
+            operator: "Otter".to_string(),
+            pubkey_x: pubkey.as_ref().map(|p| p.x.clone()),
+            pubkey_y: pubkey.as_ref().map(|p| p.y.clone()),
+            bond_wei: "0".to_string(),
+            status: "active".to_string(),
+            created_at: now_secs(),
+        })
+        .await?;
+    Ok(())
 }
 
 fn default_strategies() -> Vec<StrategySummary> {
     // Protocol-published intent templates, executed by the single Otter agent.
+    // Social metrics start at zero: they are measured, never seeded.
+    let now = now_secs();
     vec![
         StrategySummary {
             id: "strategy-1".to_string(),
@@ -836,13 +814,14 @@ fn default_strategies() -> Vec<StrategySummary> {
             description: "Otter official strategy. Lend USDC on Aave Ethereum whenever supply APY exceeds 3%.".to_string(),
             raw_text: "Lend 1000 USDC on Aave if yield > 3%".to_string(),
             risk_profile: "Conservative".to_string(),
-            copies: 1_240,
+            copies: 0,
             visibility: "public".to_string(),
-            fork_count: 1_240,
-            total_volume: 5_400_000,
-            apy: 4.1,
-            created_at: 1_720_000_000,
-            updated_at: 1_720_000_000,
+            fork_count: 0,
+            total_volume: 0,
+            apy: 0.0,
+            source: "protocol_template".to_string(),
+            created_at: now,
+            updated_at: now,
         },
         StrategySummary {
             id: "strategy-2".to_string(),
@@ -852,13 +831,14 @@ fn default_strategies() -> Vec<StrategySummary> {
             description: "Otter official strategy. Swap USDC to ETH on Uniswap only when base fee is below 20 gwei.".to_string(),
             raw_text: "Swap 1000 USDC for ETH on Uniswap if gas < 20".to_string(),
             risk_profile: "Balanced".to_string(),
-            copies: 856,
+            copies: 0,
             visibility: "public".to_string(),
-            fork_count: 856,
-            total_volume: 2_100_000,
+            fork_count: 0,
+            total_volume: 0,
             apy: 0.0,
-            created_at: 1_720_500_000,
-            updated_at: 1_720_500_000,
+            source: "protocol_template".to_string(),
+            created_at: now,
+            updated_at: now,
         },
         StrategySummary {
             id: "strategy-3".to_string(),
@@ -868,13 +848,14 @@ fn default_strategies() -> Vec<StrategySummary> {
             description: "Otter official strategy. Lend USDC on Compound whenever the supply APY exceeds 5%.".to_string(),
             raw_text: "Lend 1000 USDC on Compound if yield > 5%".to_string(),
             risk_profile: "Advanced".to_string(),
-            copies: 643,
+            copies: 0,
             visibility: "public".to_string(),
-            fork_count: 643,
-            total_volume: 1_800_000,
-            apy: 5.2,
-            created_at: 1_720_900_000,
-            updated_at: 1_720_900_000,
+            fork_count: 0,
+            total_volume: 0,
+            apy: 0.0,
+            source: "protocol_template".to_string(),
+            created_at: now,
+            updated_at: now,
         },
     ]
 }
@@ -943,6 +924,18 @@ async fn main() {
         tracing::warn!("failed to check strategies table for seeding");
     }
 
+    // Seed the Otter-operated agent from the configured signer key when the
+    // table is empty (anomaly A2: agents come from persistence, not code).
+    match storage.list_agents().await {
+        Ok(records) if records.is_empty() => {
+            if let Err(err) = seed_default_agent(&storage, &config).await {
+                tracing::warn!(?err, "failed to seed the default agent");
+            }
+        }
+        Ok(_) => {}
+        Err(err) => tracing::warn!(?err, "failed to check agents table for seeding"),
+    }
+
     let metrics = Arc::new(Metrics::default());
     let (event_tx, _) = tokio::sync::broadcast::channel::<Event>(256);
     let auth_service = if config.auth_enabled {
@@ -976,7 +969,6 @@ async fn main() {
         request_counts: Arc::new(Mutex::new(HashMap::new())),
         cors_allowed_origins: config.cors_allowed_origins.clone(),
         event_tx: event_tx.clone(),
-        agents: default_agents(),
         agent_pubkey: load_private_key(&config)
             .ok()
             .and_then(|(key, _)| load_agent_pubkey(&key)),
@@ -2279,23 +2271,53 @@ async fn delegation_hash(
     }))
 }
 
-async fn list_agents(AxumState(state): AxumState<Arc<AppState>>) -> Json<AgentsResponse> {
-    Json(AgentsResponse {
-        agents: state.agents.clone(),
-        demo: true,
-    })
+async fn list_agents(
+    AxumState(state): AxumState<Arc<AppState>>,
+) -> Result<Json<AgentsResponse>, AppError> {
+    let records = state.storage.list_agents().await?;
+    // Single-agent deployment: every confirmed execution is this agent's proof.
+    let confirmed = state
+        .storage
+        .list_executions()
+        .await?
+        .iter()
+        .filter(|e| e.status == "success")
+        .count() as u64;
+    let agents = records
+        .into_iter()
+        .map(|r| map_agent_record_to_summary(r, confirmed))
+        .collect();
+    Ok(Json(AgentsResponse { agents }))
 }
 
 async fn get_agent(
     AxumState(state): AxumState<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<AgentSummary>, AppError> {
-    let agent = state
-        .agents
-        .iter()
-        .find(|a| a.id == id)
+    let record = state
+        .storage
+        .get_agent(&id)
+        .await?
         .ok_or(AppError::Storage(domain::ports::StorageError::NotFound(id)))?;
-    Ok(Json(agent.clone()))
+    let confirmed = state
+        .storage
+        .list_executions()
+        .await?
+        .iter()
+        .filter(|e| e.status == "success")
+        .count() as u64;
+    Ok(Json(map_agent_record_to_summary(record, confirmed)))
+}
+
+fn map_agent_record_to_summary(record: AgentRecord, proofs_submitted: u64) -> AgentSummary {
+    AgentSummary {
+        id: record.id,
+        name: record.name,
+        operated_by: record.operator,
+        bond: record.bond_wei.parse().unwrap_or(0),
+        proofs_submitted,
+        description: "The execution agent operated by Otter on this deployment. It executes user intents inside the limits of their signed delegation, and every execution carries a ZK proof verified on-chain before funds move.".to_string(),
+    }
 }
 
 async fn get_agent_pubkey(
@@ -2319,10 +2341,7 @@ async fn list_strategies(
         .into_iter()
         .map(map_strategy_record_to_summary)
         .collect();
-    Ok(Json(StrategiesResponse {
-        strategies,
-        demo: true,
-    }))
+    Ok(Json(StrategiesResponse { strategies }))
 }
 
 async fn get_strategy(
@@ -2334,7 +2353,11 @@ async fn get_strategy(
         .get_strategy(&id)
         .await?
         .ok_or(AppError::Storage(domain::ports::StorageError::NotFound(id)))?;
-    Ok(Json(map_strategy_record_to_detail(record, &state.agents)))
+    let agent_name = match state.storage.get_agent(&record.agent_id).await {
+        Ok(Some(agent)) => agent.name,
+        _ => agent_name_fallback(&record.agent_id),
+    };
+    Ok(Json(map_strategy_record_to_detail(record, &agent_name)))
 }
 
 async fn create_strategy(
@@ -2442,6 +2465,7 @@ fn map_strategy_record_to_summary(record: StrategyRecord) -> StrategySummary {
         fork_count: record.fork_count,
         total_volume: record.total_volume,
         apy: record.apy,
+        source: "protocol_template".to_string(),
         created_at: record.created_at,
         updated_at: record.updated_at,
     }
@@ -2449,7 +2473,7 @@ fn map_strategy_record_to_summary(record: StrategyRecord) -> StrategySummary {
 
 fn map_strategy_record_to_detail(
     record: StrategyRecord,
-    agents: &[AgentSummary],
+    agent_name: &str,
 ) -> StrategyDetailResponse {
     let intent: ConditionalIntent =
         serde_json::from_str(&record.intent_json).expect("stored intent deserializes");
@@ -2461,11 +2485,7 @@ fn map_strategy_record_to_detail(
         intent,
         creator_address: record.creator_address,
         agent_id: record.agent_id.clone(),
-        agent_name: agents
-            .iter()
-            .find(|a| a.id == record.agent_id)
-            .map(|a| a.name.clone())
-            .unwrap_or_else(|| agent_name_fallback(&record.agent_id)),
+        agent_name: agent_name.to_string(),
         risk_profile: record.risk_profile,
         copies: record.copies,
         total_volume: record.total_volume,
@@ -2559,6 +2579,8 @@ async fn get_portfolio(
 async fn list_proofs(
     AxumState(state): AxumState<Arc<AppState>>,
 ) -> Result<Json<ProofsResponse>, AppError> {
+    // Only real, persisted executions: no synthetic solvency proof (A2).
+    // Solvency attestations join this list once they are persisted (phase 2.5).
     let executions = state.storage.list_executions().await?;
     let mut proofs: Vec<ProofSummary> = executions
         .into_iter()
@@ -2575,19 +2597,8 @@ async fn list_proofs(
             tx_hash: Some(e.tx_hash),
         })
         .collect();
-    proofs.push(ProofSummary {
-        id: "proof-solvency-1".to_string(),
-        proof_type: "solvency".to_string(),
-        intent_id: None,
-        verifier: "SolvencyVerifier".to_string(),
-        constraints: 1240,
-        proof_time: 2.4,
-        timestamp: now_secs(),
-        verified: true,
-        tx_hash: None,
-    });
     proofs.sort_by_key(|a| std::cmp::Reverse(a.timestamp));
-    Ok(Json(ProofsResponse { proofs, demo: true }))
+    Ok(Json(ProofsResponse { proofs }))
 }
 
 async fn parse_intent(
@@ -3169,7 +3180,6 @@ mod tests {
             request_counts: Arc::new(Mutex::new(HashMap::new())),
             cors_allowed_origins: "*".to_string(),
             event_tx: tokio::sync::broadcast::channel(1).0,
-            agents: default_agents(),
             agent_pubkey: None,
             multichain: Arc::new(infrastructure::blockchain::MultiChainAdapter::empty()),
             network_health: Arc::new(Mutex::new(HashMap::new())),
@@ -3227,7 +3237,6 @@ mod tests {
             request_counts: state.request_counts.clone(),
             cors_allowed_origins: state.cors_allowed_origins.clone(),
             event_tx: state.event_tx.clone(),
-            agents: state.agents.clone(),
             agent_pubkey: state.agent_pubkey.clone(),
             multichain: Arc::new(infrastructure::blockchain::MultiChainAdapter::empty()),
             network_health: Arc::new(Mutex::new(HashMap::new())),
@@ -3469,7 +3478,6 @@ mod tests {
             request_counts: state.request_counts.clone(),
             cors_allowed_origins: state.cors_allowed_origins.clone(),
             event_tx: state.event_tx.clone(),
-            agents: state.agents.clone(),
             agent_pubkey: state.agent_pubkey.clone(),
         }
     }
@@ -4092,52 +4100,19 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
+    /// Anomaly A2 exit criterion: agents/strategies/proofs serve persisted
+    /// data — no X-Demo-Data header, no `demo` flag anywhere in the payload.
     #[tokio::test]
-    async fn demo_endpoints_set_x_demo_data_header_and_flag() {
+    async fn formerly_demo_endpoints_serve_persisted_data_without_markers() {
         let state = test_state().await;
         let router = app(state);
 
         for uri in [
             "/api/v1/agents",
-            "/api/v1/agents/otter-agent",
             "/api/v1/strategies",
             "/api/v1/proofs",
+            "/health",
         ] {
-            let req = with_connect_info(
-                Request::builder()
-                    .method("GET")
-                    .uri(uri)
-                    .body(Body::empty())
-                    .unwrap(),
-            );
-            let response = router.clone().oneshot(req).await.unwrap();
-            assert_eq!(response.status(), StatusCode::OK, "{uri}");
-            assert_eq!(
-                response
-                    .headers()
-                    .get("x-demo-data")
-                    .and_then(|v| v.to_str().ok()),
-                Some("true"),
-                "{uri} must carry the X-Demo-Data header"
-            );
-            let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-                .await
-                .unwrap();
-            let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-            assert_eq!(
-                json["demo"],
-                serde_json::json!(true),
-                "{uri} must be flagged as demo in the payload"
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn non_demo_endpoints_do_not_set_x_demo_data_header() {
-        let state = test_state().await;
-        let router = app(state);
-
-        for uri in ["/health", "/api/v1/intents", "/api/v1/portfolio"] {
             let req = with_connect_info(
                 Request::builder()
                     .method("GET")
@@ -4151,6 +4126,51 @@ mod tests {
                 response.headers().get("x-demo-data").is_none(),
                 "{uri} must not carry the X-Demo-Data header"
             );
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            assert!(
+                json.get("demo").is_none(),
+                "{uri} must not carry a demo flag in the payload"
+            );
         }
+    }
+
+    #[tokio::test]
+    async fn agents_endpoints_read_from_storage() {
+        let state = test_state().await;
+        state
+            .storage
+            .save_agent(&AgentRecord {
+                id: "otter-agent".to_string(),
+                name: "Otter Agent".to_string(),
+                operator: "Otter".to_string(),
+                pubkey_x: None,
+                pubkey_y: None,
+                bond_wei: "0".to_string(),
+                status: "active".to_string(),
+                created_at: 1_700_000_000,
+            })
+            .await
+            .expect("agent should persist");
+        let router = app(state);
+
+        let req = with_connect_info(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/agents/otter-agent")
+                .body(Body::empty())
+                .unwrap(),
+        );
+        let response = router.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["name"], "Otter Agent");
+        // Never seeded: computed from the (empty) executions table.
+        assert_eq!(json["proofs_submitted"], 0);
     }
 }
