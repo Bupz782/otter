@@ -73,6 +73,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # Inlined into the bundle at build time by Vite. Set VITE_API_URL to
+        # the public origin (https://<domaine>) for a VPS deploy; empty keeps
+        # same-origin /api calls (local nginx proxy).
+        VITE_API_URL: "${VITE_API_URL:-}"
+        VITE_WALLET_CONNECT_PROJECT_ID: "${VITE_WALLET_CONNECT_PROJECT_ID:-}"
     ports:
       - "3000:80"
     depends_on:

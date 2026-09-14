@@ -49,6 +49,27 @@ called `DelegationVault.executeWithProof` without manual intervention.
 
 ## 1. Deploy the contracts
 
+### Full demo stack (recommended — one broadcast)
+
+`scripts/deploy-sepolia.sh` deploys the whole stack on Sepolia in a single
+`forge script` broadcast (TestToken, OtterBridge, BridgeToken,
+DelegationVerifier, DelegationVault, SolvencyVerifier, SolvencyRegistry),
+preflight-checks the chain id and deployer balance, then writes the deployed
+addresses to `.env.sepolia` (gitignored) in the exact `OTTER_NETWORKS` /
+`OTTER_SOLVENCY_REGISTRY` format the compose stack expects:
+
+```bash
+SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com \
+DEPLOYER_KEY=0x<testnet-private-key> \
+scripts/deploy-sepolia.sh [--verify]   # --verify needs ETHERSCAN_API_KEY
+```
+
+The deployer needs ~0.15 Sepolia ETH (full deploy ≈ 23M gas,
+docs/DEPLOIEMENT.md). Then merge `.env.sepolia` into your `.env` and set the
+agent key separately (`OTTER_PRIVATE_KEY` or `OTTER_PRIVATE_KEY_FILE`).
+
+### Vault only (minimal)
+
 ```bash
 cd contracts
 forge script script/DeployDelegationVault.s.sol \
@@ -64,6 +85,17 @@ Export the printed vault address:
 ```bash
 export VAULT_ADDRESS=0x...
 ```
+
+### Test tokens for demo testers
+
+`TestToken.mint(address,uint256)` is public (testnet-only token). To give a
+tester 10 000 tTST:
+
+```bash
+MINTER_KEY=0x<key> scripts/faucet-testtoken.sh 0x<tester-address> 10000
+```
+
+The TestToken address is read from `.env.sepolia` (or set `OTTER_TEST_TOKEN`).
 
 ---
 
