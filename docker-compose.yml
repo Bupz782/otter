@@ -67,9 +67,13 @@ services:
       OTTER_MODEL_DOWNLOAD: "${OTTER_MODEL_DOWNLOAD:-false}"
       # Solana attestation adapter (docs/SOLANA.md). No effect unless the image
       # was built with OTTER_CARGO_FEATURES=infrastructure/solana.
+      # Local compose demo: use `--profile solana` and set
+      #   OTTER_SOLANA_ENABLED=true
+      #   OTTER_SOLANA_RPC_URL=http://solana-validator:8899
+      #   OTTER_SOLANA_AUTHORITY_KEYPAIR=<base58 of solana/fixtures/authority.json>
       OTTER_SOLANA_ENABLED: "${OTTER_SOLANA_ENABLED:-false}"
       OTTER_SOLANA_RPC_URL: "${OTTER_SOLANA_RPC_URL:-https://api.devnet.solana.com}"
-      OTTER_SOLANA_PROGRAM_ID: "${OTTER_SOLANA_PROGRAM_ID:-}"
+      OTTER_SOLANA_PROGRAM_ID: "${OTTER_SOLANA_PROGRAM_ID:-2gdcNaGNfaqMJEzNRXa21pCzxQeDNS4Hg3b4KH8tiCXb}"
       OTTER_SOLANA_AUTHORITY_KEYPAIR: "${OTTER_SOLANA_AUTHORITY_KEYPAIR:-}"
       OTTER_SOLANA_ATTEST_INTERVAL_SECS: "${OTTER_SOLANA_ATTEST_INTERVAL_SECS:-3600}"
       RUST_LOG: "info"
@@ -94,6 +98,45 @@ services:
       - "3000:80"
     depends_on:
       - api
+
+  # ---------------------------------------------------------------------------
+  # Solana attestation demo (docs/SOLANA.md). Start with:
+  #   OTTER_CARGO_FEATURES=infrastructure/solana docker compose --profile solana up --build -d
+  # The validator starts fresh each time; solana-init airdrops to the fixture
+  # authority (solana/fixtures/authority.json, localnet-only) and deploys the
+  # committed attestation_registry.so at the declare_id! program address.
+  # ---------------------------------------------------------------------------
+  solana-validator:
+    profiles: ["solana"]
+    image: solanalabs/solana:v1.18.17
+    entrypoint: ["solana-test-validator"]
+    command: ["--reset", "--quiet", "--ledger", "/ledger", "--rpc-bind-address", "0.0.0.0", "--bind-address", "0.0.0.0"]
+    ports:
+      - "8899:8899"
+    healthcheck:
+      test: ["CMD", "solana", "cluster-version", "--url", "http://localhost:8899"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  solana-init:
+    profiles: ["solana"]
+    image: solanalabs/solana:v1.18.17
+    depends_on:
+      solana-validator:
+        condition: service_healthy
+    volumes:
+      - ./solana/attestation_registry/target/deploy:/deploy:ro
+      - ./solana/fixtures:/fixtures:ro
+    entrypoint:
+      - sh
+      - -c
+      - |
+        solana airdrop 10 $$(solana address -k /fixtures/authority.json) --url http://solana-validator:8899 && \
+        solana program deploy /deploy/attestation_registry.so \
+          --url http://solana-validator:8899 \
+          --program-id /deploy/attestation_registry-keypair.json \
+          --keypair /fixtures/authority.json
 
 volumes:
   otter-data:
