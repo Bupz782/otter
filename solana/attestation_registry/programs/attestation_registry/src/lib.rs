@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
 
+declare_id!("2gdcNaGNfaqMJEzNRXa21pCzxQeDNS4Hg3b4KH8tiCXb");
+
 /// The Otter Solana attestation registry. V1 stores a single attestation per
 /// authority: a 32-byte payload hash plus a UNIX timestamp. It is intentionally
 /// small so it can be deployed on devnet/mainnet with minimal rent.
