@@ -4,11 +4,14 @@ use domain::ports::intent_parser_port::{IntentParserError, IntentParserPort};
 use super::llm_parser::LlmIntentParser;
 use super::regex_parser::RegexParser;
 
-/// Hybrid parser: try the LLM first, fall back to the rule-based regex parser
-/// on failure or invalid output.
+/// Hybrid parser: try the deterministic regex parser first, fall back to the
+/// LLM for everything it cannot express.
 ///
-/// This gives the flexibility of natural-language understanding while keeping
-/// deterministic behavior for well-known patterns.
+/// The demo runs the LLM on CPU (Qwen3-8B ≈ 60 s per inference in Docker), so
+/// sending canonical phrases through the LLM first made every parse look
+/// broken in the UI. Regex hits are exact by construction (the grammar
+/// requires action + amounts), so canonical phrases answer in milliseconds;
+/// free-form text still gets full LLM understanding.
 pub struct HybridParser {
     llm: LlmIntentParser,
     regex: RegexParser,
@@ -43,20 +46,17 @@ impl HybridParser {
 
 impl IntentParserPort for HybridParser {
     fn parse(&self, text: &str) -> Result<ConditionalIntent, IntentParserError> {
+        if let Ok(intent) = self.parse_regex(text) {
+            return Ok(intent);
+        }
         match self.parse_llm(text) {
             Ok(intent) => Ok(intent),
-            // An explicit refusal is a definitive answer, not a failure:
-            // do not mask it with a regex attempt.
+            // An explicit refusal is a definitive answer, not a failure.
             Err(err @ IntentParserError::Unsupported(_)) => Err(err),
-            Err(llm_err) => {
-                // Fallback to regex; preserve the LLM error if regex also fails.
-                self.parse_regex(text).map_err(|regex_err| {
-                    IntentParserError::ParsingFailed(format!(
-                        "LLM failed ({}); regex fallback failed ({})",
-                        llm_err, regex_err
-                    ))
-                })
-            }
+            Err(llm_err) => Err(IntentParserError::ParsingFailed(format!(
+                "regex failed; LLM fallback failed ({})",
+                llm_err
+            ))),
         }
     }
 }
