@@ -45,6 +45,9 @@ impl IntentParserPort for HybridParser {
     fn parse(&self, text: &str) -> Result<ConditionalIntent, IntentParserError> {
         match self.parse_llm(text) {
             Ok(intent) => Ok(intent),
+            // An explicit refusal is a definitive answer, not a failure:
+            // do not mask it with a regex attempt.
+            Err(err @ IntentParserError::Unsupported(_)) => Err(err),
             Err(llm_err) => {
                 // Fallback to regex; preserve the LLM error if regex also fails.
                 self.parse_regex(text).map_err(|regex_err| {

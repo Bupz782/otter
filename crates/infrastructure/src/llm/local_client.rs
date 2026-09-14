@@ -5,7 +5,8 @@ use super::{
     model_loader::LoadedModel,
     prompt_builder::PromptBuilder,
     response_parser::{
-        Tokenizer, add_tokens_to_batch, decode_batch, generate_tokens, parse_intent,
+        Tokenizer, add_tokens_to_batch, decode_batch, generate_tokens, is_unsupported_refusal,
+        parse_intent,
     },
 };
 use domain::models::ConditionalIntent;
@@ -113,6 +114,11 @@ impl LocalLlmClient {
 
         // Generate response
         let output = generate_tokens(&loaded.model, &mut ctx, &mut batch, &mut n_cur, max_tokens)?;
+
+        // An explicit refusal is a definitive answer, not a JSON failure.
+        if is_unsupported_refusal(&output) {
+            return Err(LlmError::UnsupportedIntent);
+        }
 
         let output_intent = parse_intent(&output).map_err(|e| {
             let snippet: String = output.chars().take(300).collect();
