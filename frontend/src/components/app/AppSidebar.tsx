@@ -11,8 +11,6 @@ import {
   Coins,
   Zap,
   Package,
-  ArrowRightLeft,
-  Globe,
 } from "lucide-react";
 import { useAccount } from "wagmi";
 import { cn, truncateHash } from "@/lib/utils";
@@ -65,13 +63,6 @@ const navGroups: NavGroup[] = [
       { to: "/app/solvency", label: "Solvency", icon: <Coins className="h-4 w-4" /> },
       { to: "/app/rebates", label: "Rebates", icon: <Zap className="h-4 w-4" /> },
       { to: "/app/mev", label: "MEV", icon: <Package className="h-4 w-4" /> },
-    ],
-  },
-  {
-    label: "Cross-chain",
-    items: [
-      { to: "/app/bridge", label: "Bridge", icon: <ArrowRightLeft className="h-4 w-4" /> },
-      { to: "/app/solana", label: "Solana", icon: <Globe className="h-4 w-4" /> },
     ],
   },
   {
