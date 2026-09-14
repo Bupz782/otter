@@ -79,6 +79,17 @@ export function AppConnectButton() {
     return <ConnectButton accountStatus="address" chainStatus="icon" showBalance={false} />;
   }
 
+  // Auth disabled (local demo default): the wallet connection IS the session —
+  // the SIWE round-trip does not exist server-side ("authentication disabled").
+  // Never render Sign In / Sign out; RainbowKit's own connect/disconnect drives
+  // the bypass flag via the effect above. Without this early return, signing
+  // out clears the bypass and the effect never re-fires (its deps are
+  // unchanged), leaving the user stuck on a Sign In button that can only fail
+  // until the next page reload.
+  if (authEnabled === false) {
+    return <ConnectButton accountStatus="address" chainStatus="icon" showBalance={false} />;
+  }
+
   if (!authenticated) {
     return (
       <div className="flex items-center gap-2">
