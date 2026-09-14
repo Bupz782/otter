@@ -108,9 +108,13 @@ services:
   # ---------------------------------------------------------------------------
   solana-validator:
     profiles: ["solana"]
+    # amd64-only image: runs under Rosetta on Apple Silicon. Its bundled
+    # test-validator CLI predates --rpc-bind-address; --bind-address 0.0.0.0
+    # covers both gossip and RPC.
+    platform: linux/amd64
     image: solanalabs/solana:v1.18.17
     entrypoint: ["solana-test-validator"]
-    command: ["--reset", "--quiet", "--ledger", "/ledger", "--rpc-bind-address", "0.0.0.0", "--bind-address", "0.0.0.0"]
+    command: ["--reset", "--quiet", "--ledger", "/ledger", "--bind-address", "0.0.0.0"]
     ports:
       - "8899:8899"
     healthcheck:
@@ -121,6 +125,7 @@ services:
 
   solana-init:
     profiles: ["solana"]
+    platform: linux/amd64
     image: solanalabs/solana:v1.18.17
     depends_on:
       solana-validator:
