@@ -19,4 +19,8 @@ pub enum LlmError {
     InvalidConfig(String),
     #[error("JSON parsing failed: {0}")]
     JsonParsing(#[from] serde_json::Error),
+    /// The model answered `{"error": "unsupported"}`: the request cannot be
+    /// expressed with the parser's closed vocabulary.
+    #[error("model refused the request as unsupported by the parser vocabulary")]
+    UnsupportedIntent,
 }

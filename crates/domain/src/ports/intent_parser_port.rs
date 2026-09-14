@@ -21,6 +21,10 @@ pub enum IntentParserError {
     ParsingFailed(String),
     InvalidFormat(String),
     LlmError(String),
+    /// The model explicitly refused the request as out-of-vocabulary
+    /// (`{"error": "unsupported"}`): a definitive answer, not a failure —
+    /// callers must NOT fall back to another parser.
+    Unsupported(String),
 }
 
 impl std::fmt::Display for IntentParserError {
@@ -29,6 +33,7 @@ impl std::fmt::Display for IntentParserError {
             Self::ParsingFailed(msg) => write!(f, "parsing failed: {}", msg),
             Self::InvalidFormat(msg) => write!(f, "invalid format: {}", msg),
             Self::LlmError(msg) => write!(f, "LLM error: {}", msg),
+            Self::Unsupported(msg) => write!(f, "unsupported intent: {}", msg),
         }
     }
 }

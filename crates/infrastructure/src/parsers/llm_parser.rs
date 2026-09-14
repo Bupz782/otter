@@ -2,7 +2,7 @@ use domain::models::ConditionalIntent;
 use domain::ports::intent_parser_port::{IntentParserError, IntentParserPort};
 use std::sync::{Mutex, MutexGuard};
 
-use crate::llm::{IntentOutput, LlmConfig, LocalLlmClient};
+use crate::llm::{IntentOutput, LlmConfig, LlmError, LocalLlmClient};
 
 /// Adapter that wires the local LLM client to the domain's `IntentParserPort`.
 ///
@@ -107,6 +107,11 @@ impl IntentParserPort for LlmIntentParser {
                 "LLM returned raw text: {}",
                 raw
             ))),
+            Err(LlmError::UnsupportedIntent) => Err(IntentParserError::Unsupported(
+                "the request cannot be expressed with the supported vocabulary \
+                 (actions: lend, borrow, swap, stake; metrics: yield, price, gas cost, volume)"
+                    .to_string(),
+            )),
             Err(e) => Err(IntentParserError::LlmError(e.to_string())),
         }
     }
