@@ -498,11 +498,13 @@ export function mapBackendStrategyDetail(record: BackendStrategyDetail): Strateg
 }
 
 export function mapBackendPortfolio(portfolio: BackendPortfolioResponse): Portfolio {
+  // Backend balances are wei (base units); convert to ETH for display.
+  const weiToEth = (wei: string) => Number(wei) / 1e18;
   return {
     address: portfolio.address,
-    totalBalance: Number(portfolio.total_balance),
-    allocated: Number(portfolio.allocated),
-    available: Number(portfolio.available),
+    totalBalance: weiToEth(portfolio.total_balance),
+    allocated: weiToEth(portfolio.allocated),
+    available: weiToEth(portfolio.available),
     yieldEarned: portfolio.yield_earned,
     mevRebates: portfolio.mev_rebates,
     positions: portfolio.positions.map((p) => ({
