@@ -202,13 +202,8 @@ export interface BackendAgentSummary {
   id: string;
   name: string;
   operated_by: string;
-  // Present (true) while the API serves built-in demonstration data (A2).
-  demo?: boolean;
   bond: number;
   proofs_submitted: number;
-  yield_generated: number;
-  mev_captured: number;
-  uptime: number;
   description: string;
 }
 
@@ -228,6 +223,8 @@ export interface BackendStrategySummary {
   copies: number;
   total_volume: number;
   apy: number;
+  /// Always "protocol_template" for protocol-published intent templates.
+  source?: string;
   created_at: number;
   updated_at: number;
 }
@@ -472,9 +469,6 @@ export function mapBackendAgent(agent: BackendAgentSummary): Agent {
     operatedBy: agent.operated_by,
     bond: agent.bond,
     proofsSubmitted: agent.proofs_submitted,
-    yieldGenerated: agent.yield_generated,
-    mevCaptured: agent.mev_captured,
-    uptime: agent.uptime,
     description: agent.description,
   };
 }
@@ -488,6 +482,7 @@ export function mapBackendStrategy(strategy: BackendStrategySummary): Strategy {
     copies: strategy.copies,
     totalVolume: strategy.total_volume,
     apy: strategy.apy,
+    source: strategy.source,
     createdAt: new Date(strategy.created_at * 1000).toISOString(),
     updatedAt: new Date(strategy.updated_at * 1000).toISOString(),
   };
@@ -613,7 +608,7 @@ export const api = {
       }),
   },
   agents: {
-    list: () => request<{ agents: BackendAgentSummary[]; demo?: boolean }>("/api/v1/agents"),
+    list: () => request<{ agents: BackendAgentSummary[] }>("/api/v1/agents"),
     get: (id: string) => request<BackendAgentSummary>(`/api/v1/agents/${id}`),
     // The backend serves a single configured agent key and ignores the id in
     // this path (get_agent_pubkey in crates/interfaces/src/bin/otter_api.rs
@@ -622,7 +617,7 @@ export const api = {
   },
   strategies: {
     list: () =>
-      request<{ strategies: BackendStrategySummary[]; demo?: boolean }>("/api/v1/strategies"),
+      request<{ strategies: BackendStrategySummary[] }>("/api/v1/strategies"),
     get: (id: string) => request<BackendStrategyDetail>(`/api/v1/strategies/${id}`),
     create: (body: CreateStrategyPayload) =>
       request<{ id: string }>("/api/v1/strategies", {
@@ -638,7 +633,7 @@ export const api = {
     get: () => request<BackendPortfolioResponse>("/api/v1/portfolio"),
   },
   proofs: {
-    list: () => request<{ proofs: BackendProofSummary[]; demo?: boolean }>("/api/v1/proofs"),
+    list: () => request<{ proofs: BackendProofSummary[] }>("/api/v1/proofs"),
   },
   solvency: {
     status: () =>

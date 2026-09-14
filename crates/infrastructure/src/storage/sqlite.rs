@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use domain::models::intent::ConditionalIntent;
 use domain::ports::storage_port::{
-    BridgeTransferRecord, DelegationRecord, ExecutionRecord, IntentEventRecord, IntentRecord,
-    MevBundleRecord, StorageError, StoragePort, StrategyRecord,
+    AgentRecord, BridgeTransferRecord, DelegationRecord, ExecutionRecord, IntentEventRecord,
+    IntentRecord, MevBundleRecord, StorageError, StoragePort, StrategyRecord,
 };
 use rusqlite::{Connection, OptionalExtension};
 
@@ -668,6 +668,102 @@ impl StoragePort for SqliteStorage {
                             updated_at: row.get(12)?,
                             visibility: row.get(13)?,
                             fork_count: row.get::<_, i64>(14)? as u64,
+                        })
+                    },
+                )
+                .optional()
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+            Ok(row)
+        })
+        .await
+        .map_err(|e| StorageError::ReadFailed(e.to_string()))?
+    }
+
+    async fn save_agent(&self, record: &AgentRecord) -> Result<(), StorageError> {
+        let conn = self.conn.clone();
+        let record = record.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn
+                .lock()
+                .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            conn.execute(
+                "INSERT OR REPLACE INTO agents
+                 (id, name, operator, pubkey_x, pubkey_y, bond_wei, status, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                rusqlite::params![
+                    &record.id,
+                    &record.name,
+                    &record.operator,
+                    record.pubkey_x.as_deref(),
+                    record.pubkey_y.as_deref(),
+                    &record.bond_wei,
+                    &record.status,
+                    record.created_at,
+                ],
+            )
+            .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| StorageError::SaveFailed(e.to_string()))?
+    }
+
+    async fn list_agents(&self) -> Result<Vec<AgentRecord>, StorageError> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn
+                .lock()
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, name, operator, pubkey_x, pubkey_y, bond_wei, status, created_at
+                     FROM agents
+                     ORDER BY created_at ASC",
+                )
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok(AgentRecord {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        operator: row.get(2)?,
+                        pubkey_x: row.get(3)?,
+                        pubkey_y: row.get(4)?,
+                        bond_wei: row.get(5)?,
+                        status: row.get(6)?,
+                        created_at: row.get(7)?,
+                    })
+                })
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))
+        })
+        .await
+        .map_err(|e| StorageError::ReadFailed(e.to_string()))?
+    }
+
+    async fn get_agent(&self, id: &str) -> Result<Option<AgentRecord>, StorageError> {
+        let conn = self.conn.clone();
+        let id = id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn
+                .lock()
+                .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+            let row = conn
+                .query_row(
+                    "SELECT id, name, operator, pubkey_x, pubkey_y, bond_wei, status, created_at
+                     FROM agents WHERE id = ?1",
+                    [&id],
+                    |row| {
+                        Ok(AgentRecord {
+                            id: row.get(0)?,
+                            name: row.get(1)?,
+                            operator: row.get(2)?,
+                            pubkey_x: row.get(3)?,
+                            pubkey_y: row.get(4)?,
+                            bond_wei: row.get(5)?,
+                            status: row.get(6)?,
+                            created_at: row.get(7)?,
                         })
                     },
                 )

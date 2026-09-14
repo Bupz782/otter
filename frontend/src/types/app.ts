@@ -47,10 +47,8 @@ export interface Agent {
   /// Free-form; "Otter" for protocol-operated agents.
   operatedBy: string;
   bond: number;
+  /// Confirmed executions — computed server-side from the executions table.
   proofsSubmitted: number;
-  yieldGenerated: number;
-  mevCaptured: number;
-  uptime: number;
   description: string;
 }
 
@@ -62,6 +60,8 @@ export interface Strategy {
   copies: number;
   totalVolume: number;
   apy: number;
+  /// Always "protocol_template" for protocol-published intent templates.
+  source?: string;
   createdAt: string;
   updatedAt: string;
   creatorAddress?: string;

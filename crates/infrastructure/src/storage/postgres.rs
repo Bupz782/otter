@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use domain::ports::storage_port::{
-    BridgeTransferRecord, DelegationRecord, ExecutionRecord, IntentEventRecord, IntentRecord,
-    MevBundleRecord, StorageError, StoragePort, StrategyRecord,
+    AgentRecord, BridgeTransferRecord, DelegationRecord, ExecutionRecord, IntentEventRecord,
+    IntentRecord, MevBundleRecord, StorageError, StoragePort, StrategyRecord,
 };
 use sqlx::{Pool, Postgres, Row};
 
@@ -667,6 +667,117 @@ impl StoragePort for PgStorage {
             }
             None => Ok(None),
         }
+    }
+
+    async fn save_agent(&self, record: &AgentRecord) -> Result<(), StorageError> {
+        sqlx::query(
+            "INSERT INTO agents
+             (id, name, operator, pubkey_x, pubkey_y, bond_wei, status, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             ON CONFLICT (id) DO UPDATE SET
+                 name = EXCLUDED.name,
+                 operator = EXCLUDED.operator,
+                 pubkey_x = EXCLUDED.pubkey_x,
+                 pubkey_y = EXCLUDED.pubkey_y,
+                 bond_wei = EXCLUDED.bond_wei,
+                 status = EXCLUDED.status",
+        )
+        .bind(&record.id)
+        .bind(&record.name)
+        .bind(&record.operator)
+        .bind(record.pubkey_x.as_ref())
+        .bind(record.pubkey_y.as_ref())
+        .bind(&record.bond_wei)
+        .bind(&record.status)
+        .bind(record.created_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| StorageError::SaveFailed(e.to_string()))?;
+
+        Ok(())
+    }
+
+    async fn list_agents(&self) -> Result<Vec<AgentRecord>, StorageError> {
+        let rows = sqlx::query(
+            "SELECT id, name, operator, pubkey_x, pubkey_y, bond_wei, status, created_at
+             FROM agents
+             ORDER BY created_at ASC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+
+        rows.iter()
+            .map(|row| {
+                Ok(AgentRecord {
+                    id: row
+                        .try_get("id")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    name: row
+                        .try_get("name")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    operator: row
+                        .try_get("operator")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    pubkey_x: row
+                        .try_get("pubkey_x")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    pubkey_y: row
+                        .try_get("pubkey_y")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    bond_wei: row
+                        .try_get("bond_wei")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    status: row
+                        .try_get("status")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                    created_at: row
+                        .try_get("created_at")
+                        .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                })
+            })
+            .collect()
+    }
+
+    async fn get_agent(&self, id: &str) -> Result<Option<AgentRecord>, StorageError> {
+        let row = sqlx::query(
+            "SELECT id, name, operator, pubkey_x, pubkey_y, bond_wei, status, created_at
+             FROM agents WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| StorageError::ReadFailed(e.to_string()))?;
+
+        row.map(|row| {
+            Ok(AgentRecord {
+                id: row
+                    .try_get("id")
+                    .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                name: row
+                    .try_get("name")
+                    .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                operator: row
+                    .try_get("operator")
+                    .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                pubkey_x: row
+                    .try_get("pubkey_x")
+                    .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                pubkey_y: row
+                    .try_get("pubkey_y")
+                    .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                bond_wei: row
+                    .try_get("bond_wei")
+                    .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                status: row
+                    .try_get("status")
+                    .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+                created_at: row
+                    .try_get("created_at")
+                    .map_err(|e| StorageError::ReadFailed(e.to_string()))?,
+            })
+        })
+        .transpose()
     }
 
     async fn increment_strategy_copies(&self, id: &str) -> Result<(), StorageError> {

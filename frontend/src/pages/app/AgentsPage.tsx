@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Bot, Lock, ArrowRight, BookOpen, ShieldCheck, KeyRound } from "lucide-react";
+import { Bot, Lock, ArrowRight, ShieldCheck, KeyRound } from "lucide-react";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,6 @@ import { StatCard } from "@/components/app/StatCard";
 import { DataRow } from "@/components/app/DataRow";
 import { EmptyState } from "@/components/app/EmptyState";
 import { ErrorState } from "@/components/app/ErrorState";
-import { DemoDataNotice } from "@/components/app/DemoDataNotice";
 import { useAgents } from "@/hooks/useAgents";
 import { useDelegations } from "@/hooks/useDelegations";
 import { useAuthToken } from "@/hooks/useAuthToken";
@@ -75,7 +74,7 @@ function useAgentPubkey() {
 
 export function AgentsPage() {
   useDocumentTitle("The Agent");
-  const { data: agents, isLoading, error, refetch, isBackendDemo } = useAgents();
+  const { data: agents, isLoading, error, refetch } = useAgents();
   const pubkey = useAgentPubkey();
   const { isAuthenticated } = useAuthToken();
   const { data: delegations } = useDelegations();
@@ -90,12 +89,6 @@ export function AgentsPage() {
           subtitle="The execution agent operated by Otter. You sign the limits — it executes your intents inside them, and nowhere else. Every action is proven in ZK and verified on-chain."
         />
       </FadeIn>
-
-      {isBackendDemo && (
-        <FadeIn delay={0.05}>
-          <DemoDataNotice />
-        </FadeIn>
-      )}
 
       <FadeIn delay={0.05}>
         <SectionCard className="py-4">
@@ -153,31 +146,21 @@ export function AgentsPage() {
 
       {agent && !isLoading && !error && (
         <FadeIn delay={0.15}>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-2">
             <StatCard
               icon={ShieldCheck}
               label="Proofs submitted"
               value={agent.proofsSubmitted.toLocaleString()}
               className="h-full"
             />
-            <StatCard
-              icon={BookOpen}
-              label="Yield routed"
-              value={`$${(agent.yieldGenerated / 1_000_000).toFixed(1)}M`}
-              className="h-full"
-            />
-            <StatCard
-              icon={Lock}
-              label="MEV rebated"
-              value={`$${agent.mevCaptured.toLocaleString()}`}
-              className="h-full"
-            />
-            <StatCard
-              icon={Bot}
-              label="Uptime"
-              value={`${agent.uptime}%`}
-              className="h-full"
-            />
+            {agent.bond > 0 && (
+              <StatCard
+                icon={Lock}
+                label="Bond"
+                value={`$${agent.bond.toLocaleString()}`}
+                className="h-full"
+              />
+            )}
           </div>
         </FadeIn>
       )}
