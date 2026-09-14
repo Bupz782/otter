@@ -12,6 +12,15 @@ COPY package*.json ./
 # fall back to node-gyp; the toolchain lives only in the builder stage.
 RUN apk add --no-cache python3 make g++ && npm ci
 
+# Vite inlines import.meta.env at BUILD time: for any non-local deployment
+# these must be passed as build args (see docker-compose.yml `build.args` and
+# DEPLOYMENT.md — VITE_API_URL should point at the public origin, e.g.
+# https://<domaine>, served by the Caddy reverse proxy).
+ARG VITE_API_URL=""
+ARG VITE_WALLET_CONNECT_PROJECT_ID=""
+ENV VITE_API_URL=$VITE_API_URL \
+    VITE_WALLET_CONNECT_PROJECT_ID=$VITE_WALLET_CONNECT_PROJECT_ID
+
 COPY . .
 RUN npm run build
 

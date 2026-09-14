@@ -60,6 +60,7 @@ fhe_keys/
 .env
 .env.local
 .env.*.local
+.env.sepolia
 
 # Secrets
 secrets/
