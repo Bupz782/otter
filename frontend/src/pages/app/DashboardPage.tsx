@@ -64,6 +64,14 @@ function formatCurrency(value: number): string {
   })}`;
 }
 
+/** Vault balances arrive in ETH (converted from wei at the API boundary). */
+function formatEth(value: number): string {
+  return `${value.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  })} ETH`;
+}
+
 /** Activity dots reuse the status palette: emerald for money events. */
 const ACTIVITY_DOT: Record<ActivityItem["type"], string> = {
   deposit: getStatusPresentation("confirmed").dotClass,
@@ -145,7 +153,7 @@ export function DashboardPage() {
                   Total vault balance
                 </p>
                 <p className="mt-2 font-heading text-4xl font-bold tabular-nums md:text-5xl">
-                  <CountUp value={portfolio?.totalBalance ?? 0} prefix="$" decimals={2} />
+                  <CountUp value={portfolio?.totalBalance ?? 0} suffix=" ETH" decimals={2} />
                 </p>
 
                 <div className="mt-8">
@@ -159,13 +167,13 @@ export function DashboardPage() {
                     <div>
                       <p className="text-xs text-muted-foreground">Allocated</p>
                       <p className="mt-0.5 font-heading text-lg font-bold tabular-nums">
-                        {formatCurrency(portfolio?.allocated ?? 0)}
+                        {formatEth(portfolio?.allocated ?? 0)}
                       </p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Available</p>
                       <p className="mt-0.5 font-heading text-lg font-bold tabular-nums">
-                        {formatCurrency(portfolio?.available ?? 0)}
+                        {formatEth(portfolio?.available ?? 0)}
                       </p>
                     </div>
                   </div>
@@ -251,7 +259,7 @@ export function DashboardPage() {
                 portfolioLoading ? (
                   <Skeleton className="h-7 w-24" />
                 ) : (
-                  formatCurrency(portfolio?.allocated ?? 0)
+                  formatEth(portfolio?.allocated ?? 0)
                 )
               }
               hint={portfolio ? `${portfolio.positions.length} positions` : undefined}

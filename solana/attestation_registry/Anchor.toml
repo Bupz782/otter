@@ -3,7 +3,10 @@ seeds = false
 skip-lint = false
 
 [programs.localnet]
-attestation_registry = "AttReg1111111111111111111111111111111111111"
+attestation_registry = "2gdcNaGNfaqMJEzNRXa21pCzxQeDNS4Hg3b4KH8tiCXb"
+
+[programs.devnet]
+attestation_registry = "2gdcNaGNfaqMJEzNRXa21pCzxQeDNS4Hg3b4KH8tiCXb"
 
 [registry]
 url = "https://api.apr.dev"

@@ -1,0 +1,8 @@
+# The Anchor workspace pins its OWN toolchain: the repo root pins
+# nightly-2026-07-07 (edition 2024 backend), but the Solana SBF platform-tools
+# cargo is rust 1.75 and the Anchor 0.30.1 IDL generation breaks on recent
+# nightlies (proc-macro2 semver-exempt API churn — source_file removed in
+# proc-macro2 1.0.95). 1.79.0 is the newest stable that both writes v3
+# lockfiles (readable by cargo-build-sbf 1.75) and compiles anchor-syn 0.30.1.
+[toolchain]
+channel = "1.79.0"

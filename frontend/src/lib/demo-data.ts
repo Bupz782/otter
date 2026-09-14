@@ -42,9 +42,10 @@ export function isDemoId(id: string): boolean {
 
 export const demoPortfolio: Portfolio = {
   address: DEMO_ADDRESS,
-  totalBalance: 12480.52,
-  allocated: 9196,
-  available: 3284.52,
+  // Balances are displayed in ETH (the API converts wei at the boundary).
+  totalBalance: 3.42,
+  allocated: 2.5,
+  available: 0.92,
   yieldEarned: 312.44,
   mevRebates: 87.19,
   positions: [
