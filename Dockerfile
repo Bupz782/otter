@@ -11,6 +11,10 @@ FROM rustlang/rust:nightly-bookworm AS builder
 
 WORKDIR /app
 
+# Extra Cargo features for the API build. Set OTTER_CARGO_FEATURES=infrastructure/solana
+# to compile the Solana attestation adapter into the image (docs/SOLANA.md).
+ARG OTTER_CARGO_FEATURES=""
+
 RUN apt-get update \
     && apt-get install -y pkg-config libssl-dev clang libclang-dev cmake curl \
     && rm -rf /var/lib/apt/lists/*
@@ -20,7 +24,7 @@ COPY crates ./crates
 COPY delegation_circuit ./delegation_circuit
 COPY crates/infrastructure/migrations ./crates/infrastructure/migrations
 
-RUN cargo build --release -p interfaces --bin otter_api
+RUN cargo build --release -p interfaces --bin otter_api ${OTTER_CARGO_FEATURES:+--features "$OTTER_CARGO_FEATURES"}
 
 # -----------------------------------------------------------------------------
 # Stage 2: Noir tooling
