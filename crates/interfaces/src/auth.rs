@@ -98,8 +98,11 @@ pub struct AuthService {
     challenges: Mutex<HashMap<String, Challenge>>,
     /// Address that always receives the `Owner` role.
     owner_address: Option<String>,
-    /// Extra role assignments beyond the default Viewer and the configured owner.
+    /// Extra role assignments beyond the default role and the configured owner.
     roles: Mutex<HashMap<String, Role>>,
+    /// Role given to addresses with no explicit assignment. Viewer by default;
+    /// the demo stack sets Admin so every signed-in tester can write.
+    default_role: Role,
     token_ttl_hours: i64,
     refresh_ttl_days: i64,
 }
@@ -120,9 +123,16 @@ impl AuthService {
             challenges: Mutex::new(HashMap::new()),
             owner_address: owner_address.map(|a| a.to_lowercase()),
             roles: Mutex::new(HashMap::new()),
+            default_role: Role::Viewer,
             token_ttl_hours,
             refresh_ttl_days: 30,
         }
+    }
+
+    /// Role given to addresses with no explicit assignment (default Viewer).
+    pub fn with_default_role(mut self, role: Role) -> Self {
+        self.default_role = role;
+        self
     }
 
     /// Generate a new SIWE challenge message for the given Ethereum address.
@@ -221,7 +231,8 @@ impl AuthService {
     }
 
     /// Resolve the role for an address: the configured owner is always Owner,
-    /// otherwise look up an explicit assignment, otherwise default to Viewer.
+    /// otherwise look up an explicit assignment, otherwise the default role
+    /// (Viewer unless overridden, e.g. Admin in the demo stack).
     pub fn role_of(&self, address: &str) -> Role {
         let normalized = address.to_lowercase();
         if self
@@ -237,7 +248,7 @@ impl AuthService {
             .unwrap_or_else(|e| e.into_inner())
             .get(&normalized)
             .copied()
-            .unwrap_or(Role::Viewer)
+            .unwrap_or(self.default_role)
     }
 
     /// Promote or demote an address. Only the configured owner can assign roles.
@@ -368,6 +379,13 @@ mod tests {
         let auth = AuthService::new("secret".to_string(), 24, Some("0xOwner".to_string()));
         assert_eq!(auth.role_of("0xowner"), Role::Owner);
         assert_eq!(auth.role_of("0xother"), Role::Viewer);
+    }
+
+    #[test]
+    fn default_role_override_applies_to_unassigned_addresses() {
+        let auth = AuthService::new("secret".to_string(), 24, None).with_default_role(Role::Admin);
+        assert_eq!(auth.role_of("0xtester"), Role::Admin);
+        assert!(auth.role_of("0xtester").can_write());
     }
 
     #[test]
