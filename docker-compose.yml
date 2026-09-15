@@ -72,6 +72,9 @@ services:
       # the default below is a DEMO value — override it everywhere else.
       OTTER_AUTH_ENABLED: "${OTTER_AUTH_ENABLED:-true}"
       OTTER_JWT_SECRET: "${OTTER_JWT_SECRET:-otter-demo-jwt-secret-not-for-production}"
+      # Demo: every signed-in wallet can write (create intents, delegations,
+      # fork strategies). Keep "viewer" for any non-demo deployment.
+      OTTER_AUTH_DEFAULT_ROLE: "${OTTER_AUTH_DEFAULT_ROLE:-admin}"
       # Solana attestation adapter (docs/SOLANA.md). No effect unless the image
       # was built with OTTER_CARGO_FEATURES=infrastructure/solana.
       # Local compose demo: use `--profile solana` and set

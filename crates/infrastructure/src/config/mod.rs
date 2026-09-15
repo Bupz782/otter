@@ -150,6 +150,12 @@ pub struct Config {
     #[serde(default)]
     pub auth_owner_address: Option<String>,
 
+    /// Role assigned to authenticated addresses with no explicit assignment:
+    /// "viewer" (default), "admin" or "owner". The demo stack sets "admin" so
+    /// every signed-in tester can create intents/delegations.
+    #[serde(default)]
+    pub auth_default_role: Option<String>,
+
     /// CORS allowed origins. "*" means any origin. Comma-separated list otherwise.
     #[serde(default = "default_cors_allowed_origins")]
     pub cors_allowed_origins: String,
@@ -293,6 +299,7 @@ impl Default for Config {
             networks: Vec::new(),
             solvency_registry_address: None,
             auth_owner_address: None,
+            auth_default_role: None,
             model_path: "models/Qwen3-8B-Q4_K_M.gguf".to_string(),
             monitoring_interval_secs: default_monitoring_interval(),
             log_level: default_log_level(),
@@ -568,6 +575,9 @@ impl Config {
         }
         if let Ok(val) = std::env::var("OTTER_AUTH_OWNER_ADDRESS") {
             self.auth_owner_address = Some(val);
+        }
+        if let Ok(val) = std::env::var("OTTER_AUTH_DEFAULT_ROLE") {
+            self.auth_default_role = Some(val);
         }
         if let Ok(val) = std::env::var("OTTER_CORS_ALLOWED_ORIGINS") {
             self.cors_allowed_origins = val;

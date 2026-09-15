@@ -946,11 +946,24 @@ async fn main() {
                 std::process::exit(1);
             }
         };
-        Some(Arc::new(AuthService::new(
-            secret,
-            config.jwt_ttl_hours,
-            config.auth_owner_address.clone(),
-        )))
+        let default_role = config
+            .auth_default_role
+            .as_deref()
+            .map(|raw| {
+                raw.parse::<interfaces::auth::Role>().unwrap_or_else(|err| {
+                    tracing::warn!(%err, value = %raw, "invalid OTTER_AUTH_DEFAULT_ROLE; falling back to viewer");
+                    interfaces::auth::Role::Viewer
+                })
+            })
+            .unwrap_or(interfaces::auth::Role::Viewer);
+        Some(Arc::new(
+            AuthService::new(
+                secret,
+                config.jwt_ttl_hours,
+                config.auth_owner_address.clone(),
+            )
+            .with_default_role(default_role),
+        ))
     } else {
         None
     };
