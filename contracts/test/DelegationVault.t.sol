@@ -6,6 +6,9 @@ import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {DelegationVerifier} from "../src/DelegationVerifier.sol";
 import {DelegationVault} from "../src/DelegationVault.sol";
 
+/// Helper: contract with no receive()/fallback — plain ETH transfers revert.
+contract RejectEther {}
+
 contract DelegationVaultTest is Test {
     DelegationVerifier public verifier;
     DelegationVault public vault;
@@ -214,6 +217,48 @@ contract DelegationVaultTest is Test {
         assertEq(vault.tokenBalances(alice, USDC_MAINNET), 5_000e6 - amount);
         assertEq(usdc.balanceOf(PROTOCOL_ROUTER), amount);
         assertTrue(vault.usedNonces(erc20DelegationHash, nonce));
+    }
+
+    function test_executeWithProof_native_revertsWhenRouterNotSet() public {
+        bytes memory proof = vm.readFileBinary("test/fixtures/proof.bin");
+        bytes32[] memory publicInputs = _loadPublicInputs();
+
+        vm.prank(alice);
+        vault.delegate(delegationHash, allowedIntents, maxAmounts, allowedProtocols, expiry, nonce);
+        vm.deal(alice, 10 ether);
+        vm.prank(alice);
+        vault.deposit{value: 10 ether}();
+
+        vm.warp(1_000_000 + vault.MAX_PROOF_AGE() / 2);
+        // No setProtocolRouter: the native path must refuse to execute.
+        vm.expectRevert(abi.encodeWithSelector(DelegationVault.ProtocolRouterNotSet.selector, 1));
+        vm.prank(agent);
+        vault.executeWithProof(proof, publicInputs);
+        assertEq(vault.balances(alice), 10 ether);
+    }
+
+    function test_executeWithProof_native_revertsWhenRouterRejectsEther() public {
+        bytes memory proof = vm.readFileBinary("test/fixtures/proof.bin");
+        bytes32[] memory publicInputs = _loadPublicInputs();
+
+        vm.prank(alice);
+        vault.delegate(delegationHash, allowedIntents, maxAmounts, allowedProtocols, expiry, nonce);
+        vm.deal(alice, 10 ether);
+        vm.prank(alice);
+        vault.deposit{value: 10 ether}();
+
+        // Router without receive()/fallback: the outgoing ETH transfer fails.
+        RejectEther rejecter = new RejectEther();
+        vault.setProtocolRouter(1, address(rejecter));
+        vm.warp(1_000_000 + vault.MAX_PROOF_AGE() / 2);
+
+        vm.expectRevert(DelegationVault.NativeTransferFailed.selector);
+        vm.prank(agent);
+        vault.executeWithProof(proof, publicInputs);
+
+        // The whole call reverts: the internal balance is unchanged.
+        assertEq(vault.balances(alice), 10 ether);
+        assertEq(address(rejecter).balance, 0);
     }
 
     function test_executeWithProof_erc20_revertsWhenRouterNotSet() public {
