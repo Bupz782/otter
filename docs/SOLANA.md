@@ -141,3 +141,23 @@ curl -X POST localhost:3001/api/v1/solana/attest \
 Devnet deployment is the same procedure with `--url https://api.devnet.solana.com`
 once the authority holds devnet SOL (public faucet rate-limits CLI airdrops —
 use https://faucet.solana.com).
+
+## Compose demo stack (`--profile solana`)
+
+The compose stack ships a localnet validator plus a one-shot initializer that
+airdrops to the fixture authority (`solana/fixtures/authority.json`,
+localnet-only, committed on purpose like the anvil demo keys) and deploys the
+committed `target/deploy/attestation_registry.so` at the `declare_id!`
+program address — no toolchain needed to run the demo:
+
+```bash
+OTTER_CARGO_FEATURES=infrastructure/solana \
+OTTER_SOLANA_ENABLED=true \
+OTTER_SOLANA_RPC_URL=http://solana-validator:8899 \
+OTTER_SOLANA_AUTHORITY_KEYPAIR=<base58 of solana/fixtures/authority.json> \
+docker compose --profile solana up --build -d
+```
+
+Then the Solana page and `POST /api/v1/solana/attest` work against the
+in-stack validator. The rebuild only happens once — the solana-enabled image
+is cached afterwards.
