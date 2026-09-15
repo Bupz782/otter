@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount, useSignMessage } from "wagmi";
+import { useAccount, useDisconnect, useSignMessage } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { api, setAuthBypass, setAuthTokens } from "@/lib/api";
 import { useAuthToken } from "@/hooks/useAuthToken";
@@ -8,6 +8,7 @@ import { Loader2, LogOut, ShieldCheck } from "lucide-react";
 
 export function AppConnectButton() {
   const { address, isConnected, status } = useAccount();
+  const { disconnect } = useDisconnect();
   const { signMessageAsync } = useSignMessage();
   const { isAuthenticated: authenticated } = useAuthToken();
   const [authLoading, setAuthLoading] = useState(false);
@@ -73,10 +74,38 @@ export function AppConnectButton() {
     setAuthTokens(null, null);
     setAuthBypass(false);
     setAuthError(null);
+    // Auth-disabled demo: signing out must also disconnect the wallet,
+    // otherwise the bypass effect re-engages immediately (wallet still
+    // connected) and the user can never actually log out — or, if the bypass
+    // was cleared first, the effect never re-fires and reconnect requires a
+    // page reload. Disconnecting drives the cleanup via the status effect.
+    if (authEnabled === false) disconnect();
     };
 
   if (!isConnected) {
     return <ConnectButton accountStatus="address" chainStatus="icon" showBalance={false} />;
+  }
+
+  // Auth disabled (local demo default): the wallet connection IS the session —
+  // the SIWE round-trip does not exist server-side ("authentication disabled"),
+  // so the Sign In button must never render here. Sign out stays available and
+  // disconnects the wallet for real (see handleSignOut), giving a working
+  // connect ↔ disconnect loop without a page reload.
+  if (authEnabled === false) {
+    return (
+      <div className="flex items-center gap-2">
+        <ConnectButton accountStatus="address" chainStatus="icon" showBalance={false} />
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleSignOut}
+          className="rounded-full text-muted-foreground hover:text-foreground"
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          Sign out
+        </Button>
+      </div>
+    );
   }
 
   if (!authenticated) {
