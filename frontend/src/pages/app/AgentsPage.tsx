@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Bot, Lock, ArrowRight, BookOpen, ShieldCheck, KeyRound } from "lucide-react";
+import { Bot, Lock, ArrowRight, ShieldCheck, KeyRound } from "lucide-react";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -11,9 +11,7 @@ import { StatCard } from "@/components/app/StatCard";
 import { DataRow } from "@/components/app/DataRow";
 import { EmptyState } from "@/components/app/EmptyState";
 import { ErrorState } from "@/components/app/ErrorState";
-import { DemoDataNotice } from "@/components/app/DemoDataNotice";
 import { useAgents } from "@/hooks/useAgents";
-import { useStrategies } from "@/hooks/useStrategies";
 import { useDelegations } from "@/hooks/useDelegations";
 import { useAuthToken } from "@/hooks/useAuthToken";
 import { api } from "@/lib/api";
@@ -76,13 +74,7 @@ function useAgentPubkey() {
 
 export function AgentsPage() {
   useDocumentTitle("The Agent");
-  const { data: agents, isLoading, error, refetch, isBackendDemo } = useAgents();
-  const {
-    data: strategies,
-    isLoading: strategiesLoading,
-    error: strategiesError,
-    refetch: refetchStrategies,
-  } = useStrategies();
+  const { data: agents, isLoading, error, refetch } = useAgents();
   const pubkey = useAgentPubkey();
   const { isAuthenticated } = useAuthToken();
   const { data: delegations } = useDelegations();
@@ -97,12 +89,6 @@ export function AgentsPage() {
           subtitle="The execution agent operated by Otter. You sign the limits — it executes your intents inside them, and nowhere else. Every action is proven in ZK and verified on-chain."
         />
       </FadeIn>
-
-      {isBackendDemo && (
-        <FadeIn delay={0.05}>
-          <DemoDataNotice />
-        </FadeIn>
-      )}
 
       <FadeIn delay={0.05}>
         <SectionCard className="py-4">
@@ -160,31 +146,21 @@ export function AgentsPage() {
 
       {agent && !isLoading && !error && (
         <FadeIn delay={0.15}>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-2">
             <StatCard
               icon={ShieldCheck}
               label="Proofs submitted"
               value={agent.proofsSubmitted.toLocaleString()}
               className="h-full"
             />
-            <StatCard
-              icon={BookOpen}
-              label="Yield routed"
-              value={`$${(agent.yieldGenerated / 1_000_000).toFixed(1)}M`}
-              className="h-full"
-            />
-            <StatCard
-              icon={Lock}
-              label="MEV rebated"
-              value={`$${agent.mevCaptured.toLocaleString()}`}
-              className="h-full"
-            />
-            <StatCard
-              icon={Bot}
-              label="Uptime"
-              value={`${agent.uptime}%`}
-              className="h-full"
-            />
+            {agent.bond > 0 && (
+              <StatCard
+                icon={Lock}
+                label="Bond"
+                value={`$${agent.bond.toLocaleString()}`}
+                className="h-full"
+              />
+            )}
           </div>
         </FadeIn>
       )}
@@ -217,52 +193,6 @@ export function AgentsPage() {
         </FadeIn>
       )}
 
-      <FadeIn delay={0.2}>
-        <SectionCard
-          title="Official strategies"
-          subtitle="Ready-to-use intent templates published by the protocol, executed by the agent inside your own signed limits."
-        >
-          {strategiesLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
-            </div>
-          ) : strategiesError ? (
-            <ErrorState subject="strategies" onRetry={refetchStrategies} />
-          ) : strategies.length === 0 ? (
-            <EmptyState
-              title="No strategies yet"
-              description="The protocol will publish new intent templates over time."
-            />
-          ) : (
-            <div className="space-y-3">
-              {strategies.map((strategy) => (
-                <DataRow key={strategy.id}>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{strategy.title}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {strategy.description}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground tabular-nums">
-                      {strategy.copies.toLocaleString()} users · $
-                      {strategy.totalVolume.toLocaleString()} volume
-                      {strategy.apy > 0 && (
-                        <span className="text-emerald-400"> · +{strategy.apy}% APY</span>
-                      )}
-                    </p>
-                  </div>
-                  <Button asChild variant="ghost" size="sm" className="shrink-0">
-                    <Link to={`/app/intents/new?strategy=${strategy.id}`}>
-                      Use strategy
-                      <ArrowRight className="ml-1 h-3.5 w-3.5" />
-                    </Link>
-                  </Button>
-                </DataRow>
-              ))}
-            </div>
-          )}
-        </SectionCard>
-      </FadeIn>
     </div>
   );
 }

@@ -131,6 +131,18 @@ pub fn parse_intent(json_response: &str) -> Result<ConditionalIntent, serde_json
     serde_json::from_str(extract_json_candidate(json_response))
 }
 
+/// Detect the model's explicit refusal: per the system prompt, an
+/// out-of-vocabulary request must be answered with exactly
+/// `{"error": "unsupported"}`. A valid `ConditionalIntent` never carries a
+/// top-level `error` field, so this cannot false-positive on real parses.
+pub fn is_unsupported_refusal(output: &str) -> bool {
+    let candidate = extract_json_candidate(output);
+    serde_json::from_str::<serde_json::Value>(candidate)
+        .ok()
+        .and_then(|v| v.get("error")?.as_str().map(|s| s == "unsupported"))
+        .unwrap_or(false)
+}
+
 pub struct Tokenizer<'a>(pub &'a LlamaModel);
 
 impl<'a> Tokenizer<'a> {
@@ -331,6 +343,27 @@ mod tests {
 
         let parsed = parse_intent(&json).unwrap();
         assert_eq!(parsed, original);
+    }
+
+    #[test]
+    fn is_unsupported_refusal_detects_bare_and_chatty_refusals() {
+        assert!(is_unsupported_refusal(r#"{"error": "unsupported"}"#));
+        assert!(is_unsupported_refusal(
+            "<think>\n\n</think>\n\n{\"error\": \"unsupported\"}"
+        ));
+        assert!(is_unsupported_refusal(
+            "```json\n{\"error\":\"unsupported\"}\n```"
+        ));
+    }
+
+    #[test]
+    fn is_unsupported_refusal_ignores_valid_intents_and_prose() {
+        let valid = r#"{"intent": { "Stake": { "asset": "Eth", "amount": 5, "protocol": "Aave" } }, "condition": null}"#;
+        assert!(!is_unsupported_refusal(valid));
+        assert!(!is_unsupported_refusal("no json here"));
+        assert!(!is_unsupported_refusal(""));
+        // A different error payload is not the refusal contract.
+        assert!(!is_unsupported_refusal(r#"{"error": "timeout"}"#));
     }
 
     #[test]

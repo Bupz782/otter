@@ -18,6 +18,7 @@ impl From<IntentParserError> for ParseIntentError {
             IntentParserError::ParsingFailed(msg) => ParseIntentError::ParsingFailed(msg),
             IntentParserError::InvalidFormat(msg) => ParseIntentError::InvalidIntent(msg),
             IntentParserError::LlmError(msg) => ParseIntentError::LlmError(msg),
+            IntentParserError::Unsupported(msg) => ParseIntentError::InvalidIntent(msg),
         }
     }
 }
